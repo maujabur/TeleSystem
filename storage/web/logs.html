@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Device Logs</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7eee9;
+        --panel: #fffaf7;
+        --text: #35231d;
+        --muted: #7b6258;
+        --line: #e1c8bb;
+        --primary: #b84e2f;
+        --primary-dark: #84331f;
+        --error-bg: #fdecea;
+        --error-text: #8b2d2d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      .shell {
+        width: min(1000px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 24px 0;
+      }
+
+      .tech-nav {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 18px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tech-nav a {
+        color: var(--primary-dark);
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .tech-nav .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 28px;
+      }
+
+      .status {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .badges {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        width: 100%;
+        min-width: 0;
+        min-height: 30px;
+        padding: 5px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--primary-dark);
+        font-size: 13px;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      button {
+        min-height: 42px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--primary);
+        color: #fff;
+        font: inherit;
+        font-weight: 700;
+      }
+
+      button:hover {
+        background: var(--primary-dark);
+      }
+
+      .log-output {
+        min-height: 70vh;
+        margin: 0;
+        padding: 16px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--text);
+        box-shadow: 0 10px 28px rgba(98, 47, 28, 0.1);
+        font: 13px/1.45 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      }
+
+      .log-line {
+        padding: 3px 0;
+        border-bottom: 1px solid rgba(225, 200, 187, 0.35);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .log-line:last-child {
+        border-bottom: 0;
+      }
+
+      .log-line.structured {
+        padding: 5px 0;
+      }
+
+      .log-segment {
+        display: inline-block;
+        margin: 2px 4px 2px 0;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: #fff4ee;
+      }
+
+      .log-segment:first-child {
+        background: transparent;
+        padding-left: 0;
+        color: var(--primary-dark);
+        font-weight: 700;
+      }
+
+      .banner {
+        display: none;
+        margin-bottom: 16px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+
+      .banner.show {
+        display: block;
+      }
+
+      .audio-card {
+        margin-bottom: 16px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .audio-card h2 {
+        margin: 0 0 10px;
+        font-size: 15px;
+        color: var(--primary-dark);
+      }
+
+      .audio-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+      }
+
+      .audio-item {
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff4ee;
+      }
+
+      .audio-label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .audio-value {
+        display: block;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .error {
+        background: var(--error-bg);
+        color: var(--error-text);
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          width: min(100% - 24px, 1000px);
+          padding: 16px 0;
+        }
+
+        header {
+          display: grid;
+        }
+
+        .tech-nav {
+          display: grid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="tech-nav" aria-label="Navegacao tecnica">
+        <a href="/">Inicio</a>
+        <div class="links">
+          <a href="/status">Status</a>
+          <a href="/networks">Redes</a>
+          <a href="/ota">OTA</a>
+          <a href="/settings">Ajustes</a>
+          <a href="/logs">Logs</a>
+        </div>
+      </nav>
+
+      <header>
+        <div>
+          <h1>Device Logs</h1>
+          <p class="status" id="status">Atualizando automaticamente.</p>
+        </div>
+        <div>
+          <button type="button" onclick="loadLogs()">Atualizar</button>
+          <button type="button" onclick="restartDevice()">Restart</button>
+        </div>
+      </header>
+
+      <div id="banner" class="banner"></div>
+      <div class="badges">
+        <span class="badge" id="firmwareBadge">Firmware: --</span>
+        <span class="badge" id="wifiBadge">Wi-Fi: --</span>
+        <span class="badge" id="acrBadge">ACR: --</span>
+      </div>
+
+      <section class="audio-card" aria-label="Detalhes de audio">
+        <h2>Audio Details</h2>
+        <div class="audio-grid">
+          <div class="audio-item">
+            <span class="audio-label">Clipped</span>
+            <span class="audio-value" id="audioClipped">--</span>
+          </div>
+          <div class="audio-item">
+            <span class="audio-label">RMS</span>
+            <span class="audio-value" id="audioRms">--</span>
+          </div>
+          <div class="audio-item">
+            <span class="audio-label">AI Prediction</span>
+            <span class="audio-value" id="audioPrediction">--</span>
+          </div>
+          <div class="audio-item">
+            <span class="audio-label">Silence</span>
+            <span class="audio-value" id="audioSilence">--</span>
+          </div>
+        </div>
+      </section>
+
+      <div id="logOutput" class="log-output">Carregando logs...</div>
+    </main>
+
+    <script>
+      function showError(text) {
+        const el = document.getElementById("banner");
+        el.className = "banner show error";
+        el.textContent = text;
+      }
+
+      function renderLogs(text) {
+        const output = document.getElementById("logOutput");
+        const lines = (text || "Sem logs no buffer.").split(/\r?\n/).reverse();
+        output.textContent = "";
+
+        lines.forEach((line) => {
+          const row = document.createElement("div");
+          row.className = "log-line" + (line.includes(" | ") ? " structured" : "");
+
+          if (line.includes(" | ")) {
+            line.split(" | ").forEach((part) => {
+              const segment = document.createElement("span");
+              segment.className = "log-segment";
+              segment.textContent = part;
+              row.appendChild(segment);
+            });
+          } else {
+            row.textContent = line;
+          }
+
+          output.appendChild(row);
+        });
+      }
+
+      function formatPrediction(status) {
+        const prediction = status.acr_last_prediction || "--";
+        const probability = Number(status.acr_last_ai_probability);
+        if (Number.isFinite(probability)) {
+          return prediction + " (" + probability.toFixed(2) + "%)";
+        }
+        return prediction;
+      }
+
+      async function loadLogs() {
+        try {
+          const resp = await fetch("/api/logs", { cache: "no-store" });
+          const text = await resp.text();
+          const output = document.getElementById("logOutput");
+          const shouldStickTop = output.scrollTop <= 24;
+          renderLogs(text);
+          if (shouldStickTop) {
+            output.scrollTop = 0;
+          }
+          document.getElementById("status").textContent =
+            "Ultima atualizacao: " + new Date().toLocaleTimeString();
+        } catch (err) {
+          showError("Nao foi possivel carregar logs.");
+        }
+      }
+
+      async function loadStatus() {
+        try {
+          const [statusResp, acrStatusResp] = await Promise.all([
+            fetch("/api/status", { cache: "no-store" }),
+            fetch("/api/acr/status", { cache: "no-store" }),
+          ]);
+          const statusData = await statusResp.json();
+          const acrStatusData = await acrStatusResp.json();
+          const status = { ...statusData, ...acrStatusData };
+          document.getElementById("firmwareBadge").textContent =
+            "Firmware: " + (status.firmware_version || "--");
+          document.getElementById("wifiBadge").textContent =
+            "Wi-Fi: " + (status.wifi_ready ? status.ssid || "conectado" : status.state || "--");
+
+          if (status.acr_retry_pending) {
+            const remainingSec = Math.ceil(Math.max(0, status.acr_retry_remaining_ms || 0) / 1000);
+            document.getElementById("acrBadge").textContent =
+              "ACR: retry em " + remainingSec + "s";
+          } else {
+            document.getElementById("acrBadge").textContent =
+              "ACR: " + (status.acr_status || "--") +
+              (status.acr_uploaded_name ? " | " + status.acr_uploaded_name : "");
+          }
+
+          const rms = Number(status.audio_last_rms);
+          document.getElementById("audioClipped").textContent =
+            status.audio_last_clipped ? "Sim" : "Nao";
+          document.getElementById("audioRms").textContent =
+            Number.isFinite(rms) ? rms.toFixed(1) : "--";
+          document.getElementById("audioPrediction").textContent = formatPrediction(status);
+          document.getElementById("audioSilence").textContent =
+            status.audio_last_silence_discarded ? "Descartado" : "Normal";
+
+        } catch (err) {
+          document.getElementById("firmwareBadge").textContent = "Firmware: indisponivel";
+          document.getElementById("wifiBadge").textContent = "Wi-Fi: indisponivel";
+          document.getElementById("acrBadge").textContent = "ACR: indisponivel";
+          document.getElementById("audioClipped").textContent = "--";
+          document.getElementById("audioRms").textContent = "--";
+          document.getElementById("audioPrediction").textContent = "--";
+          document.getElementById("audioSilence").textContent = "--";
+        }
+      }
+
+      async function restartDevice() {
+        if (!confirm("Reiniciar a placa agora?")) {
+          return;
+        }
+
+        const resp = await fetch("/api/restart", { method: "POST" });
+        const text = await resp.text();
+        document.getElementById("status").textContent = text;
+      }
+
+      loadLogs();
+      loadStatus();
+      setInterval(loadLogs, 2000);
+      setInterval(loadStatus, 2000);
+    </script>
+  </body>
+</html>

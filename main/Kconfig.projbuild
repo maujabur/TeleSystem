@@ -1,0 +1,665 @@
+menu "WiFi Config"
+
+config ESP_WIFI_SSID
+    string "WiFi SSID"
+    default "Mau"
+
+config ESP_WIFI_PASSWORD
+    string "WiFi Password"
+    default "123456789d"
+
+config WIFI_PROVISIONING_SSID
+    string "Wi-Fi provisioning AP SSID"
+    default "AI-Skips-AI-007"
+
+config WIFI_MODEM_SLEEP
+    bool "Enable Wi-Fi modem sleep in station mode"
+    default y
+    help
+        Habilita WIFI_PS_MIN_MODEM quando o dispositivo estiver conectado
+        apenas como station. O AP de provisionamento continua com power save
+        desativado para manter o portal responsivo.
+
+config WIFI_MULTI_NETWORK_CREDENTIALS
+    bool "Enable multi-network credentials storage (experimental)"
+    default n
+    help
+        Mantem suporte legado por padrao e habilita armazenamento de ate
+        8 redes com prioridade quando ativado. O formato antigo (ssid/password)
+        e migrado automaticamente para o formato novo na primeira leitura.
+
+config WIFI_STA_MAX_RETRY
+    int "Max STA reconnect retries before provisioning fallback"
+    range 1 20
+    default 3
+    help
+        Numero maximo de tentativas de reconexao STA antes de entrar
+        automaticamente no AP de provisionamento.
+
+config WIFI_APSTA_POLICY
+    int "APSTA policy after STA connect"
+    range 0 2
+    default 1
+    help
+        0 = always_on (mantem APSTA),
+        1 = auto_timeout (mantem APSTA por janela e depois muda para STA),
+        2 = sta_only (desativa AP imediatamente apos conectar STA).
+
+config WIFI_APSTA_GRACE_PERIOD_S
+    int "APSTA auto-timeout grace period (seconds)"
+    range 30 3600
+    default 600
+    help
+        Janela de permanencia em APSTA quando a politica estiver em
+        auto_timeout.
+
+config WEB_PORTAL_ENABLE_LOGS_ENDPOINT
+    bool "Enable /api/logs endpoint"
+    default y
+    help
+        Mantem a API de logs disponivel no portal tecnico. Recomendado
+        desativado para builds de release.
+
+config WEB_PORTAL_EXPOSE_NETWORK_IDENTIFIERS
+    bool "Expose SSID/IP identifiers in technical APIs"
+    default n
+    help
+        Quando desativado, /api/status e APIs tecnicas relacionadas evitam
+        expor SSID/IP/provisioning_ssid diretamente.
+
+config WEB_PORTAL_DETAILED_HTTP_ERRORS
+    bool "Return detailed internal errors in HTTP responses"
+    default n
+    help
+        Quando desativado, endpoints tecnicos retornam mensagens genericas
+        para falhas internas, reduzindo exposicao de detalhes internos.
+
+config APP_LOG_BUFFER_CAPTURE_DEBUG
+    bool "Capture DEBUG/VERBOSE logs in /api/logs buffer"
+    default n
+    help
+        Quando desativado, o buffer usado por /api/logs ignora linhas de
+        DEBUG/VERBOSE para reduzir ruido e volume.
+
+config APP_ACR_LOG_HEAP_SNAPSHOT
+    bool "Log ACR heap snapshots during upload"
+    default n
+    help
+        Quando ativado, o cliente ACR registra snapshots de heap antes de
+        uploads HTTP e em falhas de abertura de conexao.
+
+config BOOT_WIFI_CONFIG_BUTTON_GPIO
+    int "Boot Wi-Fi configuration button GPIO"
+    range 0 48
+    default 3
+
+config BOOT_WIFI_CONFIG_BUTTON_ACTIVE_LEVEL
+    int "Boot Wi-Fi configuration button active level"
+    range 0 1
+    default 1
+    help
+        Use 0 para botao ativo em nivel baixo, normalmente ligado ao GND
+        com pull-up interno. Use 1 para botao ativo em nivel alto.
+
+config BOOT_WIFI_CONFIG_BUTTON_SETTLE_MS
+    int "Boot Wi-Fi configuration button settle time (ms)"
+    range 0 1000
+    default 20
+
+config BOOT_WIFI_CONFIG_BUTTON_SAMPLE_COUNT
+    int "Boot Wi-Fi configuration button sample count"
+    range 1 20
+    default 5
+
+config BOOT_WIFI_CONFIG_BUTTON_SAMPLE_INTERVAL_MS
+    int "Boot Wi-Fi configuration button sample interval (ms)"
+    range 0 1000
+    default 10
+
+endmenu
+
+menu "Status LED Config"
+
+config STATUS_LED_ENABLED
+    bool "Enable WS28xx status LED"
+    default y
+
+config STATUS_LED_GPIO
+    int "Status LED GPIO"
+    depends on STATUS_LED_ENABLED
+    range 0 48
+    default 48
+
+config STATUS_LED_COUNT
+    int "Status LED count"
+    depends on STATUS_LED_ENABLED
+    range 1 32
+    default 1
+
+config STATUS_LED_BRIGHTNESS
+    int "Status LED brightness"
+    depends on STATUS_LED_ENABLED
+    range 0 255
+    default 48
+    help
+        Global brightness scaler. 255 keeps the configured colors unchanged.
+
+choice STATUS_LED_COLOR_ORDER
+    prompt "Status LED color order"
+    depends on STATUS_LED_ENABLED
+    default STATUS_LED_COLOR_ORDER_GRB
+    help
+        Ordem fisica dos canais no LED WS28xx. As cores configuradas
+        continuam em RGB no formato 0xRRGGBB; esta opcao define a ordem
+        enviada no fio.
+
+config STATUS_LED_COLOR_ORDER_RGB
+    bool "RGB"
+
+config STATUS_LED_COLOR_ORDER_RBG
+    bool "RBG"
+
+config STATUS_LED_COLOR_ORDER_GRB
+    bool "GRB"
+
+config STATUS_LED_COLOR_ORDER_GBR
+    bool "GBR"
+
+config STATUS_LED_COLOR_ORDER_BRG
+    bool "BRG"
+
+config STATUS_LED_COLOR_ORDER_BGR
+    bool "BGR"
+
+endchoice
+
+config STATUS_LED_RMT_RESOLUTION_HZ
+    int "Status LED RMT resolution (Hz)"
+    depends on STATUS_LED_ENABLED
+    range 1000000 40000000
+    default 10000000
+
+config STATUS_LED_TASK_STACK_SIZE
+    int "Status LED task stack size"
+    depends on STATUS_LED_ENABLED
+    range 2048 8192
+    default 3072
+
+config STATUS_LED_TASK_PRIORITY
+    int "Status LED task priority"
+    depends on STATUS_LED_ENABLED
+    range 1 10
+    default 3
+
+config STATUS_LED_BOOT_COLOR
+    hex "Boot color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x202020
+
+config STATUS_LED_WIFI_CONNECTING_COLOR
+    hex "Wi-Fi connecting color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x0040FF
+
+config STATUS_LED_WIFI_PROVISIONING_COLOR
+    hex "Wi-Fi provisioning color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFF9000
+
+config STATUS_LED_WIFI_CONNECTED_COLOR
+    hex "Wi-Fi connected color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x00B050
+
+config STATUS_LED_ERROR_COLOR
+    hex "Error color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFF0000
+
+config STATUS_LED_ACR_UPLOADING_COLOR
+    hex "ACR uploading color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x8000FF
+
+config STATUS_LED_ACR_WAITING_RESULT_COLOR
+    hex "ACR waiting result color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x00C8FF
+
+config STATUS_LED_ACR_RESULT_HUMAN_COLOR
+    hex "ACR human result color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x00FF00
+
+config STATUS_LED_ACR_RESULT_AI_COLOR
+    hex "ACR AI result color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFF00A0
+
+config STATUS_LED_BT_NEXT_ACTIVE_COLOR
+    hex "BT_NEXT active color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFFFFFF
+
+config STATUS_LED_CAPTURE_OVERLAY_COLOR
+    hex "Capture overlay pulse color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFFFFFF
+
+config STATUS_LED_BOOT_ON_MS
+    int "Boot blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 100
+
+config STATUS_LED_BOOT_OFF_MS
+    int "Boot blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 900
+
+config STATUS_LED_WIFI_CONNECTING_ON_MS
+    int "Wi-Fi connecting blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 150
+
+config STATUS_LED_WIFI_CONNECTING_OFF_MS
+    int "Wi-Fi connecting blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 150
+
+config STATUS_LED_WIFI_PROVISIONING_ON_MS
+    int "Wi-Fi provisioning blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 700
+
+config STATUS_LED_WIFI_PROVISIONING_OFF_MS
+    int "Wi-Fi provisioning blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 700
+
+config STATUS_LED_ERROR_ON_MS
+    int "Error blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 100
+
+config STATUS_LED_ERROR_OFF_MS
+    int "Error blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 100
+
+config STATUS_LED_ACR_UPLOADING_ON_MS
+    int "ACR uploading blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 120
+
+config STATUS_LED_ACR_UPLOADING_OFF_MS
+    int "ACR uploading blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 120
+
+config STATUS_LED_ACR_WAITING_RESULT_ON_MS
+    int "ACR waiting result blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 250
+
+config STATUS_LED_ACR_WAITING_RESULT_OFF_MS
+    int "ACR waiting result blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 750
+
+config STATUS_LED_CAPTURE_OVERLAY_ON_MS
+    int "Capture overlay pulse on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 1 1000
+    default 40
+
+config STATUS_LED_CAPTURE_OVERLAY_OFF_MS
+    int "Capture overlay pulse off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 1 60000
+    default 760
+
+config STATUS_LED_LOW_BATTERY_COLOR
+    hex "Low battery color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFF2000
+
+config STATUS_LED_LOW_BATTERY_ON_MS
+    int "Low battery blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 200
+
+config STATUS_LED_LOW_BATTERY_OFF_MS
+    int "Low battery blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 800
+
+endmenu
+
+menu "Time Sync Config"
+
+config TIME_SYNC_ENABLED
+    bool "Enable NTP time synchronization"
+    default y
+    help
+        Habilita sincronizacao de data/hora via NTP apos conexao de rede.
+
+config TIME_SYNC_TIMEZONE
+    string "Default timezone (POSIX TZ string)"
+    depends on TIME_SYNC_ENABLED
+    default "<-03>3"
+    help
+        Fuso horario padrao usado para formatar horario local.
+        O valor padrao corresponde a Sao Paulo (UTC-3, sem horario de verao).
+
+config TIME_SYNC_MIN_VALID_YEAR
+    int "Minimum valid synchronized year"
+    depends on TIME_SYNC_ENABLED
+    range 2024 2100
+    default 2024
+    help
+        Ano minimo aceito para considerar o relogio sincronizado.
+
+config TIME_SYNC_RETRY_ATTEMPTS
+    int "NTP attempts per sync cycle"
+    depends on TIME_SYNC_ENABLED
+    range 1 10
+    default 3
+
+config TIME_SYNC_WAIT_PER_ATTEMPT_MS
+    int "Wait per NTP attempt (ms)"
+    depends on TIME_SYNC_ENABLED
+    range 1000 60000
+    default 5000
+
+config TIME_SYNC_RETRY_DELAY_MS
+    int "Delay before next sync cycle (ms)"
+    depends on TIME_SYNC_ENABLED
+    range 1000 86400000
+    default 60000
+
+config TIME_SYNC_IDLE_DELAY_MS
+    int "Idle delay when already synchronized/offline (ms)"
+    depends on TIME_SYNC_ENABLED
+    range 1000 60000
+    default 10000
+
+config TIME_SYNC_SERVER_0
+    string "Primary NTP server"
+    depends on TIME_SYNC_ENABLED
+    default "pool.ntp.org"
+
+config TIME_SYNC_SERVER_1
+    string "Secondary NTP server"
+    depends on TIME_SYNC_ENABLED
+    default "time.google.com"
+
+config TIME_SYNC_SERVER_2
+    string "Tertiary NTP server"
+    depends on TIME_SYNC_ENABLED
+    default "time.cloudflare.com"
+
+endmenu
+
+menu "Audio I2S Config"
+
+config AUDIO_I2S_MCLK_GPIO
+    int "Audio I2S MCLK GPIO"
+    range -1 48
+    default 9
+    help
+        GPIO usada para MCLK do I2S de captura. Use -1 para nao rotear MCLK.
+
+config AUDIO_I2S_DIN_GPIO
+    int "Audio I2S DIN GPIO"
+    range 0 48
+    default 8
+
+config AUDIO_I2S_WS_GPIO
+    int "Audio I2S WS/LRCK GPIO"
+    range 0 48
+    default 7
+
+config AUDIO_I2S_BCLK_GPIO
+    int "Audio I2S BCLK GPIO"
+    range 0 48
+    default 44
+
+endmenu
+
+menu "VBAT Monitor Config"
+
+config VBAT_MONITOR_ENABLED
+    bool "Enable VBAT monitor"
+    default n
+    help
+        Habilita monitoramento de tensao da bateria por ADC com calibracao.
+
+config VBAT_MONITOR_GPIO
+    int "VBAT ADC GPIO"
+    depends on VBAT_MONITOR_ENABLED
+    range 0 48
+    default 1
+    help
+        GPIO conectada ao divisor resistivo da bateria.
+
+config VBAT_MONITOR_MAX_INTERVAL_S
+    int "Max interval without VBAT measurement (seconds)"
+    depends on VBAT_MONITOR_ENABLED
+    range 0 86400
+    default 120
+    help
+        Tempo maximo sem tentativa de medicao. Use 0 para desabilitar.
+
+config VBAT_MONITOR_ON_BOOT
+    bool "Measure at startup"
+    depends on VBAT_MONITOR_ENABLED
+    default y
+
+config VBAT_MONITOR_ON_BEFORE_WIFI_PS_EXIT
+    bool "Measure before leaving Wi-Fi power save"
+    depends on VBAT_MONITOR_ENABLED
+    default y
+
+config VBAT_MONITOR_ON_AFTER_ACR_TX
+    bool "Measure after ACR transmission"
+    depends on VBAT_MONITOR_ENABLED
+    default y
+
+config VBAT_MONITOR_ON_AFTER_AUDIO_CAPTURE
+    bool "Measure after audio capture"
+    depends on VBAT_MONITOR_ENABLED
+    default y
+
+config VBAT_MONITOR_ON_MAX_INTERVAL
+    bool "Measure when max interval elapses"
+    depends on VBAT_MONITOR_ENABLED
+    default y
+
+config VBAT_SHUTDOWN_ENABLED
+    bool "Enable low-battery shutdown"
+    depends on VBAT_MONITOR_ENABLED
+    default y
+    help
+        Quando habilitado, o sistema desliga os perifericos via POWER_GOOD
+        e entra em deep sleep (sem wakeup por timer) ao detectar tensao
+        critica por tempo suficiente.
+
+config VBAT_SHUTDOWN_THRESHOLD_MV
+    int "Low-battery shutdown threshold (mV)"
+    depends on VBAT_SHUTDOWN_ENABLED
+    range 2500 4200
+    default 3500
+    help
+        Tensao da bateria abaixo da qual o desligamento e iniciado.
+        Recomendado: 3500 mV para Li-Ion/LiPo de celula unica.
+
+config VBAT_SHUTDOWN_DEBOUNCE_MS
+    int "Low-battery shutdown debounce time (ms)"
+    depends on VBAT_SHUTDOWN_ENABLED
+    range 100 10000
+    default 1000
+    help
+        Tempo minimo continuo com tensao abaixo do limiar para confirmar
+        desligamento. Evita falsos positivos por quedas de tensao sob carga.
+
+config VBAT_MAINTENANCE_MODE_MAX_MV
+    int "Maintenance mode detection threshold (mV)"
+    depends on VBAT_SHUTDOWN_ENABLED
+    range 0 2000
+    default 500
+    help
+        Se a tensao lida for menor ou igual a este valor, o sistema assume
+        modo de manutencao (bateria desconectada) e inibe o desligamento
+        automatico por bateria baixa.
+
+config VBAT_MONITOR_RDIV_RVCC
+    int "Voltage divider resistor Rvcc (ohms)"
+    depends on VBAT_MONITOR_ENABLED
+    range 1 1000000
+    default 4640
+    help
+        Resistor entre VCC da bateria e o pino ADC no divisor de tensao.
+
+config VBAT_MONITOR_RDIV_RGND
+    int "Voltage divider resistor Rgnd (ohms)"
+    depends on VBAT_MONITOR_ENABLED
+    range 1 1000000
+    default 5620
+    help
+        Resistor entre o pino ADC e GND no divisor de tensao.
+
+endmenu
+
+menu "POWER_GOOD GPIO Config"
+
+config POWER_GOOD_GPIO_ENABLED
+    bool "Enable POWER_GOOD output GPIO"
+    default y
+    help
+        Habilita o sinal POWER_GOOD: GPIO de saida que alimenta perifericos
+        externos (ex: placa ADC I2S) via MOSFET. Seta alto ao inicializar
+        e baixo antes de entrar em deep sleep.
+
+config POWER_GOOD_GPIO
+    int "POWER_GOOD GPIO number"
+    depends on POWER_GOOD_GPIO_ENABLED
+    range 0 48
+    default 6
+    help
+        Numero da GPIO usada como sinal POWER_GOOD.
+
+config POWER_GOOD_ACTIVE_LEVEL
+    int "POWER_GOOD active level (1=high, 0=low)"
+    depends on POWER_GOOD_GPIO_ENABLED
+    range 0 1
+    default 1
+    help
+        Nivel logico que representa "perifericos ligados".
+        Use 1 para MOSFET ativo em nivel alto.
+
+endmenu
+
+menu "ACRCloud Config"
+
+config ACR_REGION
+    string "ACRCloud region"
+    default "us-west-2"
+
+config ACR_CONTAINER_ID
+    string "ACRCloud container ID"
+    default "30317"
+
+config ACR_BEARER_TOKEN
+    string "ACRCloud bearer token"
+    default ""
+
+config ACR_UPLOAD_PREFIX
+    string "ACRCloud upload filename prefix"
+    default "skips_007"
+    help
+        Prefixo usado no nome dos arquivos enviados ao ACRCloud quando
+        nenhum valor foi provisionado na NVS.
+
+config ACR_POLL_MAX_ATTEMPTS
+    int "Max polling attempts"
+    range 1 120
+    default 10
+    help
+        Numero maximo de consultas ao ACRCloud aguardando o resultado
+        do arquivo enviado.
+
+config ACR_POLL_DELAY_MS
+    int "Polling interval (ms)"
+    range 100 60000
+    default 2000
+    help
+        Intervalo, em milissegundos, entre as consultas ao ACRCloud
+        enquanto o arquivo ainda nao apareceu ou segue em processamento.
+
+config ACR_SUBMIT_RETRY_DELAY_MS
+    int "Submit retry interval after failure (ms)"
+    range 1000 3600000
+    default 60000
+    help
+        Intervalo, em milissegundos, antes de tentar novamente o envio
+        completo para a ACRCloud depois de uma falha.
+
+config ACR_AUTO_ENABLED
+    bool "Enable automatic ACR analysis by default"
+    default n
+    help
+        Habilita o ciclo automatico de captura e analise ACR ao iniciar.
+
+config ACR_AUTO_INTERVAL_MS
+    int "Automatic ACR analysis interval (ms)"
+    range 0 3600000
+    default 60000
+    help
+        Intervalo, em milissegundos, entre ciclos automaticos de captura
+        e analise ACR. Use 0 para iniciar o proximo ciclo imediatamente
+        apos o fim do anterior.
+
+config ACR_CAPTURE_DURATION_SECONDS
+    int "ACR capture duration (seconds)"
+    range 1 30
+    default 8
+    help
+        Duracao da captura de audio usada nos ciclos de analise ACR.
+
+config ACR_TRIGGER_GPIO
+    int "ACR trigger output GPIO"
+    range -1 48
+    default 2
+    help
+        GPIO acionada quando a politica ACR gera trigger. Use -1 para
+        desabilitar a saida fisica.
+
+config ACR_TRIGGER_ACTIVE_LEVEL
+    int "ACR trigger active level"
+    range 0 1
+    default 1
+    help
+        Nivel logico ativo da GPIO de trigger.
+
+config ACR_TRIGGER_PULSE_MS
+    int "ACR trigger pulse duration (ms)"
+    range 10 60000
+    default 2200
+    help
+        Duracao do pulso da GPIO de trigger quando o resultado ACR dispara.
+
+endmenu

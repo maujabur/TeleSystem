@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AI Skips AI Setup</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #eef2f0;
+        --panel: #ffffff;
+        --text: #1f2b31;
+        --muted: #65737a;
+        --line: #cfd9d6;
+        --primary: #155e63;
+        --primary-dark: #0f484c;
+        --accent: #8a5a00;
+        --ok-bg: #e8f7ef;
+        --ok-text: #1b6b44;
+        --error-bg: #fdecea;
+        --error-text: #8b2d2d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      .shell {
+        width: min(840px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 24px 0;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 28px;
+      }
+
+      p {
+        margin: 0;
+        line-height: 1.45;
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 5px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f8faf9;
+        color: var(--primary-dark);
+        font-size: 13px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 22px;
+        box-shadow: 0 10px 28px rgba(20, 42, 38, 0.08);
+      }
+
+      h2 {
+        margin: 0 0 14px;
+        font-size: 22px;
+      }
+
+      label {
+        display: block;
+        margin: 14px 0 6px;
+        font-weight: 700;
+      }
+
+      input,
+      select {
+        width: 100%;
+        min-height: 44px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcfc;
+        color: var(--text);
+        font: inherit;
+      }
+
+      button {
+        min-height: 42px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--primary);
+        color: #fff;
+        font-weight: 700;
+        font: inherit;
+      }
+
+      button:hover {
+        background: var(--primary-dark);
+      }
+
+      .secondary {
+        border: 1px solid var(--line);
+        background: #f8faf9;
+        color: var(--primary-dark);
+      }
+
+      .secondary:hover {
+        background: #edf3f1;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: end;
+      }
+
+      .actions {
+        display: grid;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .actions button {
+        flex: 1;
+      }
+
+      .banner {
+        display: none;
+        margin-top: 16px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+
+      .banner.show {
+        display: block;
+      }
+
+      .error {
+        background: var(--error-bg);
+        color: var(--error-text);
+      }
+
+      .ok {
+        background: var(--ok-bg);
+        color: var(--ok-text);
+      }
+
+      .meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .meta div {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        background: #f8faf9;
+      }
+
+      .meta span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+
+      .meta strong {
+        word-break: break-word;
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          width: min(100% - 24px, 840px);
+          padding: 16px 0;
+        }
+
+        header,
+        .row,
+        .actions,
+        .meta {
+          grid-template-columns: 1fr;
+        }
+
+        header {
+          display: grid;
+        }
+
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <h1>AI Skips AI Setup</h1>
+          <p class="status" id="statusText">Ultima atualizacao: --</p>
+        </div>
+        <span class="badge" id="provisioningBadge">Provisionamento: --</span>
+      </header>
+
+      <section class="panel" id="wifiPanel">
+        <h2>Conectar ao Wi-Fi</h2>
+
+        <label for="networkSelect">Redes encontradas</label>
+        <div class="row">
+          <select id="networkSelect">
+            <option value="">Carregando redes...</option>
+          </select>
+          <button class="secondary" id="refreshNetworksButton" type="button" onclick="loadNetworks()">Atualizar</button>
+        </div>
+
+        <label for="ssid">SSID</label>
+        <input id="ssid" maxlength="32" autocomplete="off">
+
+        <label for="password">Senha</label>
+        <input id="password" type="password" maxlength="64" autocomplete="current-password">
+
+        <div class="actions">
+          <button type="button" onclick="saveWifi()">Conectar</button>
+        </div>
+
+        <div id="wifiBanner" class="banner"></div>
+      </section>
+
+      <div class="meta">
+        <div>
+          <span>Rede atual</span>
+          <strong id="currentSsid">--</strong>
+        </div>
+        <div>
+          <span>IP</span>
+          <strong id="currentIp">--</strong>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      let lastWifiError = "";
+      let networkRefreshInProgress = false;
+      let pendingNetworkRefresh = false;
+      let queuedNetworkRefresh = false;
+
+      function showBanner(id, kind, text) {
+        const el = document.getElementById(id);
+        el.className = "banner show " + kind;
+        el.textContent = text;
+      }
+
+      function hideBanner(id) {
+        const el = document.getElementById(id);
+        el.className = "banner";
+        el.textContent = "";
+      }
+
+      function updateSelectedNetwork() {
+        const sel = document.getElementById("networkSelect");
+        if (sel.value) {
+          document.getElementById("ssid").value = sel.value;
+        }
+      }
+
+      function signalLabel(rssi) {
+        if (rssi >= -55) return "Excelente";
+        if (rssi >= -67) return "Bom";
+        if (rssi >= -75) return "Regular";
+        return "Fraco";
+      }
+
+      function hasListedNetworks(select) {
+        return Array.from(select.options).some((option) => option.value);
+      }
+
+      function renderNetworks(networks, currentSsid) {
+        const select = document.getElementById("networkSelect");
+
+        if (!networks || !networks.length) {
+          if (!hasListedNetworks(select)) {
+            select.innerHTML = '<option value="">Nenhuma rede encontrada</option>';
+          }
+          return;
+        }
+
+        select.innerHTML = '<option value="">Selecione uma rede</option>';
+        networks.forEach((net) => {
+          const option = document.createElement("option");
+          option.value = net.ssid;
+          option.textContent =
+            net.ssid +
+            " (" +
+            signalLabel(net.rssi) +
+            (net.auth_required ? ", protegida" : ", aberta") +
+            ")";
+          if (net.ssid === currentSsid) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        });
+      }
+
+      async function loadNetworks() {
+        if (networkRefreshInProgress) {
+          queuedNetworkRefresh = true;
+          return;
+        }
+
+        const select = document.getElementById("networkSelect");
+        const button = document.getElementById("refreshNetworksButton");
+        const originalText = button.textContent;
+
+        networkRefreshInProgress = true;
+        queuedNetworkRefresh = false;
+        button.disabled = true;
+        button.textContent = "Atualizando";
+
+        if (!hasListedNetworks(select)) {
+          select.innerHTML = '<option value="">Buscando redes...</option>';
+        }
+
+        try {
+          const currentSsid = document.getElementById("ssid").value;
+          const resp = await fetch("/api/wifi/networks");
+          const contentType = resp.headers.get("content-type") || "";
+          const data = contentType.includes("application/json") ? await resp.json() : {};
+
+          if (!resp.ok) {
+            if (!hasListedNetworks(select)) {
+              select.innerHTML = '<option value="">Nao foi possivel listar redes</option>';
+            }
+            showBanner("wifiBanner", "error", "Nao foi possivel atualizar a lista agora. Tente novamente em alguns segundos.");
+            return;
+          }
+
+          renderNetworks(data.networks, currentSsid);
+        } catch (err) {
+          const hadNetworks = hasListedNetworks(select);
+          if (!hasListedNetworks(select)) {
+            select.innerHTML = '<option value="">Erro ao buscar redes</option>';
+          }
+          showBanner(
+            "wifiBanner",
+            "error",
+            hadNetworks ?
+              "Nao foi possivel buscar redes agora. A lista anterior foi mantida." :
+              "Nao foi possivel buscar redes agora."
+          );
+        } finally {
+          button.disabled = false;
+          button.textContent = originalText;
+          networkRefreshInProgress = false;
+          if (queuedNetworkRefresh) {
+            loadNetworks();
+          }
+        }
+      }
+
+      async function refreshStatus() {
+        try {
+          const statusResp = await fetch("/api/status");
+          const status = await statusResp.json();
+          const ssidInput = document.getElementById("ssid");
+          const currentSsidInput = ssidInput.value.trim();
+
+          document.getElementById("provisioningBadge").textContent =
+            "Provisionamento: " + (status.provisioning_ssid || "--");
+          document.getElementById("currentSsid").textContent = status.ssid || "--";
+          document.getElementById("currentIp").textContent = status.ip || "--";
+          document.getElementById("statusText").textContent =
+            "Ultima atualizacao: " + new Date().toLocaleTimeString();
+
+          // Nao sobrescrever selecao do usuario; apenas preenche automatico quando vazio.
+          if (status.wifi_ready && status.ssid && currentSsidInput === "") {
+            ssidInput.value = status.ssid;
+          }
+
+          if (pendingNetworkRefresh && status.state !== "sta_connecting") {
+            pendingNetworkRefresh = false;
+            loadNetworks();
+          }
+
+          if (status.last_error) {
+            if (status.last_error !== lastWifiError) {
+              showBanner("wifiBanner", "error", status.last_error);
+              lastWifiError = status.last_error;
+            }
+          } else if (status.wifi_ready) {
+            showBanner("wifiBanner", "ok", "Wi-Fi conectado com sucesso.");
+            lastWifiError = "";
+          } else if (lastWifiError) {
+            hideBanner("wifiBanner");
+            lastWifiError = "";
+          }
+        } catch (err) {
+          document.getElementById("statusText").textContent = "Ultima atualizacao: indisponivel";
+        }
+      }
+
+      async function saveWifi() {
+        hideBanner("wifiBanner");
+        lastWifiError = "";
+
+        const ssidValue = document.getElementById("ssid").value.trim();
+        if (!ssidValue) {
+          showBanner("wifiBanner", "error", "Informe o SSID da rede.");
+          return;
+        }
+
+        const payload = {
+          ssid: ssidValue,
+          password: document.getElementById("password").value,
+        };
+
+        const resp = await fetch("/api/wifi", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const text = await resp.text();
+        showBanner("wifiBanner", resp.ok ? "ok" : "error", text);
+        pendingNetworkRefresh = true;
+        refreshStatus();
+      }
+
+      document
+        .getElementById("networkSelect")
+        .addEventListener("change", updateSelectedNetwork);
+
+      loadNetworks();
+      refreshStatus();
+      setInterval(refreshStatus, 3000);
+    </script>
+  </body>
+</html>

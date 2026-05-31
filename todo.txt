@@ -1,0 +1,65 @@
+- Evaluate OTA (over-the-air) update mechanism
+- Show battery level on / and /status when hardware/ADC path is defined.
+- Done: keep / as the user-facing web setup page; use /status, /settings and /logs as the discreet technical area.
+- Run AI detection automatically after a successful Wi-Fi connection
+- Evaluate turning off the portal after some time
+- Captive portal auto-open still varies by phone; if it does not open automatically, instruct user to open http://192.168.4.1
+- (not a priority) Create endpoint/button to erase ACR keys from NVS and return to menuconfig
+- Consider NVS encryption/flash encryption to better protect the token in the field
+- consider have 2 wav files captured, one as current and the other as next/working_on
+- Investigate periodic click/dropout in captured WAV later; initial mitigation was larger I2S DMA/write buffers, but root cause still needs confirmation.
+- Done: digital audio gain is now configurable via UI/API/NVS and applied in the capture pipeline.
+- Done: silence detection now uses RMS hysteresis configurable via UI/API/NVS to stabilize active_ms classification.
+- Done: reconnect STA after 3 consecutive ACR/network errors.
+- Done: extracted the autonomous audio/ACR loop from main.c into acr_orchestrator.
+- Done: treat /api/acr/run as a technical force_cycle command and only wake the orchestrator in safe states.
+- Review ACR trigger configuration defaults and persistence against the product decision of prediction_only for MVP.
+- Consider exposing the AI prediction values list via UI/NVS; currently the list is hardcoded.
+- Done: BT_NEXT output can be configured via UI/NVS and keeps the blocking pulse before the next capture cycle.
+- Done: Connectivity short-circuit in connectivity_controller now avoids redundant web_portal/LED sync when Wi-Fi state does not change.
+- Done: Connectivity STA retry count is configurable via Kconfig + NVS and /api/device/config endpoint, preserving default.
+- Done: Connectivity wifi_manager now uses a validated transition helper with invalid transition logging.
+- Done: Connectivity wifi_manager status snapshots now use explicit critical-section synchronization.
+- Done: Connectivity status now exposes reconnect and invalid transition counters in /api/status.
+- Done: Connectivity APSTA policy is configurable (always_on/auto_timeout/sta_only) via NVS and /api/device/config.
+- Done: UI now exposes connectivity controls (retry and APSTA policy) in /device-config and /settings.
+- Done: APSTA auto-timeout now has idle extension based on portal HTTP activity.
+- Deferred: Connectivity queue-based status_led migration (debug-only LED in current phase).
+- Done: LED hardening for removal - build now uses status_led stub when STATUS_LED_ENABLED is off.
+- Done: Security hardening baseline - /api/status and /api/device/config hide network identifiers by default; technical HTTP errors are generic by default; /api/logs can be disabled by Kconfig and now captures only useful logs (DEBUG/VERBOSE filtered).
+- Done: Build profiles added (dev default + release overlay) with defaults files sdkconfig.dev.defaults and sdkconfig.release.defaults. See BUILD_PROFILES.md for commands.
+- Dev build profile (explicit): idf.py -B build-dev -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.dev.defaults" build
+- Release build profile: idf.py -B build-release -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.release.defaults" build
+- Deferred: NVS encryption for token ACR (pilot 20 units; token rotation strategy acceptable for this scale).
+- i2s pins configurable on menuconfig
+
+
+== PHASE COMPLETION STATUS ==
+
+[P0][FASE 1] CONNECTIVITY STABILITY - COMPLETE
+  [✓] Formalizar transicoes do wifi_manager com helper de validacao e logs de transicao invalida.
+  [✓] Aplicar short-circuit no connectivity_controller para evitar sync redundante de web_portal/status_led.
+  [✓] Tornar retry de STA configuravel (Kconfig e opcional NVS), mantendo default atual.
+  [✓] Tornar snapshot de status Wi-Fi mais consistente sob concorrencia.
+
+[P1][FASE 2] OBSERVABILITY & ROBUSTNESS - COMPLETE (except LED deferred)
+  [✓] Adicionar contadores de reconexao Wi-Fi, transicao invalida e silencio descartado.
+  [✓] Definir politica explicita de APSTA versus STA-only apos conexao.
+  [✓] LED hardening para remocao - build stub quando STATUS_LED_ENABLED off.
+  [⏸] Avaliar migracao para fila de comandos no status_led [deferred; debug-only LED fase atual].
+
+[P1][FASE 3] SECURITY & MATURITY - IN PROGRESS
+  [✓] Revisar exposicao de dados sensiveis em APIs e logs (baseline hardening applied).
+  [✓] Build profiles (dev/release) com Kconfig flags para seguranca em release.
+  [⏸] NVS encryption para token ACR [deferred pos-piloto; token rotation acceptable 20 units].
+  [ ] Endpoint tecnico para limpeza de chaves ACR e retorno a defaults.
+  [✓] Audio: tornar ganho digital ajustavel e melhorar heuristica de silencio.
+  [ ] Audio: concluir investigacao de click/dropout com criterio de reproducao.
+
+Referencia de plano: docs/roadmap_melhorias_faseado.md
+
+== NEXT EXECUTABLE ==
+1. Validar Release build no ESP32-S3 real: /logs 404, SSID oculto, erros genéricos.
+2. [P2][Fase 3] Manutencao: endpoint cleanup ACR.
+3. Validacao operacional de producao.
+4. Click/dropout: investigar apenas se voltar a incomodar.

@@ -1,0 +1,37 @@
+#ifndef FIRMWARE_OTA_H
+#define FIRMWARE_OTA_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "esp_err.h"
+
+typedef enum {
+    FIRMWARE_OTA_STATE_IDLE = 0,
+    FIRMWARE_OTA_STATE_RUNNING,
+    FIRMWARE_OTA_STATE_SUCCESS,
+    FIRMWARE_OTA_STATE_FAILED,
+} firmware_ota_state_t;
+
+typedef struct {
+    firmware_ota_state_t state;
+    bool in_progress;
+    bool restart_pending;
+    char current_version[64];
+    char url[384];
+    char last_error[128];
+    char running_partition[32];
+    char next_update_partition[32];
+} firmware_ota_status_t;
+
+esp_err_t firmware_ota_init(void);
+esp_err_t firmware_ota_start(const char *url);
+esp_err_t firmware_ota_upload_begin(void);
+esp_err_t firmware_ota_upload_write(const uint8_t *data, size_t data_len);
+esp_err_t firmware_ota_upload_finalize(void);
+void firmware_ota_upload_abort(void);
+void firmware_ota_get_status(firmware_ota_status_t *status);
+const char *firmware_ota_state_name(firmware_ota_state_t state);
+
+#endif
