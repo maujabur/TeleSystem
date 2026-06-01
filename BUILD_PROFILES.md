@@ -1,8 +1,8 @@
 # Build Profiles: Dev e Release
 
-Este projeto suporta dois perfis de build configuráveis via `sdkconfig.defaults`:
+Este projeto suporta dois perfis de build com baseline em `sdkconfig.defaults`:
 - **Dev** (padrão): logs, erros detalhados e identificadores de rede visíveis para debug.
-- **Release**: segurança endurecida com logs desativados, erros genéricos e dados sensíveis ocultos.
+- **Release**: segurança endurecida com logs desativados, erros genéricos e dados sensíveis ocultos (overrides em `sdkconfig.release.defaults`).
 
 ## Diferenças entre perfis
 
@@ -22,17 +22,17 @@ idf.py build
 
 ### Menuconfig Dev (padrão, atualiza `sdkconfig`)
 ```bash
-idf.py -D SDKCONFIG=sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.dev.defaults" menuconfig
+idf.py -D SDKCONFIG=sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults" menuconfig
 ```
 
 ### Build Dev (explícito)
 ```bash
-idf.py -B build-dev -D SDKCONFIG=sdkconfig.dev -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.dev.defaults" build
+idf.py -B build-dev -D SDKCONFIG=sdkconfig.dev -D SDKCONFIG_DEFAULTS="sdkconfig.defaults" build
 ```
 
 ### Menuconfig Dev (arquivo dedicado)
 ```bash
-idf.py -B build-dev -D SDKCONFIG=sdkconfig.dev -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.dev.defaults" menuconfig
+idf.py -B build-dev -D SDKCONFIG=sdkconfig.dev -D SDKCONFIG_DEFAULTS="sdkconfig.defaults" menuconfig
 ```
 
 ### Build Release
@@ -67,6 +67,12 @@ idf.py -B build-release -D SDKCONFIG=sdkconfig.release -p /dev/ttyACM0 flash
 idf.py -B build-release -D SDKCONFIG=sdkconfig.release -p /dev/ttyACM0 flash monitor
 ```
 
+## Artefatos para OTA
+
+- Binário principal da aplicação: `build-dev/acr-cloud-test.bin`
+- Binário de dados OTA inicial: `build-dev/ota_data_initial.bin`
+- Para build release, os artefatos equivalentes ficam em `build-release/`.
+
 ## Workflow Recomendado
 
 1. **Desenvolvimento**: use build padrão (dev)
@@ -89,6 +95,8 @@ idf.py -B build-release -D SDKCONFIG=sdkconfig.release -p /dev/ttyACM0 flash mon
 ## Notas
 
 - O perfil `dev` é o padrão quando você roda comandos sem `-B build-xxx`.
+- `sdkconfig.defaults` é a fonte de verdade do perfil `dev`.
+- `sdkconfig.dev.defaults` é mantido apenas por compatibilidade com comandos antigos e pode permanecer mínimo.
 - O `menuconfig` sem parâmetros edita o `sdkconfig` da raiz. Neste repositório, ele deve representar o snapshot atual do perfil `dev`.
 - Use `-B build-dev` e `-B build-release` para manter caches de compilação separados.
 - Use `-D SDKCONFIG=sdkconfig.dev` e `-D SDKCONFIG=sdkconfig.release` para evitar contaminação entre perfis.

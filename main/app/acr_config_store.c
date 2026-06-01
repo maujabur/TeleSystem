@@ -12,7 +12,7 @@
 #define ACR_NVS_UPLOAD_PREFIX_KEY "upload_prefix"
 
 #ifndef CONFIG_ACR_UPLOAD_PREFIX
-#define CONFIG_ACR_UPLOAD_PREFIX "skips_007"
+#define CONFIG_ACR_UPLOAD_PREFIX "skips_999"
 #endif
 
 static const char *TAG = "acr-config";
