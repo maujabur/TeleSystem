@@ -170,47 +170,6 @@
         display: block;
       }
 
-      .audio-card {
-        margin-bottom: 16px;
-        padding: 12px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--panel);
-      }
-
-      .audio-card h2 {
-        margin: 0 0 10px;
-        font-size: 15px;
-        color: var(--primary-dark);
-      }
-
-      .audio-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 8px;
-      }
-
-      .audio-item {
-        padding: 8px 10px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fff4ee;
-      }
-
-      .audio-label {
-        display: block;
-        margin-bottom: 4px;
-        font-size: 12px;
-        color: var(--muted);
-      }
-
-      .audio-value {
-        display: block;
-        font-size: 14px;
-        font-weight: 700;
-        color: var(--text);
-      }
-
       .error {
         background: var(--error-bg);
         color: var(--error-text);
@@ -263,28 +222,6 @@
         <span class="badge" id="acrBadge">ACR: --</span>
       </div>
 
-      <section class="audio-card" aria-label="Detalhes de audio">
-        <h2>Audio Details</h2>
-        <div class="audio-grid">
-          <div class="audio-item">
-            <span class="audio-label">Clipped</span>
-            <span class="audio-value" id="audioClipped">--</span>
-          </div>
-          <div class="audio-item">
-            <span class="audio-label">RMS</span>
-            <span class="audio-value" id="audioRms">--</span>
-          </div>
-          <div class="audio-item">
-            <span class="audio-label">AI Prediction</span>
-            <span class="audio-value" id="audioPrediction">--</span>
-          </div>
-          <div class="audio-item">
-            <span class="audio-label">Silence</span>
-            <span class="audio-value" id="audioSilence">--</span>
-          </div>
-        </div>
-      </section>
-
       <div id="logOutput" class="log-output">Carregando logs...</div>
     </main>
 
@@ -317,15 +254,6 @@
 
           output.appendChild(row);
         });
-      }
-
-      function formatPrediction(status) {
-        const prediction = status.acr_last_prediction || "--";
-        const probability = Number(status.acr_last_ai_probability);
-        if (Number.isFinite(probability)) {
-          return prediction + " (" + probability.toFixed(2) + "%)";
-        }
-        return prediction;
       }
 
       async function loadLogs() {
@@ -369,23 +297,10 @@
               (status.acr_uploaded_name ? " | " + status.acr_uploaded_name : "");
           }
 
-          const rms = Number(status.audio_last_rms);
-          document.getElementById("audioClipped").textContent =
-            status.audio_last_clipped ? "Sim" : "Nao";
-          document.getElementById("audioRms").textContent =
-            Number.isFinite(rms) ? rms.toFixed(1) : "--";
-          document.getElementById("audioPrediction").textContent = formatPrediction(status);
-          document.getElementById("audioSilence").textContent =
-            status.audio_last_silence_discarded ? "Descartado" : "Normal";
-
         } catch (err) {
           document.getElementById("firmwareBadge").textContent = "Firmware: indisponivel";
           document.getElementById("wifiBadge").textContent = "Wi-Fi: indisponivel";
           document.getElementById("acrBadge").textContent = "ACR: indisponivel";
-          document.getElementById("audioClipped").textContent = "--";
-          document.getElementById("audioRms").textContent = "--";
-          document.getElementById("audioPrediction").textContent = "--";
-          document.getElementById("audioSilence").textContent = "--";
         }
       }
 
