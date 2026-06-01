@@ -49,7 +49,7 @@ Essas premissas simplificam o desenho:
 O firmware ja possui o loop principal implementado:
 
 - `main/main.c`
-  - inicializa NVS/storage/rotas/controladores;
+  - inicializa NVS/rotas/controladores;
   - transfere execucao continua para `acr_orchestrator_run()`.
 - `main/app/acr_orchestrator.c`
   - executa loop autonomo;
@@ -85,10 +85,10 @@ total aproximado = 250 KiB
 
 Mesmo com `15 s`, o arquivo fica perto de `480 KiB`.
 
-A particao `storage` atual continua viavel para artefatos locais, mas o fluxo
+A arvore `firmware_assets` continua viavel para artefatos embutidos, mas o fluxo
 principal implementado hoje prioriza captura PCM em memoria (PSRAM), montagem
 de WAV em memoria e envio direto para ACRCloud, sem depender de arquivo
-temporario em `/data/capture.wav` no caminho principal.
+temporario em disco no caminho principal.
 
 ## Arquitetura em camadas
 
@@ -179,18 +179,10 @@ Responsavel por gerar WAV PCM valido.
 
 Responsabilidades:
 
-- abrir arquivo temporario;
-- escrever header WAV com tamanhos provisiorios;
-- escrever blocos PCM;
-- contar bytes gravados;
-- no fechamento, voltar ao inicio e corrigir os campos `RIFF size` e
-  `data size`.
-
-Arquivo recomendado:
-
-```text
-/data/capture.wav
-```
+- montar cabecalho WAV para payload em memoria;
+- serializar blocos PCM para upload;
+- opcionalmente apoiar gravacao em arquivo apenas para diagnostico;
+- manter consistencia de `RIFF size` e `data size` quando houver escrita em arquivo.
 
 API inicial sugerida:
 
@@ -364,7 +356,7 @@ while true:
     load_config()
 
     set_status("Capturando audio")
-    capture_wav("/data/capture.wav", capture_seconds)
+  capture_pcm_to_buffer(capture_seconds)
 
     if capture_is_silent:
         set_status("Silencio descartado")
@@ -536,7 +528,8 @@ Campos:
 
 As paginas atuais devem ser classificadas como manutencao/diagnostico:
 
-- `/acr-settings`: configuracao ACRCloud, token, container e prefixo de upload;
+- `/api/acr`: configuracao ACRCloud, token, container e prefixo de upload;
+- `/api/acr/control`: modos e controle tecnico do ciclo ACR;
 - `/device-config`: configuracoes de fabrica, como SSID de provisionamento;
 - `/logs`: logs e diagnostico;
 - futura `/audio-settings`: audio, trigger ACR e BT_NEXT.
@@ -631,7 +624,7 @@ Tarefas:
   `prediction_or_probability` e `prediction_and_probability`;
 - usar defaults equivalentes ao sistema Python atual;
 - preservar eventos existentes para LED/UI;
-- validar usando `/data/teste.wav`.
+- validar usando fixture de audio de referencia em `firmware_assets/teste.wav`.
 
 Criterio de pronto:
 
@@ -669,11 +662,11 @@ Tarefas:
 - escrever header PCM 16-bit mono;
 - corrigir tamanhos no fechamento;
 - adicionar teste simples gerando silencio ou tom sintetico, se util;
-- validar tamanho e header do arquivo em `/data/capture.wav`.
+- validar tamanho e header do WAV gerado no buffer (ou em arquivo de debug, quando habilitado).
 
 Criterio de pronto:
 
-- `/data/capture.wav` e reconhecido como WAV PCM valido;
+- WAV gerado e reconhecido como WAV PCM valido;
 - ACR aceita upload do arquivo gerado.
 
 ### Fase 4: captura I2S

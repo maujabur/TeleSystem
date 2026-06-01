@@ -447,7 +447,7 @@
           control.min_active_ms !== undefined ? control.min_active_ms : 1000;
         document.getElementById("triggerMode").value = String(control.trigger_mode || 0);
         document.getElementById("aiThreshold").value =
-          Number(control.ai_probability_threshold !== undefined ? control.ai_probability_threshold : 80).toFixed(1);
+          Number(control.ai_probability_threshold !== undefined ? control.ai_probability_threshold : 70).toFixed(1);
       }
 
       function readControlPayload() {
@@ -460,7 +460,7 @@
           silence_hysteresis_rms: Math.max(0, Math.min(32767, Number(document.getElementById("silenceHysteresis").value || 0))),
           min_active_ms: Math.max(0, Math.min(30000, Number(document.getElementById("minActiveMs").value || 0))),
           trigger_mode: Number(document.getElementById("triggerMode").value || 0),
-          ai_probability_threshold: Math.max(0, Math.min(100, Number(document.getElementById("aiThreshold").value || 80))),
+          ai_probability_threshold: Math.max(0, Math.min(100, Number(document.getElementById("aiThreshold").value || 70))),
         };
       }
 

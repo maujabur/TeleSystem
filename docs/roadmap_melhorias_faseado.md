@@ -4,11 +4,11 @@
 
 Transformar as sugestoes consolidadas em um plano executavel por fases, equilibrando impacto tecnico, risco e esforco.
 
-## Status Consolidado (Abril 2026)
+## Status Consolidado (Maio 2026)
 
-- **FASE 1 (P0) - COMPLETO**: Estabilidade de estado e conectividade — todos 4 itens concluidos com validacao em campo.
-- **FASE 2 (P1) - COMPLETO** (exceto fila de LED adiada): Robustez e observabilidade — telemetria Wi-Fi, politica APSTA, hardening de LED para remocao.
-- **FASE 3 (P1/P2) - EM ANDAMENTO**: Seguranca (baseline aplicado, NVS adiado) + Audio (ganho ajustavel e histerese concluidos; click/dropout pendente) + Manutencao (nao iniciado).
+- **FASE 1 (P0) - COMPLETO**: Estabilidade de estado e conectividade - todos 4 itens concluidos com validacao em campo.
+- **FASE 2 (P1) - COMPLETO** (exceto fila de LED adiada): Robustez e observabilidade - telemetria Wi-Fi, politica APSTA, hardening de LED para remocao.
+- **FASE 3 (P1/P2) - EM ANDAMENTO NO PILOTO**: Seguranca (baseline aplicado, NVS adiado) + Audio (ganho ajustavel e histerese concluidos; click/dropout pendente) + Manutencao (nao iniciado).
 
 ## Fase 1 (P0) - Estabilidade de estado e conectividade
 
@@ -124,7 +124,7 @@ Criterio de saida:
 ## Definicao de pronto por fase
 
 - codigo aplicado;
-- validacao funcional minima em AP, STA e ciclo ACR;
+- validacao funcional minima em AP, STA e ciclo ACR no hardware piloto;
 - documentacao atualizada nos arquivos de arquitetura afetados;
 - item marcado no todo.txt com status claro.
 

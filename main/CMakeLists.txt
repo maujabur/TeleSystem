@@ -39,11 +39,11 @@ idf_component_register(
     SRCS ${MAIN_SRCS}
     INCLUDE_DIRS "." "app" "audio" "connectivity" "portal"
     EMBED_TXTFILES
-        "../storage/certs/acr_root_cert.pem"
-        "../storage/web/index.html"
-        "../storage/web/status.html"
-        "../storage/web/settings.html"
-        "../storage/web/networks.html"
-        "../storage/web/logs.html"
+        "../firmware_assets/certs/acr_root_cert.pem"
+        "../firmware_assets/web/index.html"
+        "../firmware_assets/web/status.html"
+        "../firmware_assets/web/settings.html"
+        "../firmware_assets/web/networks.html"
+        "../firmware_assets/web/logs.html"
     REQUIRES esp_wifi esp_event nvs_flash esp_netif esp_driver_gpio esp_driver_i2s esp_driver_rmt esp_http_client esp_http_server esp_https_ota bootloader_support app_update lwip mbedtls esp_psram esp_adc espressif__cjson
 )

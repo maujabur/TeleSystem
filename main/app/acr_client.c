@@ -693,7 +693,7 @@ static bool acr_trigger_policy_matches(const acr_result_t *result)
 {
     acr_analysis_control_config_t config = {
         .trigger_mode = ACR_TRIGGER_MODE_PREDICTION_ONLY,
-        .ai_probability_threshold = 80.0,
+        .ai_probability_threshold = 70.0,
     };
     bool prediction_match = prediction_matches_ai_values(result->prediction);
     bool probability_match = false;

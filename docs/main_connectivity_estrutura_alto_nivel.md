@@ -28,7 +28,7 @@ A pasta main/connectivity implementa o ciclo completo de conectividade do dispos
 
 Detecta se o botao de configuracao foi pressionado no boot para forcar provisionamento Wi-Fi.
 
-- Configura GPIO de entrada com pull adequado.
+- Configura GPIO de entrada com pull adequado; o default do projeto e GPIO3.
 - Faz debounce por multiplas amostras com intervalo.
 - Retorna decisao booleana para o controlador.
 

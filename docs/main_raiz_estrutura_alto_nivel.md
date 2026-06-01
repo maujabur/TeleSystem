@@ -22,7 +22,6 @@ Responsabilidades:
 - executar probe do frontend de audio (WM8782);
 - inicializar NVS;
 - inicializar controle ACR;
-- montar storage FATFS;
 - inicializar trigger output;
 - registrar rotas de app e de configuracao de dispositivo no portal;
 - iniciar controlador de conectividade;
@@ -37,8 +36,8 @@ Responsabilidades:
 - registrar os fontes de app/audio/connectivity/portal;
 - definir diretorios de include;
 - declarar dependencias IDF e externas;
-- preparar staging da pasta storage em build-time;
-- gerar imagem FATFS de storage e incluir no flash.
+- referenciar os assets embarcados em `firmware_assets/`;
+- embutir os HTMLs do portal e o certificado raiz via `EMBED_TXTFILES`.
 
 ### Kconfig.projbuild
 
@@ -61,17 +60,6 @@ Manifest de dependencias externas do componente.
 
 - declara uso de espressif/cjson.
 
-### prepare_storage_root.cmake
-
-Script de preparo do conteudo da particao storage.
-
-Responsabilidades:
-
-- limpar staging anterior;
-- recriar diretorio staging;
-- copiar conteudo de storage para staging;
-- servir de etapa anterior a geracao da imagem FATFS.
-
 ## Fluxo de inicializacao em app_main
 
 Sequencia atual:
@@ -81,12 +69,11 @@ Sequencia atual:
 3. wm8782_probe (diagnostico de audio)
 4. nvs_flash_init (com erase/retry em caso de pagina invalida)
 5. acr_analysis_control_init
-6. storage_mount
-7. acr_trigger_output_init
-8. acr_routes_register_with_portal
-9. device_config_routes_register_with_portal
-10. connectivity_controller_start
-11. acr_orchestrator_run
+6. acr_trigger_output_init
+7. acr_routes_register_with_portal
+8. device_config_routes_register_with_portal
+9. connectivity_controller_start
+10. acr_orchestrator_run
 
 Observacao:
 
@@ -96,7 +83,7 @@ Observacao:
 
 A pasta main raiz atua como composicao dos subsistemas:
 
-- app: ciclo ACR, configuracao cloud, estado de runtime, trigger de saida e storage
+- app: ciclo ACR, configuracao cloud, estado de runtime e trigger de saida
 - audio: captura PCM/WAV e probe de hardware
 - connectivity: maquina de estados Wi-Fi, provisionamento e LED de status
 - portal: servidor HTTP, captive portal e helpers de transporte
@@ -108,18 +95,12 @@ Integracao de alto nivel:
 3. app (orquestrador) depende de rede pronta para fluxo de envio ACR.
 4. audio fornece PCM para o pipeline de analise.
 
-## Build e empacotamento de storage
+## Build e empacotamento de assets
 
 No CMake da pasta main:
 
-- o target prepare_storage_root executa prepare_storage_root.cmake;
-- arquivos de storage sao copiados para staging;
-- fatfs_create_spiflash_image gera imagem da particao storage;
-- a imagem e incluída no processo de flash do projeto.
-
-Efeito pratico:
-
-- web assets, certs e arquivos de configuracao em storage passam a fazer parte do artefato de firmware (particao FATFS).
+- os HTMLs do portal e o certificado raiz sao lidos de `firmware_assets/`;
+- esses arquivos sao embutidos no firmware via `EMBED_TXTFILES`.
 
 ## Configuracao em runtime vs build-time
 
@@ -127,7 +108,6 @@ O projeto usa ambos:
 
 - build-time: Kconfig (CONFIG_*)
 - runtime persistente: NVS (credenciais e configuracoes operacionais)
-- runtime em arquivo: storage FATFS (conteudo web/certs/config)
 
 Esse desenho permite defaults de fabrica + ajustes em campo.
 
@@ -138,6 +118,6 @@ A raiz de main e o ponto de composicao do firmware:
 - define ordem de boot;
 - conecta os subsistemas principais;
 - controla como o componente e compilado;
-- prepara os artefatos de storage para deploy.
+- prepara os artefatos de firmware para deploy.
 
 Com os documentos por subpasta, este arquivo fecha a visao arquitetural do nucleo da aplicacao.

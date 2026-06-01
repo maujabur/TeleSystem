@@ -3,9 +3,9 @@
 ## Objetivo
 
 Este documento orienta alteracoes visuais na pagina inicial do produto,
-servida em `/` a partir de:
+servida em `/` a partir de HTML embutido no firmware, com os arquivos fonte em:
 
-[storage/web/index.html](../storage/web/index.html)
+[firmware_assets/web/index.html](../firmware_assets/web/index.html)
 
 A pagina inicial e a interface que o usuario final deve acessar. Ela deve
 continuar simples: mostrar estado basico de Wi-Fi, permitir escolher uma rede,
@@ -28,9 +28,9 @@ Quem for aplicar o branding do cliente pode alterar:
 - inclusao de logotipo, imagem de fundo ou elementos de marca;
 - estilo dos botoes, inputs, cards e mensagens.
 
-Ao adicionar imagens ou fontes locais, coloque os arquivos em `storage/web/` ou
-em uma subpasta dentro de `storage/web/`. Depois disso, e necessario gerar uma
-nova imagem `build/storage.bin` via build.
+Ao adicionar imagens ou fontes locais, coloque os arquivos em `firmware_assets/web/` ou
+em uma subpasta dentro de `firmware_assets/web/`. Depois disso, e necessario gerar uma
+nova compilacao para embutir os assets atualizados no firmware.
 
 ## O Que Deve Permanecer
 
@@ -172,5 +172,5 @@ manutencao, mas a experiencia do usuario final deve permanecer centrada em `/`.
 - Nao ha link ou botao visivel para paginas tecnicas.
 - Nao ha informacao de ACR, firmware, logs, audio ou BT_NEXT.
 - O layout funciona em celular e desktop.
-- Depois de alterar `storage/web/index.html`, o build regenerou
-  `build/storage.bin`.
+- Depois de alterar `firmware_assets/web/index.html`, o build regenerou os assets
+  embutidos.

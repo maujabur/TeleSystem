@@ -8,6 +8,30 @@ Este arquivo consolida os documentos de arquitetura do firmware e sugere uma ord
 
 - [roadmap_melhorias_faseado.md](roadmap_melhorias_faseado.md)
 
+## Status da documentacao no piloto
+
+Esses documentos continuam essenciais para manter o firmware e a operacao:
+
+- [main_raiz_estrutura_alto_nivel.md](main_raiz_estrutura_alto_nivel.md)
+- [main_app_estrutura_alto_nivel.md](main_app_estrutura_alto_nivel.md)
+- [main_connectivity_estrutura_alto_nivel.md](main_connectivity_estrutura_alto_nivel.md)
+- [main_portal_estrutura_alto_nivel.md](main_portal_estrutura_alto_nivel.md)
+- [main_audio_estrutura_alto_nivel.md](main_audio_estrutura_alto_nivel.md)
+- [wifi_manager_architecture.md](wifi_manager_architecture.md)
+- [status_led_system.md](status_led_system.md)
+
+Documentos de apoio que continuam uteis, mas nao precisam ser lidos em todo fluxo:
+
+- [audio_acr_loop_architecture.md](audio_acr_loop_architecture.md)
+- [home_page_branding_manual.md](home_page_branding_manual.md)
+- [roadmap_melhorias_faseado.md](roadmap_melhorias_faseado.md)
+
+Documentos temporarios ou de planejamento pontual:
+
+- [planos/plan.md](planos/plan.md)
+
+Regra pratica no piloto: se o documento descreve boot, conectividade, portal, audio ou o ciclo ACR atual, ele continua necessario. Se ele apenas registra uma ideia futura ou uma variacao de UI, ele deve ser tratado como apoio e revisado antes de virar referencia principal.
+
 ## Leitura recomendada
 
 1. Visao de composicao e boot

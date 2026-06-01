@@ -362,7 +362,7 @@ esp_err_t web_portal_register_app_routes(web_portal_routes_register_fn register_
 Assim:
 
 - o nucleo registra `/`, `/api/status`, `/api/wifi`, captive redirects;
-- o modulo ACR registra `/acr-settings`, `/api/acr`, `/api/config`, `/api/acr/status`;
+- o modulo ACR registra `/api/acr`, `/api/config`, `/api/acr/status` e quaisquer paginas proprias que ainda sejam necessarias;
 - outro projeto poderia registrar suas proprias paginas e endpoints sem tocar no nucleo.
 
 ## UI
@@ -373,7 +373,7 @@ Estado atual:
 - Wi-Fi sempre parte do nucleo;
 - paginas especificas da aplicacao aparecem como extensoes por rota.
 
-O projeto usa `storage/web/index.html` como portal Wi-Fi principal. A rota tecnica `/acr-settings` serve `storage/web/acr-settings.html`, mantendo a UI ACR fora da pagina do usuario final.
+O portal Wi-Fi principal e servido pelo `web_portal` com HTML embutido a partir de `firmware_assets/web/*.html` via `EMBED_TXTFILES`. As paginas do usuario final continuam sendo `/`, `/status`, `/settings`, `/networks` e `/logs`; o modulo ACR nao depende de uma pagina dedicada como `/acr-settings` neste momento.
 
 ## Estrutura de arquivos atual
 
@@ -481,7 +481,6 @@ Estes endpoints existem neste projeto, mas pertencem ao modulo ACR, nao ao nucle
 - `GET /api/trigger-output`
 - `POST /api/trigger-output`
 - `POST /api/trigger-output/test`
-- `GET /acr-settings`
 
 Semantica desejada para token:
 

@@ -321,7 +321,7 @@ Funcoes principais:
 
 ### storage.c / storage.h
 
-Abstracao simples de storage local em FATFS (SPI flash WL).
+Abstracao simples de storage local em FATFS montado em `/data` para arquivos de runtime.
 
 - Monta particao de storage.
 - Verifica existencia e tamanho de arquivo.
