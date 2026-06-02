@@ -208,6 +208,7 @@ class App(ctk.CTk):
         self.tree_sort_column = "device_id"
         self.tree_sort_desc = False
         self.tree_heading_labels: Dict[str, str] = {}
+        self.status_icons: Dict[str, tk.PhotoImage] = {}
 
         self.host_var = StringVar(value="localhost")
         self.port_var = StringVar(value="1883")
@@ -225,6 +226,19 @@ class App(ctk.CTk):
 
         self.after(100, self._drain_events)
         self.after(1000, self._check_offline_devices)
+
+    def _create_status_icon(self, fill_color: str, border_color: str) -> tk.PhotoImage:
+        size = 14
+        radius = 5.5
+        center = (size - 1) / 2
+        image = tk.PhotoImage(width=size, height=size)
+        for y in range(size):
+            for x in range(size):
+                distance = ((x - center) ** 2 + (y - center) ** 2) ** 0.5
+                if distance <= radius:
+                    color = border_color if distance >= radius - 1.3 else fill_color
+                    image.put(color, (x, y))
+        return image
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=0)
@@ -251,7 +265,7 @@ class App(ctk.CTk):
         self._labeled_entry(conn, 5, "HB timeout (s)", self.heartbeat_timeout_var)
 
         ctk.CTkCheckBox(conn, text="TLS", variable=self.tls_var).grid(row=6, column=0, sticky="w", padx=8, pady=(2, 8))
-        ctk.CTkCheckBox(conn, text="Auto-probe presenca", variable=self.auto_probe_var).grid(
+        ctk.CTkCheckBox(conn, text="Auto-probe online", variable=self.auto_probe_var).grid(
             row=6, column=1, sticky="w", padx=8, pady=(2, 8)
         )
 
@@ -277,11 +291,17 @@ class App(ctk.CTk):
         )
 
         cols = ("device_id", "online", "last_seen", "fw", "session_id")
-        self.tree = ttk.Treeview(devices_frame, columns=cols, show="headings", height=12)
+        self.tree = ttk.Treeview(devices_frame, columns=cols, show=("tree", "headings"), height=12)
         self.tree.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.tree.bind("<<TreeviewSelect>>", self._on_select_device)
         self.tree.tag_configure("online", foreground="#1f8b24")
         self.tree.tag_configure("offline", foreground="#d11a2a")
+        self.status_icons = {
+            "online": self._create_status_icon("#25a83a", "#166b24"),
+            "offline": self._create_status_icon("#d11a2a", "#85101b"),
+        }
+        self.tree.heading("#0", text="")
+        self.tree.column("#0", width=28, minwidth=28, stretch=False, anchor="center")
 
         widths = {"device_id": 140, "online": 95, "last_seen": 170, "fw": 90, "session_id": 140}
         heading_labels = {
@@ -1362,7 +1382,7 @@ class App(ctk.CTk):
     def _upsert_tree_row(self, device: DeviceInfo):
         last_seen_str = self._format_local_datetime(device.last_seen)
         status_value = "online" if device.online else "offline"
-        status_display = f"● {status_value}"
+        status_display = status_value
         values = (
             device.device_id,
             status_display,
@@ -1372,9 +1392,9 @@ class App(ctk.CTk):
         )
 
         if self.tree.exists(device.device_id):
-            self.tree.item(device.device_id, values=values, tags=(status_value,))
+            self.tree.item(device.device_id, values=values, image=self.status_icons[status_value], tags=(status_value,))
         else:
-            self.tree.insert("", END, iid=device.device_id, values=values, tags=(status_value,))
+            self.tree.insert("", END, iid=device.device_id, values=values, image=self.status_icons[status_value], tags=(status_value,))
         self._apply_tree_sort()
 
     def _on_tree_heading_click(self, col: str):
