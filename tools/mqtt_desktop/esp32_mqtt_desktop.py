@@ -53,7 +53,11 @@ class MessageSnapshot:
 class DeviceInfo:
     device_id: str
     online: bool = False
+    seen_live: bool = False
+    last_probe_at: Optional[datetime] = None
     last_seen: Optional[datetime] = None
+    last_get_state_result: Optional[Dict[str, Any]] = None
+    last_get_state_at: Optional[datetime] = None
     fw: str = "-"
     session_id: str = "-"
     last_messages: Dict[str, MessageSnapshot] = field(default_factory=dict)
@@ -124,6 +128,23 @@ class MQTTManager:
         except Exception as exc:
             return False, f"Publish failed: {exc}"
 
+    def clear_retained_topics(self, topics: list[str]) -> Tuple[int, int]:
+        if not self.client or not self.connected:
+            return 0, len(topics)
+
+        ok_count = 0
+        fail_count = 0
+        for topic in topics:
+            try:
+                result = self.client.publish(topic, payload="", qos=1, retain=True)
+                if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                    ok_count += 1
+                else:
+                    fail_count += 1
+            except Exception:
+                fail_count += 1
+        return ok_count, fail_count
+
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = reason_code == 0
         if self.connected:
@@ -156,6 +177,7 @@ class MQTTManager:
                     "topic": msg.topic,
                     "payload_raw": payload_raw,
                     "payload_obj": payload_obj,
+                    "retained": bool(msg.retain),
                     "timestamp": datetime.now(),
                 },
             )
@@ -176,16 +198,20 @@ class App(ctk.CTk):
         self.devices: Dict[str, DeviceInfo] = {}
         self.selected_device: Optional[str] = None
         self.detail_value_labels: Dict[str, ctk.CTkLabel] = {}
+        self.status_value_labels: Dict[str, ctk.CTkLabel] = {}
         self.settings_vars: Dict[str, Any] = {}
         self.settings_inputs: Dict[str, Any] = {}
         self.settings_snapshot: Dict[str, Any] = {}
         self.settings_loaded = False
+        self.pending_cmd_by_id: Dict[str, Tuple[str, str]] = {}
 
         self.host_var = StringVar(value="localhost")
         self.port_var = StringVar(value="1883")
         self.user_var = StringVar(value="")
         self.pass_var = StringVar(value="")
+        self.clear_retained_device_var = StringVar(value="")
         self.tls_var = ctk.BooleanVar(value=False)
+        self.auto_probe_var = ctk.BooleanVar(value=True)
         self.heartbeat_timeout_var = StringVar(value="180")
         self.conn_state_var = StringVar(value="Disconnected")
 
@@ -220,6 +246,9 @@ class App(ctk.CTk):
         self._labeled_entry(conn, 5, "HB timeout (s)", self.heartbeat_timeout_var)
 
         ctk.CTkCheckBox(conn, text="TLS", variable=self.tls_var).grid(row=6, column=0, sticky="w", padx=8, pady=(2, 8))
+        ctk.CTkCheckBox(conn, text="Auto-probe presenca", variable=self.auto_probe_var).grid(
+            row=6, column=1, sticky="w", padx=8, pady=(2, 8)
+        )
 
         btns = ctk.CTkFrame(conn, fg_color="transparent")
         btns.grid(row=7, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
@@ -273,17 +302,23 @@ class App(ctk.CTk):
         tabs = ctk.CTkTabview(top_container)
         tabs.grid(row=0, column=0, sticky="nsew")
         tabs.add("Resumo")
+        tabs.add("Status")
         tabs.add("Comandos")
         tabs.add("Settings")
 
         tab_overview = tabs.tab("Resumo")
         tab_overview.grid_columnconfigure(0, weight=1)
         tab_overview.grid_rowconfigure(0, weight=1)
-        self.details = ctk.CTkFrame(tab_overview)
+        self.details = ctk.CTkScrollableFrame(tab_overview)
         self.details.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
         self.details.grid_columnconfigure(0, weight=0)
         self.details.grid_columnconfigure(1, weight=1)
         self._build_details_panel()
+
+        tab_status = tabs.tab("Status")
+        tab_status.grid_columnconfigure(0, weight=1)
+        tab_status.grid_rowconfigure(0, weight=1)
+        self._build_status_panel(tab_status)
 
         tab_commands = tabs.tab("Comandos")
         tab_commands.grid_columnconfigure(0, weight=1)
@@ -303,8 +338,11 @@ class App(ctk.CTk):
         self._append_log("Application started", tag="info")
 
     def _build_commands_panel(self, parent):
-        frame = ctk.CTkScrollableFrame(parent)
-        frame.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+        parent.grid_rowconfigure(1, weight=1)
+        parent.grid_columnconfigure(0, weight=1)
+
+        frame = ctk.CTkFrame(parent)
+        frame.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
         frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(frame, text="Comandos rapidos", font=ctk.CTkFont(size=16, weight="bold")).grid(
@@ -336,7 +374,34 @@ class App(ctk.CTk):
             row=1, column=0, sticky="ew"
         )
 
+        row_c = ctk.CTkFrame(frame)
+        row_c.grid(row=3, column=0, sticky="ew", padx=8, pady=(0, 8))
+        row_c.grid_columnconfigure(0, weight=1)
+        row_c.grid_columnconfigure(1, weight=0)
+        ctk.CTkEntry(
+            row_c,
+            textvariable=self.clear_retained_device_var,
+            placeholder_text="device_id para limpar retained (vazio usa selecionado)",
+        ).grid(row=0, column=0, sticky="ew", padx=4, pady=4)
+        ctk.CTkButton(row_c, text="Limpar retained", command=self._clear_retained_for_device).grid(
+            row=0, column=1, sticky="ew", padx=4, pady=4
+        )
+
+        info = ctk.CTkTextbox(parent, height=120)
+        info.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        info.insert(
+            END,
+            "Comandos desta aba sao enviados para o dispositivo selecionado na lista.\n"
+            "- use get_state para atualizar a aba Status/State\n"
+            "- use get_settings para preencher Settings\n"
+            "- Limpar retained remove snapshots antigos do broker\n",
+        )
+        info.configure(state="disabled")
+
     def _build_settings_panel(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(2, weight=1)
+
         self.settings_vars = {
             "automatic_enabled": ctk.BooleanVar(value=False),
             "automatic_interval_ms": StringVar(value=""),
@@ -362,12 +427,8 @@ class App(ctk.CTk):
         }
         self.settings_inputs = {}
 
-        scroll = ctk.CTkScrollableFrame(parent)
-        scroll.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
-        scroll.grid_columnconfigure(0, weight=1)
-
-        actions = ctk.CTkFrame(scroll)
-        actions.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        actions = ctk.CTkFrame(parent)
+        actions.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
         actions.grid_columnconfigure((0, 1, 2, 3), weight=1)
         ctk.CTkButton(actions, text="Ler settings", command=self._request_get_settings).grid(
             row=0, column=0, sticky="ew", padx=4, pady=4
@@ -383,11 +444,15 @@ class App(ctk.CTk):
             row=0, column=3, sticky="ew", padx=4, pady=4
         )
 
-        self.settings_status_label = ctk.CTkLabel(scroll, text="Ultima leitura: - | leia os settings antes de salvar", anchor="w")
-        self.settings_status_label.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        self.settings_status_label = ctk.CTkLabel(parent, text="Ultima leitura: - | leia os settings antes de salvar", anchor="w")
+        self.settings_status_label.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 4))
         self.btn_save_settings.configure(state="disabled")
 
-        row = 2
+        scroll = ctk.CTkScrollableFrame(parent)
+        scroll.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        scroll.grid_columnconfigure(0, weight=1)
+
+        row = 0
         row = self._build_settings_section_acr_control(scroll, row)
         row = self._build_settings_section_ai(scroll, row)
         row = self._build_settings_section_connectivity(scroll, row)
@@ -491,6 +556,98 @@ class App(ctk.CTk):
         if key_name:
             self.settings_inputs[key_name] = entry
 
+    def _build_status_panel(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(1, weight=1)
+
+        top = ctk.CTkFrame(parent)
+        top.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
+        top.grid_columnconfigure(0, weight=1)
+        top.grid_columnconfigure(1, weight=0)
+
+        ctk.CTkLabel(top, text="State (get_state)", font=ctk.CTkFont(size=16, weight="bold")).grid(
+            row=0, column=0, sticky="w", padx=8, pady=(8, 2)
+        )
+        ctk.CTkButton(top, text="get_state", width=120, command=self._request_get_state_selected).grid(
+            row=0, column=1, sticky="e", padx=8, pady=(8, 2)
+        )
+        self.status_time_label = ctk.CTkLabel(top, text="Ultima atualizacao: --", text_color=("gray40", "gray70"))
+        self.status_time_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 8))
+
+        self.status_body = ctk.CTkScrollableFrame(parent)
+        self.status_body.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        self.status_body.grid_columnconfigure(0, weight=0)
+        self.status_body.grid_columnconfigure(1, weight=1)
+
+    def _flatten_dict(self, payload: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for key, value in payload.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if isinstance(value, dict):
+                out.update(self._flatten_dict(value, path))
+            else:
+                out[path] = value
+        return out
+
+    def _refresh_status_panel(self):
+        if not hasattr(self, "status_body"):
+            return
+
+        for child in self.status_body.winfo_children():
+            child.destroy()
+
+        if not self.selected_device:
+            ctk.CTkLabel(self.status_body, text="Selecione um dispositivo para visualizar state/get_state.").grid(
+                row=0, column=0, sticky="w", padx=8, pady=8
+            )
+            if hasattr(self, "status_time_label"):
+                self.status_time_label.configure(text="Ultima atualizacao: --")
+            return
+
+        device = self.devices.get(self.selected_device)
+        if not device:
+            ctk.CTkLabel(self.status_body, text="Dispositivo sem dados.").grid(row=0, column=0, sticky="w", padx=8, pady=8)
+            return
+
+        state_topic_payload = self._payload_for(device, "state")
+        get_state_payload = device.last_get_state_result or {}
+
+        merged: Dict[str, Any] = {}
+        if state_topic_payload:
+            merged.update(self._flatten_dict(state_topic_payload))
+        if get_state_payload:
+            merged.update(self._flatten_dict(get_state_payload))
+
+        if not merged:
+            ctk.CTkLabel(
+                self.status_body,
+                text="Sem campos de state ainda. Clique em get_state ou aguarde mensagens de state.",
+            ).grid(row=0, column=0, sticky="w", padx=8, pady=8)
+        else:
+            row = 0
+            for key in sorted(merged.keys()):
+                ctk.CTkLabel(self.status_body, text=key).grid(row=row, column=0, sticky="nw", padx=(8, 8), pady=2)
+                value = merged[key]
+                if isinstance(value, (dict, list)):
+                    value_text = json.dumps(value, ensure_ascii=True)
+                else:
+                    value_text = str(value)
+                ctk.CTkLabel(self.status_body, text=value_text, anchor="w", justify="left", wraplength=760).grid(
+                    row=row, column=1, sticky="ew", padx=(0, 8), pady=2
+                )
+                row += 1
+
+        source = []
+        if state_topic_payload:
+            source.append("topic state")
+        if get_state_payload:
+            source.append("cmd get_state")
+        source_text = ", ".join(source) if source else "sem fonte"
+        if hasattr(self, "status_time_label"):
+            self.status_time_label.configure(
+                text=f"Ultima atualizacao: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | fonte: {source_text}"
+            )
+
     def _build_details_panel(self):
         ctk.CTkLabel(self.details, text="Resumo do Dispositivo", font=ctk.CTkFont(size=16, weight="bold")).grid(
             row=0, column=0, columnspan=2, sticky="w", padx=8, pady=(8, 10)
@@ -516,6 +673,9 @@ class App(ctk.CTk):
             ("Cmd OK", "cmd_ok"),
             ("Cmd error", "cmd_error"),
             ("Cmd result", "cmd_result"),
+            ("State payload", "state_payload"),
+            ("Status payload", "status_payload"),
+            ("Heartbeat payload", "heartbeat_payload"),
         ]
 
         for index, (label, key) in enumerate(rows, start=1):
@@ -613,14 +773,48 @@ class App(ctk.CTk):
         selection = self.tree.selection()
         if not selection:
             self.selected_device = None
+            self._refresh_status_panel()
             return
 
         self.selected_device = selection[0]
+        self.clear_retained_device_var.set(self.selected_device)
         self._refresh_device_details()
+        self._refresh_status_panel()
+
+    def _request_get_state_selected(self):
+        if not self.selected_device:
+            self._append_log("Selecione um dispositivo para get_state", tag="warn")
+            return
+        self._send_cmd_to_device(self.selected_device, "get_state")
+
+    def _probe_known_devices(self):
+        if not bool(self.auto_probe_var.get()):
+            return
+        now = datetime.now()
+        for device_id, dev in self.devices.items():
+            if dev.seen_live:
+                continue
+            if dev.last_probe_at and now - dev.last_probe_at < timedelta(seconds=30):
+                continue
+            dev.last_probe_at = now
+            self._send_cmd_to_device(device_id, "get_state", log_publish=False)
 
     def _send_cmd(self, command: str, extra_params: Optional[Dict[str, Any]] = None):
         if not self.selected_device:
             self._append_log("Select a device before sending commands", tag="warn")
+            return
+
+        self._send_cmd_to_device(self.selected_device, command, extra_params=extra_params)
+
+    def _send_cmd_to_device(
+        self,
+        device_id: str,
+        command: str,
+        extra_params: Optional[Dict[str, Any]] = None,
+        log_publish: bool = True,
+    ):
+        if not device_id:
+            self._append_log("Device_id invalido", tag="warn")
             return
 
         payload = {
@@ -631,9 +825,13 @@ class App(ctk.CTk):
         if extra_params:
             payload["args"] = extra_params
 
-        ok, msg = self.mqtt.publish_command(self.selected_device, payload)
+        ok, msg = self.mqtt.publish_command(device_id, payload)
         if not ok:
             self._append_log(msg, tag="error")
+        elif log_publish:
+            self._append_log(f"Cmd {command} enviado para {device_id}", tag="info")
+        if ok:
+            self.pending_cmd_by_id[payload["cmd_id"]] = (device_id, command)
 
     def _send_set_heartbeat(self):
         try:
@@ -645,6 +843,44 @@ class App(ctk.CTk):
             return
 
         self._send_cmd("set_heartbeat_interval", {"heartbeat_interval_s": interval})
+
+    def _clear_retained_for_device(self):
+        device_id = self.clear_retained_device_var.get().strip() or (self.selected_device or "")
+        if not device_id:
+            self._append_log("Informe ou selecione um device_id para limpar retained", tag="warn")
+            return
+
+        topics = [
+            f"{BASE_TOPIC}/{device_id}/status",
+            f"{BASE_TOPIC}/{device_id}/heartbeat",
+            f"{BASE_TOPIC}/{device_id}/state",
+            f"{BASE_TOPIC}/{device_id}/event",
+            f"{BASE_TOPIC}/{device_id}/cmd/out",
+            f"{BASE_TOPIC}/{device_id}/cmd/in",
+        ]
+        ok_count, fail_count = self.mqtt.clear_retained_topics(topics)
+        self._append_log(
+            f"Limpeza retained para {device_id}: ok={ok_count} fail={fail_count}",
+            tag="info" if fail_count == 0 else "warn",
+        )
+
+    def _extract_payload_timestamp(self, payload_obj: Optional[Dict[str, Any]]) -> Optional[datetime]:
+        if not isinstance(payload_obj, dict):
+            return None
+        ts_value = payload_obj.get("ts")
+        if not ts_value:
+            return None
+
+        try:
+            ts_text = str(ts_value).strip()
+            if ts_text.endswith("Z"):
+                ts_text = ts_text[:-1] + "+00:00"
+            parsed = datetime.fromisoformat(ts_text)
+            if parsed.tzinfo is not None:
+                return parsed.replace(tzinfo=None)
+            return parsed
+        except Exception:
+            return None
 
     def _request_get_settings(self):
         self._send_cmd("get_settings")
@@ -919,6 +1155,8 @@ class App(ctk.CTk):
         self.conn_indicator.configure(fg_color="#1f8b24" if connected else "#a33")
         if connected:
             self._append_log("MQTT connected", tag="info")
+            if bool(self.auto_probe_var.get()):
+                self._probe_known_devices()
         else:
             self._append_log(reason or "MQTT disconnected", tag="warn")
 
@@ -933,17 +1171,34 @@ class App(ctk.CTk):
             device = DeviceInfo(device_id=device_id)
             self.devices[device_id] = device
 
-        now = data.get("timestamp") or datetime.now()
-        device.last_seen = now
-        device.online = True
+        broker_time = data.get("timestamp") or datetime.now()
+        is_retained = bool(data.get("retained"))
 
         payload_obj = data.get("payload_obj")
         payload_raw = data.get("payload_raw", "")
 
+        payload_ts = self._extract_payload_timestamp(payload_obj)
+        effective_ts = payload_ts or broker_time
+
+        if is_retained:
+            # Retained snapshots nao significam dispositivo online agora.
+            if payload_ts:
+                if not device.last_seen or payload_ts > device.last_seen:
+                    device.last_seen = payload_ts
+            if self.mqtt.connected and bool(self.auto_probe_var.get()) and not device.seen_live:
+                now = datetime.now()
+                if not device.last_probe_at or now - device.last_probe_at > timedelta(seconds=30):
+                    device.last_probe_at = now
+                    self._send_cmd_to_device(device_id, "get_state", log_publish=False)
+        else:
+            device.seen_live = True
+            device.last_seen = effective_ts
+            device.online = True
+
         self._update_device_metadata(device, payload_obj)
 
         device.last_messages[message_type] = MessageSnapshot(
-            timestamp=now,
+            timestamp=effective_ts,
             topic=topic,
             payload_obj=payload_obj,
             payload_raw=payload_raw,
@@ -951,11 +1206,23 @@ class App(ctk.CTk):
 
         self._upsert_tree_row(device)
 
-        log_line = self._build_log_line(device_id, message_type, now, payload_obj, payload_raw)
+        log_line = self._build_log_line(device_id, message_type, effective_ts, payload_obj, payload_raw)
+        if is_retained:
+            log_line = f"[retained] {log_line}"
         log_tag = "info"
         if message_type == "cmd/out" and self.selected_device == device_id:
             log_tag = "selected_cmd"
         self._append_log(log_line, tag=log_tag)
+
+        if message_type == "cmd/out" and isinstance(payload_obj, dict):
+            cmd_id = payload_obj.get("cmd_id")
+            if isinstance(cmd_id, str) and cmd_id in self.pending_cmd_by_id:
+                pending_device_id, pending_cmd = self.pending_cmd_by_id.pop(cmd_id)
+                if pending_device_id == device_id and pending_cmd == "get_state":
+                    result = payload_obj.get("result")
+                    if isinstance(result, dict) and payload_obj.get("ok") is True:
+                        device.last_get_state_result = result
+                        device.last_get_state_at = effective_ts
 
         if (
             message_type == "cmd/out"
@@ -973,6 +1240,7 @@ class App(ctk.CTk):
 
         if self.selected_device == device_id:
             self._refresh_device_details()
+            self._refresh_status_panel()
 
     def _check_offline_devices(self):
         timeout = self._heartbeat_timeout()
@@ -981,10 +1249,10 @@ class App(ctk.CTk):
 
         for dev in self.devices.values():
             was_online = dev.online
-            if dev.last_seen and now - dev.last_seen > timedelta(seconds=timeout):
-                dev.online = False
+            if dev.last_seen and now - dev.last_seen <= timedelta(seconds=timeout) and dev.seen_live:
+                dev.online = True
             else:
-                dev.online = dev.last_seen is not None
+                dev.online = False
             if dev.online != was_online:
                 changed = True
 
@@ -993,6 +1261,7 @@ class App(ctk.CTk):
                 self._upsert_tree_row(dev)
             if self.selected_device:
                 self._refresh_device_details()
+                self._refresh_status_panel()
 
         self.after(1000, self._check_offline_devices)
 
@@ -1075,6 +1344,9 @@ class App(ctk.CTk):
         self._set_detail("cmd_ok", self._field(cmd_out, "ok"))
         self._set_detail("cmd_error", self._field(cmd_out, "error"))
         self._set_detail("cmd_result", self._field(cmd_out, "result"))
+        self._set_detail("state_payload", self._compact_json(state))
+        self._set_detail("status_payload", self._compact_json(status))
+        self._set_detail("heartbeat_payload", self._compact_json(heartbeat))
 
         cmd_ok_text = self.detail_value_labels["cmd_ok"].cget("text")
         if cmd_ok_text == "True":
@@ -1104,6 +1376,14 @@ class App(ctk.CTk):
         if not label:
             return
         label.configure(text=str(value))
+
+    def _compact_json(self, payload: Dict[str, Any], max_len: int = 900) -> str:
+        if not isinstance(payload, dict) or not payload:
+            return "-"
+        text = json.dumps(payload, ensure_ascii=True)
+        if len(text) > max_len:
+            return text[:max_len] + "..."
+        return text
 
     def _build_log_line(
         self,

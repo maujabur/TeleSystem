@@ -81,6 +81,7 @@ static TaskHandle_t s_heartbeat_task;
 static bool s_wifi_event_registered;
 static uint32_t s_last_wait_log_ms;
 static uint32_t s_heartbeat_interval_s;
+static bool s_identity_refresh_requested;
 static bool s_restart_requested;
 static uint32_t s_restart_at_ms;
 static char s_recent_mutating_cmd_ids[MQTT_CMD_DEDUP_WINDOW][MQTT_CMD_ID_SIZE];
@@ -102,6 +103,10 @@ static char s_topic_cmd_out[MQTT_TOPIC_BUF_SIZE];
 static esp_err_t mqtt_presence_start_client_if_needed(void);
 static void mqtt_presence_build_timestamp(char *buffer, size_t buffer_len);
 static void mqtt_presence_ensure_session_id(void);
+static void mqtt_presence_request_identity_refresh(void);
+static void mqtt_presence_refresh_identity_if_requested(void);
+static void mqtt_presence_generate_device_id(void);
+static void mqtt_presence_build_topics(void);
 static const char *wifi_state_name(wifi_manager_state_t state);
 static int mqtt_publish_if_connected(const char *topic, const char *payload, int qos, int retain);
 static void mqtt_presence_publish_command_reply(const char *cmd_id,
@@ -345,6 +350,7 @@ static void mqtt_presence_handle_command_payload(const char *payload)
     cJSON *name_item = NULL;
     const char *cmd_id = "unknown";
     const char *cmd_name = NULL;
+    bool device_id_change_requested = false;
 
     if (!payload) {
         return;
@@ -619,6 +625,7 @@ static void mqtt_presence_handle_command_payload(const char *payload)
                     return;
                 }
                 updated = true;
+                device_id_change_requested = true;
             }
 
             item = cJSON_GetObjectItemCaseSensitive(acr_cloud, "bearer_token");
@@ -725,6 +732,9 @@ static void mqtt_presence_handle_command_payload(const char *payload)
         mqtt_presence_cmd_id_remember(cmd_id);
         cJSON *result = mqtt_presence_build_settings_result();
         mqtt_presence_publish_command_reply(cmd_id, true, NULL, result);
+        if (device_id_change_requested) {
+            mqtt_presence_request_identity_refresh();
+        }
         cJSON_Delete(result);
         cJSON_Delete(root);
         return;
@@ -920,6 +930,34 @@ static void mqtt_presence_ensure_session_id(void)
              mac_err == ESP_OK ? (unsigned)mac[5] : 0u);
 }
 
+static void mqtt_presence_request_identity_refresh(void)
+{
+    s_identity_refresh_requested = true;
+}
+
+static void mqtt_presence_refresh_identity_if_requested(void)
+{
+    if (!s_identity_refresh_requested) {
+        return;
+    }
+
+    s_identity_refresh_requested = false;
+
+    ESP_LOGI(TAG, "Reconfigurando identidade MQTT apos alteracao de upload_prefix");
+
+    if (s_client) {
+        (void)esp_mqtt_client_stop(s_client);
+        esp_mqtt_client_destroy(s_client);
+        s_client = NULL;
+    }
+
+    s_client_started = false;
+    s_connected = false;
+
+    mqtt_presence_generate_device_id();
+    mqtt_presence_build_topics();
+}
+
 static const char *wifi_state_name(wifi_manager_state_t state)
 {
     switch (state) {
@@ -1090,6 +1128,8 @@ static void mqtt_presence_heartbeat_task(void *arg)
             }
         }
 
+        mqtt_presence_refresh_identity_if_requested();
+
         if (!s_client_started) {
             (void)mqtt_presence_start_client_if_needed();
         }
@@ -1164,10 +1204,17 @@ static void mqtt_event_handler(void *handler_args,
 static void mqtt_presence_generate_device_id(void)
 {
     uint8_t mac[6] = {0};
+    char configured_prefix[ACR_UPLOAD_PREFIX_BUFFER_SIZE] = {0};
     char prefix[40] = {0};
     esp_err_t err = esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    const char *id_prefix_source = CONFIG_ACR_UPLOAD_PREFIX;
 
-    mqtt_presence_normalize_id_prefix(prefix, sizeof(prefix), CONFIG_ACR_UPLOAD_PREFIX);
+    if (acr_config_store_load_upload_prefix(configured_prefix, sizeof(configured_prefix)) == ESP_OK &&
+        configured_prefix[0] != '\0') {
+        id_prefix_source = configured_prefix;
+    }
+
+    mqtt_presence_normalize_id_prefix(prefix, sizeof(prefix), id_prefix_source);
 
     if (err == ESP_OK) {
         snprintf(s_device_id,
@@ -1180,6 +1227,8 @@ static void mqtt_presence_generate_device_id(void)
     } else {
         snprintf(s_device_id, sizeof(s_device_id), "%s-UNKNOWN", prefix);
     }
+
+    ESP_LOGI(TAG, "Device ID MQTT: %s (prefixo=%s)", s_device_id, prefix);
 }
 
 static void mqtt_presence_build_topics(void)

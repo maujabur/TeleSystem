@@ -36,7 +36,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `v1/acr/+/cmd/out`
 - Lista de dispositivos com:
   - device_id
-  - online/offline (por timeout de heartbeat)
+  - online/offline (por timeout + mensagens live)
   - last_seen
   - fw (se presente)
   - session_id (se presente)
@@ -45,6 +45,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - foco em leitura rapida de valores relevantes
 - Abas na area principal:
   - Resumo
+  - Status
   - Comandos
   - Settings
 - Comandos para `cmd/in`:
@@ -58,10 +59,21 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - botao `Salvar settings` envia `set_settings` apenas com alteracoes e em blocos menores
   - botao `Salvar heartbeat` envia `set_heartbeat_interval`
   - botao `Apply + reboot` envia `apply_and_reboot`
+  - botao `Limpar retained` publica payload vazio retido nos topicos do device para remover ghosts
   - use `Ler settings` antes de salvar para sincronizar valores atuais do device
   - campos invalidos ficam destacados em vermelho e validos em verde
   - `trigger_mode` e `apsta_policy` usam selects com rotulos amigaveis
   - area de log e redimensionavel com mouse (splitter vertical)
+- Presenca de device:
+  - mensagens MQTT retained nao marcam o device como online
+  - online/offline considera apenas mensagem live (nao retained) dentro do timeout
+  - toggle `Auto-probe presenca` na UI para ativar/desativar sonda automatica
+  - com auto-probe ligado, o app envia `get_state` para devices conhecidos sem live recente
+- Aba Status (foco em state):
+  - mostra campos key/value do payload de `state` e do resultado do comando `get_state`
+  - botao `get_state` proprio para atualizacao ativa
+- UX de botoes:
+  - barras de acoes de Comandos, Settings e Status ficam fixas (nao rolam com o conteudo)
 - `cmd_id` gerado automaticamente
 - Log em tempo real com destaque de `cmd/out` do dispositivo selecionado
 
