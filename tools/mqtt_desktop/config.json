@@ -1,0 +1,10 @@
+{
+  "mqtt": {
+    "host": "d77a33536b2143ba8d70a3abd3188ae5.s1.eu.hivemq.cloud",
+    "port": 8883,
+    "username": "panel",
+    "password": "Panel-31415",
+    "tls": true
+  },
+  "heartbeat_timeout_sec": 180
+}

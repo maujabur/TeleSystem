@@ -1,0 +1,10 @@
+{
+  "mqtt": {
+    "host": "localhost",
+    "port": 1883,
+    "username": "",
+    "password": "",
+    "tls": false
+  },
+  "heartbeat_timeout_sec": 180
+}
