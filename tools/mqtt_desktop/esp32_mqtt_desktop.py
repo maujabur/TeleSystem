@@ -204,6 +204,10 @@ class App(ctk.CTk):
         self.settings_snapshot: Dict[str, Any] = {}
         self.settings_loaded = False
         self.pending_cmd_by_id: Dict[str, Tuple[str, str]] = {}
+        self.mousewheel_scroll_frames: list[Any] = []
+        self.tree_sort_column = "device_id"
+        self.tree_sort_desc = False
+        self.tree_heading_labels: Dict[str, str] = {}
 
         self.host_var = StringVar(value="localhost")
         self.port_var = StringVar(value="1883")
@@ -216,6 +220,7 @@ class App(ctk.CTk):
         self.conn_state_var = StringVar(value="Disconnected")
 
         self._build_ui()
+        self._enable_mousewheel_scrolling()
         self._load_example_or_local_config()
 
         self.after(100, self._drain_events)
@@ -275,11 +280,22 @@ class App(ctk.CTk):
         self.tree = ttk.Treeview(devices_frame, columns=cols, show="headings", height=12)
         self.tree.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.tree.bind("<<TreeviewSelect>>", self._on_select_device)
+        self.tree.tag_configure("online", foreground="#1f8b24")
+        self.tree.tag_configure("offline", foreground="#d11a2a")
 
-        widths = {"device_id": 140, "online": 70, "last_seen": 150, "fw": 90, "session_id": 140}
+        widths = {"device_id": 140, "online": 95, "last_seen": 170, "fw": 90, "session_id": 140}
+        heading_labels = {
+            "device_id": "device_id",
+            "online": "online",
+            "last_seen": "last_seen (local)",
+            "fw": "fw",
+            "session_id": "session_id",
+        }
+        self.tree_heading_labels = heading_labels
         for col in cols:
-            self.tree.heading(col, text=col)
+            self.tree.heading(col, text=heading_labels.get(col, col), command=lambda c=col: self._on_tree_heading_click(c))
             self.tree.column(col, width=widths[col], anchor="w")
+        self._refresh_tree_headings()
 
         right = ctk.CTkFrame(self)
         right.grid(row=0, column=1, sticky="nsew", padx=(0, 12), pady=12)
@@ -313,6 +329,7 @@ class App(ctk.CTk):
         self.details.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
         self.details.grid_columnconfigure(0, weight=0)
         self.details.grid_columnconfigure(1, weight=1)
+        self.mousewheel_scroll_frames.append(self.details)
         self._build_details_panel()
 
         tab_status = tabs.tab("Status")
@@ -451,6 +468,7 @@ class App(ctk.CTk):
         scroll = ctk.CTkScrollableFrame(parent)
         scroll.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
         scroll.grid_columnconfigure(0, weight=1)
+        self.mousewheel_scroll_frames.append(scroll)
 
         row = 0
         row = self._build_settings_section_acr_control(scroll, row)
@@ -578,6 +596,57 @@ class App(ctk.CTk):
         self.status_body.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.status_body.grid_columnconfigure(0, weight=0)
         self.status_body.grid_columnconfigure(1, weight=1)
+        self.mousewheel_scroll_frames.append(self.status_body)
+
+    def _enable_mousewheel_scrolling(self):
+        self.bind_all("<MouseWheel>", self._on_global_mousewheel, add="+")
+        self.bind_all("<Button-4>", self._on_global_mousewheel, add="+")
+        self.bind_all("<Button-5>", self._on_global_mousewheel, add="+")
+
+    def _on_global_mousewheel(self, event):
+        widget = self.winfo_containing(event.x_root, event.y_root)
+        if widget is None:
+            return
+
+        target_canvas = self._resolve_scroll_canvas_for_widget(widget)
+        if target_canvas is None:
+            return
+
+        if getattr(event, "num", None) == 4:
+            step = -1
+        elif getattr(event, "num", None) == 5:
+            step = 1
+        else:
+            delta = getattr(event, "delta", 0)
+            if delta == 0:
+                return
+            step = -1 if delta > 0 else 1
+
+        target_canvas.yview_scroll(step, "units")
+
+    def _resolve_scroll_canvas_for_widget(self, widget):
+        for frame in self.mousewheel_scroll_frames:
+            if not frame.winfo_exists():
+                continue
+            if self._is_widget_descendant_of(widget, frame):
+                parent_canvas = getattr(frame, "_parent_canvas", None)
+                if parent_canvas is not None:
+                    return parent_canvas
+        return None
+
+    def _is_widget_descendant_of(self, widget, ancestor) -> bool:
+        current = widget
+        while current is not None:
+            if str(current) == str(ancestor):
+                return True
+            parent_name = current.winfo_parent()
+            if not parent_name:
+                return False
+            try:
+                current = current.nametowidget(parent_name)
+            except Exception:
+                return False
+        return False
 
     def _flatten_dict(self, payload: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
         out: Dict[str, Any] = {}
@@ -656,7 +725,7 @@ class App(ctk.CTk):
         rows = [
             ("Device ID", "device_id"),
             ("Online", "online"),
-            ("Last seen", "last_seen"),
+            ("Last seen (local)", "last_seen"),
             ("FW", "fw"),
             ("Session", "session_id"),
             ("Heartbeat ts", "hb_ts"),
@@ -877,10 +946,16 @@ class App(ctk.CTk):
                 ts_text = ts_text[:-1] + "+00:00"
             parsed = datetime.fromisoformat(ts_text)
             if parsed.tzinfo is not None:
-                return parsed.replace(tzinfo=None)
+                return parsed.astimezone().replace(tzinfo=None)
             return parsed
         except Exception:
             return None
+
+    def _format_local_datetime(self, dt_value: Optional[datetime]) -> str:
+        if not dt_value:
+            return "-"
+        tz_name = datetime.now().astimezone().tzname() or "local"
+        return f"{dt_value.strftime('%Y-%m-%d %H:%M:%S')} {tz_name}"
 
     def _request_get_settings(self):
         self._send_cmd("get_settings")
@@ -1285,19 +1360,72 @@ class App(ctk.CTk):
             device.session_id = str(session_id)
 
     def _upsert_tree_row(self, device: DeviceInfo):
-        last_seen_str = device.last_seen.strftime("%Y-%m-%d %H:%M:%S") if device.last_seen else "-"
+        last_seen_str = self._format_local_datetime(device.last_seen)
+        status_value = "online" if device.online else "offline"
+        status_display = f"● {status_value}"
         values = (
             device.device_id,
-            "online" if device.online else "offline",
+            status_display,
             last_seen_str,
             device.fw,
             device.session_id,
         )
 
         if self.tree.exists(device.device_id):
-            self.tree.item(device.device_id, values=values)
+            self.tree.item(device.device_id, values=values, tags=(status_value,))
         else:
-            self.tree.insert("", END, iid=device.device_id, values=values)
+            self.tree.insert("", END, iid=device.device_id, values=values, tags=(status_value,))
+        self._apply_tree_sort()
+
+    def _on_tree_heading_click(self, col: str):
+        if self.tree_sort_column == col:
+            self.tree_sort_desc = not self.tree_sort_desc
+        else:
+            self.tree_sort_column = col
+            self.tree_sort_desc = False
+        self._refresh_tree_headings()
+        self._apply_tree_sort()
+
+    def _refresh_tree_headings(self):
+        for col, label in self.tree_heading_labels.items():
+            text = label
+            if col == self.tree_sort_column:
+                arrow = "↓" if self.tree_sort_desc else "↑"
+                text = f"▶ {label} {arrow}"
+            self.tree.heading(col, text=text, command=lambda c=col: self._on_tree_heading_click(c))
+
+    def _apply_tree_sort(self):
+        rows = list(self.tree.get_children(""))
+        if not rows:
+            return
+
+        selected = self.tree.selection()
+        selected_iid = selected[0] if selected else None
+
+        rows.sort(key=self._tree_sort_key, reverse=self.tree_sort_desc)
+        for idx, iid in enumerate(rows):
+            self.tree.move(iid, "", idx)
+
+        if selected_iid and self.tree.exists(selected_iid):
+            self.tree.selection_set(selected_iid)
+
+    def _tree_sort_key(self, iid: str):
+        dev = self.devices.get(iid)
+        if not dev:
+            return ""
+
+        col = self.tree_sort_column
+        if col == "device_id":
+            return dev.device_id.casefold()
+        if col == "online":
+            return 0 if dev.online else 1
+        if col == "last_seen":
+            return dev.last_seen or datetime.min
+        if col == "fw":
+            return (dev.fw or "").casefold()
+        if col == "session_id":
+            return (dev.session_id or "").casefold()
+        return ""
 
     def _refresh_device_details(self):
         if not self.selected_device:
@@ -1323,7 +1451,7 @@ class App(ctk.CTk):
 
         self._set_detail("device_id", device.device_id)
         self._set_detail("online", "online" if device.online else "offline")
-        self._set_detail("last_seen", device.last_seen.strftime("%Y-%m-%d %H:%M:%S") if device.last_seen else "-")
+        self._set_detail("last_seen", self._format_local_datetime(device.last_seen))
         self._set_detail("fw", device.fw)
         self._set_detail("session_id", device.session_id)
 
