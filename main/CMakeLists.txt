@@ -18,6 +18,7 @@ set(MAIN_SRCS
     "connectivity/connectivity_controller.c"
     "connectivity/device_config_routes.c"
     "connectivity/device_config_store.c"
+    "connectivity/mqtt_presence.c"
     "connectivity/time_sync.c"
     "connectivity/wifi_config.c"
     "connectivity/wifi_manager.c"
@@ -45,5 +46,5 @@ idf_component_register(
         "../firmware_assets/web/settings.html"
         "../firmware_assets/web/networks.html"
         "../firmware_assets/web/logs.html"
-    REQUIRES esp_wifi esp_event nvs_flash esp_netif esp_driver_gpio esp_driver_i2s esp_driver_rmt esp_http_client esp_http_server esp_https_ota bootloader_support app_update lwip mbedtls esp_psram esp_adc espressif__cjson
+    REQUIRES esp_wifi esp_event nvs_flash esp_netif esp_driver_gpio esp_driver_i2s esp_driver_rmt esp_http_client esp_http_server esp_https_ota bootloader_support app_update lwip mbedtls esp_psram esp_adc mqtt espressif__cjson
 )

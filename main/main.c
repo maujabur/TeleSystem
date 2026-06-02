@@ -15,6 +15,7 @@
 #include "device_config_routes.h"
 #include "firmware_ota.h"
 #include "firmware_version.h"
+#include "mqtt_presence.h"
 #include "ota_portal.h"
 #include "power_good.h"
 #include "vbat_monitor.h"
@@ -175,6 +176,7 @@ void app_main(void)
     ESP_ERROR_CHECK(ota_portal_register_with_portal());
     ESP_ERROR_CHECK(device_config_routes_register_with_portal());
     ESP_ERROR_CHECK(connectivity_controller_start());
+    ESP_ERROR_CHECK(mqtt_presence_start());
 
     BaseType_t task_ok = xTaskCreate(acr_orchestrator_task,
                                      "acr_orch",

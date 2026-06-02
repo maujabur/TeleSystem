@@ -118,6 +118,66 @@ config BOOT_WIFI_CONFIG_BUTTON_SAMPLE_INTERVAL_MS
 
 endmenu
 
+menu "MQTT Presence Config"
+
+config MQTT_PRESENCE_ENABLED
+    bool "Enable MQTT presence and heartbeat"
+    default n
+    help
+        Habilita publicacao de presenca online/offline, heartbeat e canal
+        basico de comando MQTT para operacao remota.
+
+config MQTT_BROKER_URI
+    string "MQTT broker URI"
+    depends on MQTT_PRESENCE_ENABLED
+    default ""
+    help
+        URI do broker MQTT, por exemplo: mqtts://broker.exemplo.com:8883
+
+config MQTT_USERNAME
+    string "MQTT username"
+    depends on MQTT_PRESENCE_ENABLED
+    default ""
+
+config MQTT_PASSWORD
+    string "MQTT password"
+    depends on MQTT_PRESENCE_ENABLED
+    default ""
+
+config MQTT_TOPIC_NAMESPACE
+    string "MQTT topic namespace"
+    depends on MQTT_PRESENCE_ENABLED
+    default "v1/acr"
+    help
+        Prefixo de topicos usado pelo dispositivo. O device_id sera
+        anexado automaticamente.
+
+config MQTT_HEARTBEAT_INTERVAL_S
+    int "Heartbeat interval (seconds)"
+    depends on MQTT_PRESENCE_ENABLED
+    range 15 3600
+    default 60
+
+config MQTT_KEEPALIVE_S
+    int "MQTT keepalive (seconds)"
+    depends on MQTT_PRESENCE_ENABLED
+    range 15 1200
+    default 60
+
+config MQTT_QOS_CRITICAL
+    int "QoS for status/state/command"
+    depends on MQTT_PRESENCE_ENABLED
+    range 0 2
+    default 1
+
+config MQTT_QOS_TELEMETRY
+    int "QoS for heartbeat/telemetry"
+    depends on MQTT_PRESENCE_ENABLED
+    range 0 2
+    default 0
+
+endmenu
+
 menu "Status LED Config"
 
 config STATUS_LED_ENABLED
