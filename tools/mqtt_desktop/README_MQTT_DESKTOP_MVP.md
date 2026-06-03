@@ -29,18 +29,21 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 
 - Conexao MQTT (host, porta, usuario, senha, TLS on/off)
   - opcao `auto_connect_on_start` no `config.json` para conectar ao iniciar
+  - botoes Connect/Disconnect refletem o estado atual da conexao
 - Descoberta de dispositivos por wildcard:
   - `v1/acr/+/status`
   - `v1/acr/+/heartbeat`
   - `v1/acr/+/state`
   - `v1/acr/+/event`
   - `v1/acr/+/cmd/out`
-- Lista de dispositivos com:
-  - device_id
-  - online/offline (por timeout + mensagens live)
-  - last_seen
-  - fw (se presente)
-  - session_id (se presente)
+- Lista de dispositivos com visao compacta:
+  - busca por device, firmware, sessao ou resumo
+  - filtros `Todos`, `Online`, `Offline`, `Triagem` e `Retained`
+  - contadores de total, online, offline, triagem e retained
+  - colunas `estado`, `device_id`, `idade`, `fw` e `resumo`
+  - `idade` mostra tempo desde o ultimo contato observado pelo desktop
+  - `resumo` condensa RSSI, bateria, estado, evento, erro e comandos pendentes
+  - menu de contexto por device para copiar ID, enviar comandos, abrir abas e limpar retained
 - Painel do dispositivo selecionado com:
   - campos destacados para heartbeat, status/state, evento e cmd/out
   - foco em leitura rapida de valores relevantes
@@ -69,6 +72,11 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 - Presenca de device:
   - mensagens MQTT retained nao marcam o device como online
   - online/offline considera apenas mensagem live (nao retained) dentro do timeout
+  - `retained` indica device conhecido apenas por snapshot retido do broker nesta sessao
+  - se o device ja foi visto live na sessao, ao expirar o timeout ele vira `offline`, nao `retained`
+  - em uma nova abertura do app, um device pode aparecer como `retained` novamente se ainda houver payload retido no broker
+  - `pendente` indica device online com comando enviado e ainda sem resposta
+  - `triagem` indica offline ou erro real, como `cmd/out` com falha, evento de erro ou erro tecnico reportado
   - toggle `Auto-probe presenca` na UI para ativar/desativar sonda automatica
   - com auto-probe ligado, o app envia `get_state` para devices conhecidos sem live recente
 - Aba Status:
@@ -79,7 +87,9 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 - UX de botoes:
   - barras de acoes de Comandos, Settings e Status ficam fixas (nao rolam com o conteudo)
 - `cmd_id` gerado automaticamente
+- comandos pendentes expiram automaticamente para nao bloquear auto-update indefinidamente
 - Log em tempo real com destaque de `cmd/out` do dispositivo selecionado
+- Log limitado em quantidade de linhas para reduzir degradacao em execucoes longas
 
 ## Execucao rapida
 

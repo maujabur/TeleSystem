@@ -11,13 +11,15 @@
 			},
 			"extensions": [
 				"espressif.esp-idf-extension",
-				"espressif.esp-idf-web"
+				"espressif.esp-idf-web",
+				"openai.chatgpt"
 			]
 		}
 	},
 	"runArgs": [
 		"--privileged",
 		"--device=/dev/ttyACM0",
+		"--volume=/dev:/dev",
 		"--group-add=dialout"
 	]
 }

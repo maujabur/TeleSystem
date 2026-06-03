@@ -39,6 +39,8 @@ TOPICS_TO_SUBSCRIBE = [
     f"{BASE_TOPIC}/+/event",
     f"{BASE_TOPIC}/+/cmd/out",
 ]
+PENDING_COMMAND_TIMEOUT_SEC = 30
+MAX_LOG_LINES = 2000
 
 
 @dataclass
@@ -47,6 +49,13 @@ class MessageSnapshot:
     topic: str
     payload_obj: Optional[Dict[str, Any]]
     payload_raw: str
+
+
+@dataclass
+class PendingCommand:
+    device_id: str
+    command: str
+    sent_at: datetime
 
 
 @dataclass
@@ -207,18 +216,24 @@ class App(ctk.CTk):
         self.settings_inputs: Dict[str, Any] = {}
         self.settings_snapshot: Dict[str, Any] = {}
         self.settings_loaded = False
-        self.pending_cmd_by_id: Dict[str, Tuple[str, str]] = {}
+        self.pending_cmd_by_id: Dict[str, PendingCommand] = {}
+        self.log_line_count = 0
         self.mousewheel_scroll_frames: list[Any] = []
         self.tree_sort_column = "device_id"
         self.tree_sort_desc = False
         self.tree_heading_labels: Dict[str, str] = {}
         self.status_icons: Dict[str, tk.PhotoImage] = {}
+        self.device_tree_refresh_after_id: Optional[str] = None
+        self.device_context_menu: Optional[ctk.CTkToplevel] = None
 
         self.host_var = StringVar(value="localhost")
         self.port_var = StringVar(value="1883")
         self.user_var = StringVar(value="")
         self.pass_var = StringVar(value="")
         self.clear_retained_device_var = StringVar(value="")
+        self.device_search_var = StringVar(value="")
+        self.device_filter_var = StringVar(value="Todos")
+        self.device_counts_var = StringVar(value="Dispositivos: 0 | Online: 0 | Offline: 0 | Triagem: 0 | Retained: 0")
         self.tls_var = ctk.BooleanVar(value=False)
         self.auto_probe_var = ctk.BooleanVar(value=True)
         self.heartbeat_timeout_var = StringVar(value="180")
@@ -233,6 +248,7 @@ class App(ctk.CTk):
 
         self.after(100, self._drain_events)
         self.after(1000, self._check_offline_devices)
+        self.after(1000, self._refresh_device_age_tick)
         self.after(1000, self._technical_status_auto_update_tick)
         self.after(250, self._auto_connect_if_configured)
 
@@ -281,44 +297,80 @@ class App(ctk.CTk):
         btns = ctk.CTkFrame(conn, fg_color="transparent")
         btns.grid(row=7, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
         btns.grid_columnconfigure((0, 1), weight=1)
-        ctk.CTkButton(btns, text="Connect", command=self._connect).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-        ctk.CTkButton(btns, text="Disconnect", command=self._disconnect).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        self.btn_connect = ctk.CTkButton(btns, text="Connect", command=self._connect)
+        self.btn_connect.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.btn_disconnect = ctk.CTkButton(btns, text="Disconnect", command=self._disconnect, state="disabled")
+        self.btn_disconnect.grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
         status_frame = ctk.CTkFrame(conn)
         status_frame.grid(row=8, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
         self.conn_indicator = ctk.CTkLabel(status_frame, text=" ", width=18, height=18, fg_color="#a33", corner_radius=8)
         self.conn_indicator.grid(row=0, column=0, padx=(6, 8), pady=6)
         ctk.CTkLabel(status_frame, textvariable=self.conn_state_var).grid(row=0, column=1, sticky="w")
+        self._set_connection_ui_state("disconnected")
 
         devices_frame = ctk.CTkFrame(left)
         devices_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(6, 10))
         devices_frame.grid_columnconfigure(0, weight=1)
-        devices_frame.grid_rowconfigure(1, weight=1)
+        devices_frame.grid_rowconfigure(2, weight=1)
 
         ctk.CTkLabel(devices_frame, text="Dispositivos", font=ctk.CTkFont(size=16, weight="bold")).grid(
             row=0, column=0, sticky="w", padx=8, pady=(8, 4)
         )
 
-        cols = ("device_id", "online", "last_seen", "fw", "session_id")
+        device_tools = ctk.CTkFrame(devices_frame, fg_color="transparent")
+        device_tools.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 6))
+        device_tools.grid_columnconfigure(0, weight=1)
+        device_tools.grid_columnconfigure(1, weight=0)
+        ctk.CTkEntry(
+            device_tools,
+            textvariable=self.device_search_var,
+            placeholder_text="Buscar device, fw, sessao ou status",
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        ctk.CTkOptionMenu(
+            device_tools,
+            variable=self.device_filter_var,
+            values=["Todos", "Online", "Offline", "Triagem", "Retained"],
+            width=116,
+        ).grid(row=0, column=1, sticky="e")
+        ctk.CTkLabel(
+            device_tools,
+            textvariable=self.device_counts_var,
+            anchor="w",
+            text_color=("gray40", "gray70"),
+        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+
+        self.device_search_var.trace_add("write", self._on_device_filter_changed)
+        self.device_filter_var.trace_add("write", self._on_device_filter_changed)
+
+        cols = ("presence", "device_id", "age", "fw", "summary")
         self.tree = ttk.Treeview(devices_frame, columns=cols, show=("tree", "headings"), height=12)
-        self.tree.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        self.tree.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.tree.bind("<<TreeviewSelect>>", self._on_select_device)
+        self.tree.bind("<Button-3>", self._show_device_context_menu)
+        self.tree.bind("<Button-2>", self._show_device_context_menu)
         self.tree.tag_configure("online", foreground="#1f8b24")
         self.tree.tag_configure("offline", foreground="#d11a2a")
+        self.tree.tag_configure("retained", foreground="#6c757d")
+        self.tree.tag_configure("attention", foreground="#d67a00")
+        self.tree.tag_configure("pending", foreground="#0b5ed7")
         self.status_icons = {
             "online": self._create_status_icon("#25a83a", "#166b24"),
             "offline": self._create_status_icon("#d11a2a", "#85101b"),
+            "retained": self._create_status_icon("#8a8f98", "#5e646d"),
+            "attention": self._create_status_icon("#d67a00", "#8a4f00"),
+            "pending": self._create_status_icon("#0b5ed7", "#063b83"),
         }
         self.tree.heading("#0", text="")
         self.tree.column("#0", width=28, minwidth=28, stretch=False, anchor="center")
 
-        widths = {"device_id": 140, "online": 95, "last_seen": 170, "fw": 90, "session_id": 140}
+        widths = {"presence": 78, "device_id": 142, "age": 82, "fw": 72, "summary": 300}
         heading_labels = {
             "device_id": "device_id",
-            "online": "online",
-            "last_seen": "last_seen (local)",
+            "presence": "estado",
+            "age": "idade",
             "fw": "fw",
-            "session_id": "session_id",
+            "summary": "resumo",
         }
         self.tree_heading_labels = heading_labels
         for col in cols:
@@ -344,7 +396,8 @@ class App(ctk.CTk):
         bottom_container.grid_columnconfigure(0, weight=1)
         bottom_container.grid_rowconfigure(0, weight=1)
 
-        tabs = ctk.CTkTabview(top_container)
+        self.tabs = ctk.CTkTabview(top_container, command=self._on_main_tab_changed)
+        tabs = self.tabs
         tabs.grid(row=0, column=0, sticky="nsew")
         tabs.add("Resumo")
         tabs.add("Status")
@@ -380,12 +433,13 @@ class App(ctk.CTk):
         self.log_box.tag_config("warn", foreground="#d67a00")
         self.log_box.tag_config("error", foreground="#d11a2a")
         self.log_box.tag_config("selected_cmd", foreground="#0b5ed7")
-        self.log_menu = tk.Menu(self, tearoff=0)
-        self.log_menu.add_command(label="Clear", command=self._clear_log)
+        self.log_context_menu: Optional[ctk.CTkToplevel] = None
         self.log_box.bind("<Button-3>", self._show_log_context_menu)
         self.log_box.bind("<Button-2>", self._show_log_context_menu)
-        self.bind_all("<Button-1>", self._hide_log_context_menu, add="+")
+        self.bind_all("<Button-1>", self._hide_log_context_menu_if_outside, add="+")
+        self.bind_all("<Button-1>", self._hide_device_context_menu_if_outside, add="+")
         self.bind_all("<Escape>", self._hide_log_context_menu, add="+")
+        self.bind_all("<Escape>", self._hide_device_context_menu, add="+")
 
         self._append_log("Application started", tag="info")
 
@@ -1186,7 +1240,20 @@ class App(ctk.CTk):
             self._append_log("Auto connect on start habilitado", tag="info")
             self._connect()
 
+    def _set_connection_ui_state(self, state: str):
+        if not hasattr(self, "btn_connect") or not hasattr(self, "btn_disconnect"):
+            return
+        if state in {"connecting", "connected"}:
+            self.btn_connect.configure(state="disabled")
+            self.btn_disconnect.configure(state="normal")
+        else:
+            self.btn_connect.configure(state="normal")
+            self.btn_disconnect.configure(state="disabled")
+
     def _connect(self):
+        if self.mqtt.connected:
+            return
+
         host, port, tls_enabled, error = self._resolve_broker_params(
             self.host_var.get().strip(),
             self.port_var.get().strip(),
@@ -1194,8 +1261,12 @@ class App(ctk.CTk):
         )
         if error:
             self._append_log(error, tag="error")
+            self._set_connection_ui_state("disconnected")
             return
 
+        self.conn_state_var.set("Connecting...")
+        self.conn_indicator.configure(fg_color="#d67a00")
+        self._set_connection_ui_state("connecting")
         self.mqtt.connect(
             host=host,
             port=port,
@@ -1238,6 +1309,7 @@ class App(ctk.CTk):
         return host, port, tls_enabled, None
 
     def _disconnect(self):
+        self._set_connection_ui_state("disconnected")
         self.mqtt.disconnect()
 
     def _on_select_device(self, _event=None):
@@ -1252,6 +1324,193 @@ class App(ctk.CTk):
         self._refresh_device_details()
         self._refresh_status_panel()
 
+    def _show_device_context_menu(self, event):
+        row_id = self.tree.identify_row(event.y)
+        if not row_id:
+            self._hide_device_context_menu()
+            return "break"
+
+        self.tree.selection_set(row_id)
+        self.selected_device = row_id
+        self.clear_retained_device_var.set(row_id)
+        self._refresh_device_details()
+        self._refresh_status_panel()
+        self._hide_device_context_menu()
+
+        menu = ctk.CTkToplevel(self)
+        menu.withdraw()
+        menu.overrideredirect(True)
+        menu.attributes("-topmost", True)
+        menu.configure(fg_color=("gray96", "gray15"))
+
+        frame = ctk.CTkFrame(
+            menu,
+            corner_radius=8,
+            border_width=1,
+            border_color=("gray70", "gray35"),
+            fg_color=("gray96", "gray15"),
+        )
+        frame.grid(row=0, column=0, sticky="nsew")
+
+        device = self.devices.get(row_id)
+        action_enabled = bool(device and device.online and self.mqtt.connected)
+        if device:
+            _presence_key, presence_text = self._device_presence(device)
+            header_lines = [
+                row_id,
+                f"{presence_text} | idade {self._format_age(device.last_seen)}",
+                f"ultimo contato: {self._format_local_datetime(device.last_seen)}",
+                self._device_summary(device),
+            ]
+        else:
+            header_lines = [row_id, "sem dados", "ultimo contato: -", "-"]
+
+        header = ctk.CTkFrame(frame, fg_color=("gray90", "gray22"), corner_radius=6)
+        header.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        ctk.CTkLabel(
+            header,
+            text=header_lines[0],
+            anchor="w",
+            justify="left",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).grid(row=0, column=0, sticky="ew", padx=8, pady=(6, 0))
+        ctk.CTkLabel(
+            header,
+            text="\n".join(header_lines[1:]),
+            anchor="w",
+            justify="left",
+            text_color=("gray35", "gray75"),
+            wraplength=260,
+        ).grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 6))
+
+        actions = [
+            ("Copiar device_id", lambda device_id=row_id: self._copy_device_id(device_id), True),
+            ("get_state", lambda device_id=row_id: self._send_context_command(device_id, "get_state", "Status"), action_enabled),
+            (
+                "status_tecnico",
+                lambda device_id=row_id: self._send_context_command(device_id, "get_technical_status", "Status"),
+                action_enabled,
+            ),
+            ("get_settings", lambda device_id=row_id: self._request_get_settings_for_device(device_id), action_enabled),
+            ("Limpar retained", lambda device_id=row_id: self._clear_retained_for_device_id(device_id), True),
+            ("Abrir Status", lambda device_id=row_id: self._select_device_tab(device_id, "Status"), True),
+            ("Abrir Settings", lambda device_id=row_id: self._select_device_tab(device_id, "Settings"), True),
+        ]
+        for index, (text, command, enabled) in enumerate(actions, start=1):
+            ctk.CTkButton(
+                frame,
+                text=text,
+                width=280,
+                height=30,
+                corner_radius=6,
+                fg_color="transparent",
+                hover_color=("gray84", "gray28"),
+                text_color=("gray10", "gray90") if enabled else ("gray55", "gray45"),
+                anchor="w",
+                state="normal" if enabled else "disabled",
+                command=lambda cmd=command: self._run_device_context_action(cmd),
+            ).grid(
+                row=index,
+                column=0,
+                sticky="ew",
+                padx=5,
+                pady=(1, 5 if index == len(actions) else 1),
+        )
+
+        menu.update_idletasks()
+        x_pos, y_pos = self._context_menu_position(
+            event.x_root,
+            event.y_root,
+            menu.winfo_reqwidth(),
+            menu.winfo_reqheight(),
+        )
+        menu.geometry(f"+{x_pos}+{y_pos}")
+        menu.deiconify()
+        menu.lift()
+        menu.focus_force()
+        menu.bind("<FocusOut>", self._hide_device_context_menu, add="+")
+        self.device_context_menu = menu
+        return "break"
+
+    def _run_device_context_action(self, command):
+        self._hide_device_context_menu()
+        command()
+
+    def _hide_device_context_menu(self, _event=None):
+        menu = getattr(self, "device_context_menu", None)
+        if menu is not None:
+            try:
+                menu.destroy()
+            except tk.TclError:
+                pass
+            self.device_context_menu = None
+
+    def _hide_device_context_menu_if_outside(self, event):
+        menu = getattr(self, "device_context_menu", None)
+        if menu is None:
+            return
+        try:
+            x0 = menu.winfo_rootx()
+            y0 = menu.winfo_rooty()
+            x1 = x0 + menu.winfo_width()
+            y1 = y0 + menu.winfo_height()
+        except tk.TclError:
+            self.device_context_menu = None
+            return
+
+        if not (x0 <= event.x_root <= x1 and y0 <= event.y_root <= y1):
+            self._hide_device_context_menu()
+
+    def _context_menu_position(self, x_root: int, y_root: int, width: int, height: int) -> Tuple[int, int]:
+        margin = 8
+        root_x = self.winfo_rootx()
+        root_y = self.winfo_rooty()
+        root_width = self.winfo_width()
+        root_height = self.winfo_height()
+
+        min_x = root_x + margin
+        max_x = max(min_x, root_x + root_width - width - margin)
+        min_y = root_y + margin
+        max_y = max(min_y, root_y + root_height - height - margin)
+
+        x_pos = min(max(min_x, x_root), max_x)
+        y_pos = min(max(min_y, y_root - height - margin), max_y)
+        return x_pos, y_pos
+
+    def _copy_device_id(self, device_id: str):
+        self.clipboard_clear()
+        self.clipboard_append(device_id)
+        self._append_log(f"device_id copiado: {device_id}", tag="info")
+
+    def _send_context_command(self, device_id: str, command: str, tab_name: Optional[str] = None):
+        if tab_name:
+            self._select_device_tab(device_id, tab_name)
+        self._send_cmd_to_device(device_id, command)
+        if command == "get_state" and hasattr(self, "status_time_label"):
+            self.status_time_label.configure(text="Atualizacao: aguardando get_state...")
+        elif command == "get_technical_status" and hasattr(self, "status_time_label"):
+            self.status_time_label.configure(text="Atualizacao: aguardando status_tecnico...")
+
+    def _request_get_settings_for_device(self, device_id: str):
+        self._select_device_tab(device_id, "Settings")
+        self._send_cmd_to_device(device_id, "get_settings")
+        if hasattr(self, "settings_status_label"):
+            self.settings_status_label.configure(text="Ultima leitura: aguardando resposta...")
+
+    def _clear_retained_for_device_id(self, device_id: str):
+        self.clear_retained_device_var.set(device_id)
+        self._clear_retained_for_device()
+
+    def _select_device_tab(self, device_id: str, tab_name: str):
+        self.selected_device = device_id
+        if self.tree.exists(device_id):
+            self.tree.selection_set(device_id)
+        self.clear_retained_device_var.set(device_id)
+        self._refresh_device_details()
+        self._refresh_status_panel()
+        if hasattr(self, "tabs"):
+            self.tabs.set(tab_name)
+
     def _request_get_state_selected(self):
         if not self.selected_device:
             self._append_log("Selecione um dispositivo para get_state", tag="warn")
@@ -1264,11 +1523,25 @@ class App(ctk.CTk):
             return
         self._send_cmd_to_device(self.selected_device, "get_technical_status")
 
+    def _is_status_tab_visible(self) -> bool:
+        return hasattr(self, "tabs") and self.tabs.get() == "Status"
+
+    def _on_main_tab_changed(self):
+        if (
+            self._is_status_tab_visible()
+            and bool(self.technical_auto_update_var.get())
+            and self.mqtt.connected
+            and self.selected_device
+            and not self._has_pending_command(self.selected_device, "get_technical_status")
+        ):
+            self._send_cmd_to_device(self.selected_device, "get_technical_status", log_publish=False)
+
     def _technical_status_auto_update_tick(self):
         interval_s = self._technical_update_interval_seconds()
         if (
             bool(self.technical_auto_update_var.get())
             and self.mqtt.connected
+            and self._is_status_tab_visible()
             and self.selected_device
             and not self._has_pending_command(self.selected_device, "get_technical_status")
         ):
@@ -1282,10 +1555,26 @@ class App(ctk.CTk):
         except ValueError:
             return 3
 
+    def _expire_pending_commands(self):
+        now = datetime.now()
+        expired_cmd_ids = [
+            cmd_id
+            for cmd_id, pending in self.pending_cmd_by_id.items()
+            if now - pending.sent_at > timedelta(seconds=PENDING_COMMAND_TIMEOUT_SEC)
+        ]
+        for cmd_id in expired_cmd_ids:
+            pending = self.pending_cmd_by_id.pop(cmd_id, None)
+            if pending:
+                self._append_log(
+                    f"Comando expirado sem resposta: {pending.command} para {pending.device_id} cmd_id={cmd_id}",
+                    tag="warn",
+                )
+
     def _has_pending_command(self, device_id: str, command: str) -> bool:
+        self._expire_pending_commands()
         return any(
-            pending_device_id == device_id and pending_cmd == command
-            for pending_device_id, pending_cmd in self.pending_cmd_by_id.values()
+            pending.device_id == device_id and pending.command == command
+            for pending in self.pending_cmd_by_id.values()
         )
 
     def _probe_known_devices(self):
@@ -1318,21 +1607,23 @@ class App(ctk.CTk):
             self._append_log("Device_id invalido", tag="warn")
             return
 
+        now = datetime.now()
         payload = {
             "name": command,
             "cmd_id": self._new_cmd_id(),
-            "ts": datetime.now().isoformat(timespec="seconds"),
+            "ts": now.isoformat(timespec="seconds"),
         }
         if extra_params:
             payload["args"] = extra_params
 
+        self._expire_pending_commands()
         ok, msg = self.mqtt.publish_command(device_id, payload)
         if not ok:
             self._append_log(msg, tag="error")
         elif log_publish:
             self._append_log(f"Cmd {command} enviado para {device_id}", tag="info")
         if ok:
-            self.pending_cmd_by_id[payload["cmd_id"]] = (device_id, command)
+            self.pending_cmd_by_id[payload["cmd_id"]] = PendingCommand(device_id=device_id, command=command, sent_at=now)
 
     def _send_set_heartbeat(self):
         try:
@@ -1661,10 +1952,13 @@ class App(ctk.CTk):
         self.conn_state_var.set(reason)
         self.conn_indicator.configure(fg_color="#1f8b24" if connected else "#a33")
         if connected:
+            self._set_connection_ui_state("connected")
             self._append_log("MQTT connected", tag="info")
             if bool(self.auto_probe_var.get()):
                 self._probe_known_devices()
         else:
+            self.pending_cmd_by_id.clear()
+            self._set_connection_ui_state("disconnected")
             self._append_log(reason or "MQTT disconnected", tag="warn")
 
     def _on_message_event(self, data: Dict[str, Any]):
@@ -1686,10 +1980,11 @@ class App(ctk.CTk):
 
         payload_ts = self._extract_payload_timestamp(payload_obj)
         effective_ts = payload_ts or broker_time
+        contact_ts = broker_time
 
         if is_retained:
             # Retained snapshots nao significam dispositivo online agora.
-            if payload_ts:
+            if payload_ts and not device.seen_live:
                 if not device.last_seen or payload_ts > device.last_seen:
                     device.last_seen = payload_ts
             if self.mqtt.connected and bool(self.auto_probe_var.get()) and not device.seen_live:
@@ -1699,7 +1994,7 @@ class App(ctk.CTk):
                     self._send_cmd_to_device(device_id, "get_state", log_publish=False)
         else:
             device.seen_live = True
-            device.last_seen = effective_ts
+            device.last_seen = contact_ts
             device.online = True
 
         self._update_device_metadata(device, payload_obj)
@@ -1725,14 +2020,14 @@ class App(ctk.CTk):
         if message_type == "cmd/out" and isinstance(payload_obj, dict):
             cmd_id = payload_obj.get("cmd_id")
             if isinstance(cmd_id, str) and cmd_id in self.pending_cmd_by_id:
-                pending_device_id, pending_cmd = self.pending_cmd_by_id.pop(cmd_id)
-                cmd_result_command = pending_cmd
-                if pending_device_id == device_id and pending_cmd == "get_state":
+                pending = self.pending_cmd_by_id.pop(cmd_id)
+                cmd_result_command = pending.command
+                if pending.device_id == device_id and pending.command == "get_state":
                     result = payload_obj.get("result")
                     if isinstance(result, dict) and payload_obj.get("ok") is True:
                         device.last_get_state_result = result
                         device.last_get_state_at = effective_ts
-                elif pending_device_id == device_id and pending_cmd == "get_technical_status":
+                elif pending.device_id == device_id and pending.command == "get_technical_status":
                     result = payload_obj.get("result")
                     if isinstance(result, dict) and payload_obj.get("ok") is True:
                         device.last_technical_status_result = result
@@ -1791,31 +2086,234 @@ class App(ctk.CTk):
         if not isinstance(payload_obj, dict):
             return
 
-        fw = payload_obj.get("fw") or payload_obj.get("firmware")
-        if fw:
-            device.fw = str(fw)
+        payloads = [payload_obj]
+        result = payload_obj.get("result")
+        if isinstance(result, dict):
+            payloads.append(result)
 
-        session_id = payload_obj.get("session_id") or payload_obj.get("sid")
-        if session_id:
-            device.session_id = str(session_id)
+        for payload in payloads:
+            fw = payload.get("fw") or payload.get("firmware")
+            if fw:
+                device.fw = str(fw)
+
+            session_id = payload.get("session_id") or payload.get("sid")
+            if session_id:
+                device.session_id = str(session_id)
 
     def _upsert_tree_row(self, device: DeviceInfo):
-        last_seen_str = self._format_local_datetime(device.last_seen)
-        status_value = "online" if device.online else "offline"
-        status_display = status_value
-        values = (
-            device.device_id,
-            status_display,
-            last_seen_str,
-            device.fw,
-            device.session_id,
+        self._schedule_device_tree_refresh()
+
+    def _schedule_device_tree_refresh(self):
+        if self.device_tree_refresh_after_id is not None:
+            return
+        self.device_tree_refresh_after_id = self.after(150, self._refresh_device_tree)
+
+    def _refresh_device_age_tick(self):
+        if self.devices:
+            self._refresh_device_tree()
+            if self.selected_device:
+                self._refresh_device_details()
+        self.after(1000, self._refresh_device_age_tick)
+
+    def _on_device_filter_changed(self, *_args):
+        self._refresh_device_tree()
+
+    def _refresh_device_tree(self):
+        self.device_tree_refresh_after_id = None
+        if not hasattr(self, "tree"):
+            return
+
+        selected_iid = self.selected_device
+        devices = list(self.devices.values())
+        visible_devices = [device for device in devices if self._device_matches_current_filter(device)]
+        visible_devices.sort(key=self._device_sort_key, reverse=self.tree_sort_desc)
+
+        existing_rows = self.tree.get_children("")
+        if existing_rows:
+            self.tree.delete(*existing_rows)
+
+        for device in visible_devices:
+            presence_key, values = self._tree_values_for_device(device)
+            self.tree.insert(
+                "",
+                END,
+                iid=device.device_id,
+                values=values,
+                image=self.status_icons[presence_key],
+                tags=(presence_key,),
+            )
+
+        if selected_iid and self.tree.exists(selected_iid):
+            self.tree.selection_set(selected_iid)
+        elif selected_iid and selected_iid not in self.devices:
+            self.selected_device = None
+        self._refresh_device_counts()
+
+    def _refresh_device_counts(self):
+        total = len(self.devices)
+        online = sum(1 for device in self.devices.values() if device.online)
+        retained = sum(1 for device in self.devices.values() if self._device_presence(device)[0] == "retained")
+        attention = sum(1 for device in self.devices.values() if self._device_needs_attention(device))
+        offline = sum(1 for device in self.devices.values() if self._device_presence(device)[0] == "offline")
+        self.device_counts_var.set(
+            f"Dispositivos: {total} | Online: {online} | Offline: {offline} | Triagem: {attention} | Retained: {retained}"
         )
 
-        if self.tree.exists(device.device_id):
-            self.tree.item(device.device_id, values=values, image=self.status_icons[status_value], tags=(status_value,))
-        else:
-            self.tree.insert("", END, iid=device.device_id, values=values, image=self.status_icons[status_value], tags=(status_value,))
-        self._apply_tree_sort()
+    def _device_presence(self, device: DeviceInfo) -> Tuple[str, str]:
+        if device.online:
+            if self._pending_count_for_device(device.device_id):
+                return "pending", "pendente"
+            if self._device_needs_attention(device):
+                return "attention", "triagem"
+            return "online", "online"
+        if device.last_seen and not device.seen_live:
+            return "retained", "retained"
+        return "offline", "offline"
+
+    def _device_needs_attention(self, device: DeviceInfo) -> bool:
+        if not device.online:
+            return True
+        cmd_out = self._payload_for(device, "cmd/out")
+        event = self._payload_for(device, "event")
+        technical = device.last_technical_status_result or {}
+        return (
+            cmd_out.get("ok") is False
+            or bool(cmd_out.get("error"))
+            or bool(event.get("error"))
+            or bool(technical.get("acr_last_error"))
+            or self._num(technical, "acr_consecutive_errors", 0) > 0
+        )
+
+    def _pending_count_for_device(self, device_id: str) -> int:
+        self._expire_pending_commands()
+        return sum(1 for pending in self.pending_cmd_by_id.values() if pending.device_id == device_id)
+
+    def _device_matches_current_filter(self, device: DeviceInfo) -> bool:
+        filter_value = self.device_filter_var.get()
+        presence_key, _presence_text = self._device_presence(device)
+        if filter_value == "Online" and not device.online:
+            return False
+        if filter_value == "Offline" and presence_key != "offline":
+            return False
+        if filter_value == "Triagem" and not self._device_needs_attention(device):
+            return False
+        if filter_value == "Retained" and presence_key != "retained":
+            return False
+
+        search = self.device_search_var.get().strip().casefold()
+        if not search:
+            return True
+
+        haystack = " ".join(
+            [
+                device.device_id,
+                device.fw,
+                device.session_id,
+                presence_key,
+                self._device_summary(device),
+            ]
+        ).casefold()
+        return search in haystack
+
+    def _device_summary(self, device: DeviceInfo) -> str:
+        heartbeat = self._payload_for(device, "heartbeat")
+        state = self._payload_for(device, "state")
+        status = self._payload_for(device, "status")
+        event = self._payload_for(device, "event")
+        cmd_out = self._payload_for(device, "cmd/out")
+        technical = device.last_technical_status_result or {}
+
+        parts = []
+        rssi = self._field(heartbeat, "rssi")
+        if rssi != "-":
+            parts.append(f"RSSI {rssi}")
+
+        vbat = self._format_summary_vbat(heartbeat, technical)
+        if vbat != "-":
+            parts.append(f"BAT {vbat}")
+
+        state_text = self._field(state, "state", "runtime_state", "wifi_state")
+        if state_text == "-":
+            state_text = self._field(status, "status", "message", "state")
+        if state_text == "-" and technical:
+            state_text = self._field(technical, "acr_state", "acr_status")
+        if state_text != "-":
+            parts.append(self._format_state(str(state_text)))
+
+        last_error = (
+            cmd_out.get("error")
+            or event.get("error")
+            or technical.get("acr_last_error")
+        )
+        if last_error:
+            parts.append(f"ERR {str(last_error)[:36]}")
+
+        last_event = self._field(event, "event", "name", "type")
+        if last_event != "-":
+            parts.append(f"EV {str(last_event)[:24]}")
+
+        pending_count = self._pending_count_for_device(device.device_id)
+        if pending_count:
+            parts.append(f"PEND {pending_count}")
+
+        if not parts:
+            return "sem dados live" if not device.seen_live else "-"
+        return " | ".join(parts)
+
+    def _format_summary_vbat(self, heartbeat: Dict[str, Any], technical: Dict[str, Any]) -> str:
+        vbat_value = heartbeat.get("vbat") or heartbeat.get("vbat_mv")
+        if vbat_value is None and isinstance(technical.get("vbat"), dict):
+            vbat_value = technical["vbat"].get("vbat_mv")
+        if vbat_value is None:
+            return "-"
+        try:
+            numeric = float(vbat_value)
+            if numeric > 20:
+                return f"{numeric / 1000:.2f}V"
+            return f"{numeric:.2f}V"
+        except (TypeError, ValueError):
+            return str(vbat_value)
+
+    def _format_age(self, dt_value: Optional[datetime]) -> str:
+        if not dt_value:
+            return "-"
+        delta = datetime.now() - dt_value
+        seconds = max(0, int(delta.total_seconds()))
+        if seconds < 60:
+            return f"{seconds}s"
+        minutes = seconds // 60
+        if minutes < 60:
+            return f"{minutes}m"
+        hours = minutes // 60
+        if hours < 48:
+            return f"{hours}h"
+        return f"{hours // 24}d"
+
+    def _device_sort_key(self, device: DeviceInfo):
+        col = self.tree_sort_column
+        if col == "presence":
+            rank = {"online": 0, "pending": 1, "attention": 2, "offline": 3, "retained": 4}
+            return rank.get(self._device_presence(device)[0], 9)
+        if col == "device_id":
+            return device.device_id.casefold()
+        if col == "age":
+            return device.last_seen or datetime.min
+        if col == "fw":
+            return (device.fw or "").casefold()
+        if col == "summary":
+            return self._device_summary(device).casefold()
+        return ""
+
+    def _tree_values_for_device(self, device: DeviceInfo):
+        presence_key, presence_text = self._device_presence(device)
+        values = (
+            presence_text,
+            device.device_id,
+            self._format_age(device.last_seen),
+            device.fw,
+            self._device_summary(device),
+        )
+        return presence_key, values
 
     def _on_tree_heading_click(self, col: str):
         if self.tree_sort_column == col:
@@ -1824,7 +2322,7 @@ class App(ctk.CTk):
             self.tree_sort_column = col
             self.tree_sort_desc = False
         self._refresh_tree_headings()
-        self._apply_tree_sort()
+        self._refresh_device_tree()
 
     def _refresh_tree_headings(self):
         for col, label in self.tree_heading_labels.items():
@@ -1835,37 +2333,13 @@ class App(ctk.CTk):
             self.tree.heading(col, text=text, command=lambda c=col: self._on_tree_heading_click(c))
 
     def _apply_tree_sort(self):
-        rows = list(self.tree.get_children(""))
-        if not rows:
-            return
-
-        selected = self.tree.selection()
-        selected_iid = selected[0] if selected else None
-
-        rows.sort(key=self._tree_sort_key, reverse=self.tree_sort_desc)
-        for idx, iid in enumerate(rows):
-            self.tree.move(iid, "", idx)
-
-        if selected_iid and self.tree.exists(selected_iid):
-            self.tree.selection_set(selected_iid)
+        self._refresh_device_tree()
 
     def _tree_sort_key(self, iid: str):
         dev = self.devices.get(iid)
         if not dev:
             return ""
-
-        col = self.tree_sort_column
-        if col == "device_id":
-            return dev.device_id.casefold()
-        if col == "online":
-            return 0 if dev.online else 1
-        if col == "last_seen":
-            return dev.last_seen or datetime.min
-        if col == "fw":
-            return (dev.fw or "").casefold()
-        if col == "session_id":
-            return (dev.session_id or "").casefold()
-        return ""
+        return self._device_sort_key(dev)
 
     def _refresh_device_details(self):
         if not self.selected_device:
@@ -1977,18 +2451,85 @@ class App(ctk.CTk):
 
     def _clear_log(self):
         self.log_box.delete("1.0", END)
+        self.log_line_count = 0
 
     def _show_log_context_menu(self, event):
-        self.log_menu.post(event.x_root, event.y_root)
+        self._hide_log_context_menu()
+
+        menu = ctk.CTkToplevel(self)
+        menu.withdraw()
+        menu.overrideredirect(True)
+        menu.attributes("-topmost", True)
+        menu.configure(fg_color=("gray96", "gray15"))
+
+        frame = ctk.CTkFrame(
+            menu,
+            corner_radius=8,
+            border_width=1,
+            border_color=("gray70", "gray35"),
+            fg_color=("gray96", "gray15"),
+        )
+        frame.grid(row=0, column=0, sticky="nsew")
+        clear_button = ctk.CTkButton(
+            frame,
+            text="Clear log",
+            width=116,
+            height=32,
+            corner_radius=6,
+            fg_color="transparent",
+            hover_color=("gray84", "gray28"),
+            text_color=("gray10", "gray90"),
+            command=self._clear_log_from_context_menu,
+        )
+        clear_button.grid(row=0, column=0, padx=5, pady=5)
+
+        menu.update_idletasks()
+        menu.geometry(f"+{event.x_root}+{event.y_root}")
+        menu.deiconify()
+        menu.lift()
+        menu.focus_force()
+        menu.bind("<FocusOut>", self._hide_log_context_menu, add="+")
+        self.log_context_menu = menu
         return "break"
 
     def _hide_log_context_menu(self, _event=None):
-        self.log_menu.unpost()
+        menu = getattr(self, "log_context_menu", None)
+        if menu is not None:
+            try:
+                menu.destroy()
+            except tk.TclError:
+                pass
+            self.log_context_menu = None
+
+    def _hide_log_context_menu_if_outside(self, event):
+        menu = getattr(self, "log_context_menu", None)
+        if menu is None:
+            return
+        try:
+            x0 = menu.winfo_rootx()
+            y0 = menu.winfo_rooty()
+            x1 = x0 + menu.winfo_width()
+            y1 = y0 + menu.winfo_height()
+        except tk.TclError:
+            self.log_context_menu = None
+            return
+
+        if not (x0 <= event.x_root <= x1 and y0 <= event.y_root <= y1):
+            self._hide_log_context_menu()
+
+    def _clear_log_from_context_menu(self):
+        self._clear_log()
+        self._hide_log_context_menu()
 
     def _append_log(self, text: str, tag: str = "info"):
         ts = datetime.now().strftime("%H:%M:%S")
         line = f"[{ts}] {text}\n"
         self.log_box.insert(END, line, tag)
+        self.log_line_count += line.count("\n")
+        if self.log_line_count > MAX_LOG_LINES:
+            excess = self.log_line_count - MAX_LOG_LINES
+            self.log_box.delete("1.0", f"1.0 + {excess} lines")
+            self.log_line_count = MAX_LOG_LINES
         self.log_box.see(END)
 
     def _parse_topic(self, topic: str) -> Tuple[Optional[str], Optional[str]]:
