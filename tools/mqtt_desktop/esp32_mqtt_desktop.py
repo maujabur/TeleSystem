@@ -58,6 +58,8 @@ class DeviceInfo:
     last_seen: Optional[datetime] = None
     last_get_state_result: Optional[Dict[str, Any]] = None
     last_get_state_at: Optional[datetime] = None
+    last_technical_status_result: Optional[Dict[str, Any]] = None
+    last_technical_status_at: Optional[datetime] = None
     fw: str = "-"
     session_id: str = "-"
     last_messages: Dict[str, MessageSnapshot] = field(default_factory=dict)
@@ -199,6 +201,8 @@ class App(ctk.CTk):
         self.selected_device: Optional[str] = None
         self.detail_value_labels: Dict[str, ctk.CTkLabel] = {}
         self.status_value_labels: Dict[str, ctk.CTkLabel] = {}
+        self.status_display_values: Dict[str, str] = {}
+        self.status_raw_text_value = ""
         self.settings_vars: Dict[str, Any] = {}
         self.settings_inputs: Dict[str, Any] = {}
         self.settings_snapshot: Dict[str, Any] = {}
@@ -218,6 +222,9 @@ class App(ctk.CTk):
         self.tls_var = ctk.BooleanVar(value=False)
         self.auto_probe_var = ctk.BooleanVar(value=True)
         self.heartbeat_timeout_var = StringVar(value="180")
+        self.auto_connect_on_start_var = ctk.BooleanVar(value=False)
+        self.technical_auto_update_var = ctk.BooleanVar(value=True)
+        self.technical_update_interval_var = StringVar(value="3")
         self.conn_state_var = StringVar(value="Disconnected")
 
         self._build_ui()
@@ -226,6 +233,8 @@ class App(ctk.CTk):
 
         self.after(100, self._drain_events)
         self.after(1000, self._check_offline_devices)
+        self.after(1000, self._technical_status_auto_update_tick)
+        self.after(250, self._auto_connect_if_configured)
 
     def _create_status_icon(self, fill_color: str, border_color: str) -> tk.PhotoImage:
         size = 14
@@ -371,6 +380,12 @@ class App(ctk.CTk):
         self.log_box.tag_config("warn", foreground="#d67a00")
         self.log_box.tag_config("error", foreground="#d11a2a")
         self.log_box.tag_config("selected_cmd", foreground="#0b5ed7")
+        self.log_menu = tk.Menu(self, tearoff=0)
+        self.log_menu.add_command(label="Clear", command=self._clear_log)
+        self.log_box.bind("<Button-3>", self._show_log_context_menu)
+        self.log_box.bind("<Button-2>", self._show_log_context_menu)
+        self.bind_all("<Button-1>", self._hide_log_context_menu, add="+")
+        self.bind_all("<Escape>", self._hide_log_context_menu, add="+")
 
         self._append_log("Application started", tag="info")
 
@@ -388,10 +403,13 @@ class App(ctk.CTk):
 
         row_a = ctk.CTkFrame(frame)
         row_a.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 8))
-        row_a.grid_columnconfigure((0, 1, 2), weight=1)
+        row_a.grid_columnconfigure((0, 1, 2, 3), weight=1)
         ctk.CTkButton(row_a, text="ping", command=lambda: self._send_cmd("ping")).grid(row=0, column=0, sticky="ew", padx=4, pady=4)
         ctk.CTkButton(row_a, text="get_state", command=lambda: self._send_cmd("get_state")).grid(row=0, column=1, sticky="ew", padx=4, pady=4)
         ctk.CTkButton(row_a, text="get_settings", command=self._request_get_settings).grid(row=0, column=2, sticky="ew", padx=4, pady=4)
+        ctk.CTkButton(row_a, text="status_tecnico", command=lambda: self._send_cmd("get_technical_status")).grid(
+            row=0, column=3, sticky="ew", padx=4, pady=4
+        )
 
         row_b = ctk.CTkFrame(frame)
         row_b.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 8))
@@ -430,6 +448,7 @@ class App(ctk.CTk):
             END,
             "Comandos desta aba sao enviados para o dispositivo selecionado na lista.\n"
             "- use get_state para atualizar a aba Status/State\n"
+            "- use status_tecnico para consultar os dados da pagina de status tecnico\n"
             "- use get_settings para preencher Settings\n"
             "- Limpar retained remove snapshots antigos do broker\n",
         )
@@ -596,27 +615,104 @@ class App(ctk.CTk):
 
     def _build_status_panel(self, parent):
         parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(0, weight=0)
         parent.grid_rowconfigure(1, weight=1)
 
         top = ctk.CTkFrame(parent)
-        top.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
-        top.grid_columnconfigure(0, weight=1)
+        top.grid(row=0, column=0, sticky="ew", padx=8, pady=(4, 2))
+        top.grid_columnconfigure(0, weight=0)
         top.grid_columnconfigure(1, weight=0)
+        top.grid_columnconfigure(2, weight=1)
+        top.grid_columnconfigure(3, weight=0)
+        top.grid_columnconfigure(4, weight=0)
+        top.grid_columnconfigure(5, weight=0)
+        top.grid_columnconfigure(6, weight=0)
 
-        ctk.CTkLabel(top, text="State (get_state)", font=ctk.CTkFont(size=16, weight="bold")).grid(
-            row=0, column=0, sticky="w", padx=8, pady=(8, 2)
+        ctk.CTkLabel(top, text="Status tecnico", font=ctk.CTkFont(size=16, weight="bold")).grid(
+            row=0, column=0, sticky="w", padx=(8, 12), pady=(4, 0)
+        )
+        self.status_time_label = ctk.CTkLabel(
+            top,
+            text="Atualizacao: --",
+            anchor="w",
+            justify="left",
+            text_color=("gray40", "gray70"),
+        )
+        self.status_time_label.grid(row=1, column=0, columnspan=7, sticky="ew", padx=8, pady=(0, 4))
+        toolbar_spacer = ctk.CTkFrame(top, fg_color="transparent", height=1)
+        toolbar_spacer.grid(row=0, column=2, sticky="ew")
+        ctk.CTkCheckBox(top, text="Auto", variable=self.technical_auto_update_var, width=72).grid(
+            row=0, column=1, sticky="e", padx=(4, 4), pady=(4, 0)
+        )
+        ctk.CTkLabel(top, text="s").grid(row=0, column=3, sticky="e", padx=(4, 2), pady=(4, 0))
+        ctk.CTkEntry(top, textvariable=self.technical_update_interval_var, width=64).grid(
+            row=0, column=4, sticky="e", padx=(2, 4), pady=(4, 0)
         )
         ctk.CTkButton(top, text="get_state", width=120, command=self._request_get_state_selected).grid(
-            row=0, column=1, sticky="e", padx=8, pady=(8, 2)
+            row=0, column=5, sticky="e", padx=(4, 4), pady=(4, 0)
         )
-        self.status_time_label = ctk.CTkLabel(top, text="Ultima atualizacao: --", text_color=("gray40", "gray70"))
-        self.status_time_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 8))
+        ctk.CTkButton(top, text="status_tecnico", width=140, command=self._request_technical_status_selected).grid(
+            row=0, column=6, sticky="e", padx=(4, 8), pady=(4, 0)
+        )
 
         self.status_body = ctk.CTkScrollableFrame(parent)
-        self.status_body.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
-        self.status_body.grid_columnconfigure(0, weight=0)
-        self.status_body.grid_columnconfigure(1, weight=1)
+        self.status_body.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 6))
+        self.status_body.grid_columnconfigure((0, 1, 2, 3), weight=1, uniform="status_cards")
         self.mousewheel_scroll_frames.append(self.status_body)
+
+        self.status_empty_label = ctk.CTkLabel(
+            self.status_body,
+            text="Selecione um dispositivo para visualizar status.",
+            anchor="w",
+        )
+
+        card_specs = [
+            ("loop", "Loop"),
+            ("automatic", "Automatico"),
+            ("last_result", "Ultimo resultado"),
+            ("audio", "Audio"),
+            ("bt_next", "BT_NEXT"),
+            ("errors_retry", "Erros / retry"),
+            ("counters", "Contadores"),
+            ("vbat", "VBAT"),
+        ]
+        for index, (key, title) in enumerate(card_specs):
+            self._status_card(self.status_body, index // 4, index % 4, key, title)
+
+        row = 2
+        ctk.CTkLabel(self.status_body, text="Tempos", font=ctk.CTkFont(size=14, weight="bold")).grid(
+            row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(12, 4)
+        )
+        row += 1
+        timing_frame = ctk.CTkFrame(self.status_body)
+        timing_frame.grid(row=row, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
+        timings = [
+            ("capture", "Captura"),
+            ("upload", "Upload"),
+            ("upload_connect", "TLS"),
+            ("upload_write", "Envio"),
+            ("upload_response", "POST"),
+            ("response_wait", "ACR"),
+            ("total_cycle", "Total"),
+        ]
+        for col, (key, label) in enumerate(timings):
+            timing_frame.grid_columnconfigure(col, weight=1)
+            ctk.CTkLabel(timing_frame, text=label, text_color=("gray40", "gray70")).grid(
+                row=0, column=col, sticky="w", padx=8, pady=(8, 0)
+            )
+            value_label = ctk.CTkLabel(timing_frame, text="--", font=ctk.CTkFont(weight="bold"))
+            value_label.grid(row=1, column=col, sticky="w", padx=8, pady=(0, 8))
+            self.status_value_labels[f"timing.{key}"] = value_label
+
+        row += 1
+        ctk.CTkLabel(self.status_body, text="Campos brutos", font=ctk.CTkFont(size=14, weight="bold")).grid(
+            row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(12, 4)
+        )
+        row += 1
+        self.status_raw_text = ctk.CTkTextbox(self.status_body, height=260, wrap="word")
+        self.status_raw_text.grid(row=row, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
+        self.status_raw_text.insert(END, "-")
+        self.status_raw_text.configure(state="disabled")
 
     def _enable_mousewheel_scrolling(self):
         self.bind_all("<MouseWheel>", self._on_global_mousewheel, add="+")
@@ -682,60 +778,332 @@ class App(ctk.CTk):
         if not hasattr(self, "status_body"):
             return
 
-        for child in self.status_body.winfo_children():
-            child.destroy()
-
         if not self.selected_device:
-            ctk.CTkLabel(self.status_body, text="Selecione um dispositivo para visualizar state/get_state.").grid(
-                row=0, column=0, sticky="w", padx=8, pady=8
-            )
-            if hasattr(self, "status_time_label"):
-                self.status_time_label.configure(text="Ultima atualizacao: --")
+            self._show_status_empty("Selecione um dispositivo para visualizar status.")
+            self._clear_status_values()
             return
 
         device = self.devices.get(self.selected_device)
         if not device:
-            ctk.CTkLabel(self.status_body, text="Dispositivo sem dados.").grid(row=0, column=0, sticky="w", padx=8, pady=8)
+            self._show_status_empty("Dispositivo sem dados.")
+            self._clear_status_values()
             return
 
         state_topic_payload = self._payload_for(device, "state")
         get_state_payload = device.last_get_state_result or {}
+        technical_status_payload = device.last_technical_status_result or {}
+        heartbeat_payload = self._payload_for(device, "heartbeat")
+        control_payload = technical_status_payload.get("acr_control", {})
+        vbat_payload = technical_status_payload.get("vbat", {})
+        power_good_payload = technical_status_payload.get("power_good", {})
 
         merged: Dict[str, Any] = {}
         if state_topic_payload:
             merged.update(self._flatten_dict(state_topic_payload))
         if get_state_payload:
             merged.update(self._flatten_dict(get_state_payload))
+        if technical_status_payload:
+            merged.update(self._flatten_dict(technical_status_payload))
 
         if not merged:
-            ctk.CTkLabel(
-                self.status_body,
-                text="Sem campos de state ainda. Clique em get_state ou aguarde mensagens de state.",
-            ).grid(row=0, column=0, sticky="w", padx=8, pady=8)
+            self._show_status_empty("Sem campos de status ainda. Clique em get_state ou status_tecnico.")
+            self._clear_status_values()
         else:
-            row = 0
-            for key in sorted(merged.keys()):
-                ctk.CTkLabel(self.status_body, text=key).grid(row=row, column=0, sticky="nw", padx=(8, 8), pady=2)
-                value = merged[key]
-                if isinstance(value, (dict, list)):
-                    value_text = json.dumps(value, ensure_ascii=True)
-                else:
-                    value_text = str(value)
-                ctk.CTkLabel(self.status_body, text=value_text, anchor="w", justify="left", wraplength=760).grid(
-                    row=row, column=1, sticky="ew", padx=(0, 8), pady=2
-                )
-                row += 1
+            self._hide_status_empty()
+            self._render_technical_status_view(
+                technical_status_payload,
+                get_state_payload,
+                state_topic_payload,
+                heartbeat_payload,
+                control_payload if isinstance(control_payload, dict) else {},
+                vbat_payload if isinstance(vbat_payload, dict) else {},
+                power_good_payload if isinstance(power_good_payload, dict) else {},
+                merged,
+            )
 
         source = []
         if state_topic_payload:
             source.append("topic state")
         if get_state_payload:
             source.append("cmd get_state")
+        if technical_status_payload:
+            source.append("cmd status_tecnico")
         source_text = ", ".join(source) if source else "sem fonte"
+        last_tech = self._format_local_datetime(device.last_technical_status_at)
         if hasattr(self, "status_time_label"):
             self.status_time_label.configure(
-                text=f"Ultima atualizacao: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | fonte: {source_text}"
+                text=(
+                    f"Ultima renderizacao: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+                    f"ultimo status tecnico: {last_tech} | fonte: {source_text}"
+                )
             )
+
+    def _show_status_empty(self, text: str):
+        if hasattr(self, "status_empty_label"):
+            self.status_empty_label.configure(text=text)
+            self.status_empty_label.grid_remove()
+        if hasattr(self, "status_time_label"):
+            self.status_time_label.configure(text=text)
+
+    def _hide_status_empty(self):
+        if hasattr(self, "status_empty_label"):
+            self.status_empty_label.grid_remove()
+
+    def _clear_status_values(self):
+        for key in self.status_value_labels:
+            self._set_status_label(key, "--")
+        if hasattr(self, "status_raw_text"):
+            self._set_status_raw_text("-")
+
+    def _set_status_label(self, key: str, value: Any):
+        label = self.status_value_labels.get(key)
+        if label:
+            text = str(value) if value not in (None, "") else "--"
+            if self.status_display_values.get(key) != text:
+                self.status_display_values[key] = text
+                label.configure(text=text)
+
+    def _set_status_raw_text(self, text: str):
+        if not hasattr(self, "status_raw_text"):
+            return
+        if self.status_raw_text_value == text:
+            return
+        self.status_raw_text_value = text
+        self.status_raw_text.configure(state="normal")
+        self.status_raw_text.delete("1.0", END)
+        self.status_raw_text.insert(END, text)
+        self.status_raw_text.configure(state="disabled")
+
+    def _render_technical_status_view(
+        self,
+        tech: Dict[str, Any],
+        get_state: Dict[str, Any],
+        state_topic: Dict[str, Any],
+        heartbeat: Dict[str, Any],
+        control: Dict[str, Any],
+        vbat: Dict[str, Any],
+        power_good: Dict[str, Any],
+        merged: Dict[str, Any],
+    ):
+        retry_text = (
+            f"retry em {self._format_ms(self._num(tech, 'acr_retry_remaining_ms'))}"
+            if bool(tech.get("acr_retry_pending"))
+            else "sem retry"
+        )
+        last_result = "--"
+        if bool(tech.get("audio_last_silence_discarded")):
+            last_result = "Silencio descartado"
+        elif self._num(tech, "acr_last_result_at_ms", 0) > 0:
+            actor = "IA / trigger" if bool(tech.get("acr_last_trigger")) else "Humano"
+            last_result = f"{actor} | {self._num(tech, 'acr_last_ai_probability', 0):.1f}%"
+
+        auto_text = "--"
+        if control:
+            auto_text = (
+                f"{'Ligado' if bool(control.get('automatic_enabled')) else 'Desligado'} | "
+                f"int {self._format_ms(self._num(control, 'automatic_interval_ms'))} | "
+                f"capt {self._value(control, 'capture_duration_seconds', '--')}s | "
+                f"ganho {self._num(control, 'digital_gain', 0):.2f}x"
+            )
+
+        audio_detail = (
+            f"RMS {self._num(tech, 'audio_last_rms', 0):.0f} | "
+            f"pico {self._num(tech, 'audio_last_peak_percent', 0):.1f}% | "
+            f"silencio {'sim' if bool(tech.get('audio_last_silence_detected')) else 'nao'} | "
+            f"clipped {'sim' if bool(tech.get('audio_last_clipped_detected')) else 'nao'}"
+        )
+        bt_text = (
+            f"{'Habilitado' if bool(tech.get('bt_next_enabled')) else 'Desabilitado'} | "
+            f"GPIO {self._value(tech, 'bt_next_gpio', '--')} | "
+            f"{self._format_ms(self._num(tech, 'bt_next_pulse_ms'))}"
+        )
+        if tech.get("bt_next_last_error"):
+            bt_text += f" | {tech.get('bt_next_last_error')}"
+
+        counters_text = (
+            f"envios {self._value(tech, 'acr_submitted_count', 0)} | "
+            f"silencio {self._value(tech, 'acr_silence_discarded_count', 0)} | "
+            f"erros ACR {self._value(tech, 'acr_error_count', 0)}"
+        )
+        vbat_text = self._format_vbat(vbat, get_state)
+        power_good_text = self._format_power_good(power_good, vbat)
+        uptime_value = (
+            self._num(tech, "uptime_seconds", None)
+            if tech
+            else self._num(get_state, "uptime_s", self._num(heartbeat, "uptime_s", None))
+        )
+
+        self._set_status_label("card.loop.value", self._format_state(str(self._value(tech, "acr_state", self._value(state_topic, "wifi_state", "--")))))
+        self._set_status_label("card.loop.detail", self._value(tech, "acr_status", ""))
+        self._set_status_label("card.automatic.value", auto_text)
+        self._set_status_label(
+            "card.automatic.detail",
+            f"hyst {self._value(control, 'silence_hysteresis_rms', '--')} | min ativo {self._format_ms(self._num(control, 'min_active_ms'))}",
+        )
+        self._set_status_label("card.last_result.value", last_result)
+        self._set_status_label("card.last_result.detail", self._value(tech, "acr_last_prediction", "--"))
+        self._set_status_label("card.audio.value", self._format_ms(self._num(tech, "audio_last_active_ms")))
+        self._set_status_label("card.audio.detail", audio_detail)
+        self._set_status_label("card.bt_next.value", bt_text)
+        self._set_status_label("card.bt_next.detail", " ")
+        self._set_status_label("card.errors_retry.value", f"{self._value(tech, 'acr_consecutive_errors', 0)} erros | {retry_text}")
+        self._set_status_label("card.errors_retry.detail", self._value(tech, "acr_last_error", ""))
+        self._set_status_label("card.counters.value", counters_text)
+        self._set_status_label("card.counters.detail", f"uptime {self._format_uptime(uptime_value)}")
+        self._set_status_label("card.vbat.value", vbat_text)
+        self._set_status_label("card.vbat.detail", power_good_text)
+
+        timing_keys = {
+            "capture": "acr_capture_ms",
+            "upload": "acr_upload_ms",
+            "upload_connect": "acr_upload_connect_ms",
+            "upload_write": "acr_upload_write_ms",
+            "upload_response": "acr_upload_response_ms",
+            "response_wait": "acr_response_wait_ms",
+            "total_cycle": "acr_total_cycle_ms",
+        }
+        for label_key, payload_key in timing_keys.items():
+            self._set_status_label(f"timing.{label_key}", self._format_ms(self._num(tech, payload_key)))
+
+        raw_lines = []
+        for key in sorted(merged.keys()):
+            value = merged[key]
+            value_text = json.dumps(value, ensure_ascii=True) if isinstance(value, (dict, list)) else str(value)
+            raw_lines.append(f"{key}: {value_text}")
+        self._set_status_raw_text("\n".join(raw_lines) if raw_lines else "-")
+
+    def _status_card(self, parent, row: int, col: int, key: str, title: str):
+        card = ctk.CTkFrame(parent)
+        card.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
+        card.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(card, text=title, text_color=("gray40", "gray70")).grid(
+            row=0, column=0, sticky="w", padx=10, pady=(10, 2)
+        )
+        value_label = ctk.CTkLabel(
+            card,
+            text="--",
+            anchor="w",
+            justify="left",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            wraplength=180,
+        )
+        value_label.grid(
+            row=1, column=0, sticky="ew", padx=10, pady=(0, 2)
+        )
+        detail_label = ctk.CTkLabel(
+            card,
+            text=" ",
+            anchor="w",
+            justify="left",
+            text_color=("gray45", "gray65"),
+            wraplength=180,
+        )
+        detail_label.grid(
+            row=2, column=0, sticky="ew", padx=10, pady=(0, 10)
+        )
+        card.bind(
+            "<Configure>",
+            lambda event, labels=(value_label, detail_label): [
+                label.configure(wraplength=max(120, event.width - 28)) for label in labels
+            ],
+            add="+",
+        )
+        self.status_value_labels[f"card.{key}.value"] = value_label
+        self.status_value_labels[f"card.{key}.detail"] = detail_label
+
+    def _value(self, payload: Dict[str, Any], key: str, default: Any = "--") -> Any:
+        if not isinstance(payload, dict):
+            return default
+        value = payload.get(key)
+        return default if value is None or value == "" else value
+
+    def _num(self, payload: Dict[str, Any], key: str, default: Any = 0) -> Any:
+        if not isinstance(payload, dict):
+            return default
+        value = payload.get(key)
+        if value is None or value == "":
+            return default
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _format_ms(self, value: Any) -> str:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return "--"
+        if numeric <= 0:
+            return "--"
+        if numeric < 1000:
+            return f"{numeric:.0f} ms"
+        return f"{numeric / 1000:.2f} s"
+
+    def _format_state(self, value: str) -> str:
+        states = {
+            "idle": "Idle",
+            "capturing": "Capturando",
+            "silence_discarded": "Silencio descartado",
+            "uploading": "Enviando",
+            "waiting_acr": "Aguardando ACR",
+            "result_human": "Humano",
+            "result_ai": "IA",
+            "error": "Erro",
+            "retry_wait": "Retry",
+            "sta_connected": "Wi-Fi conectado",
+            "sta_connecting": "Wi-Fi conectando",
+            "provisioning_ap": "Provisionamento",
+            "init": "Inicializando",
+        }
+        return states.get(value, value or "--")
+
+    def _format_uptime(self, seconds_value: Any) -> str:
+        try:
+            total = int(float(seconds_value))
+        except (TypeError, ValueError):
+            return "--"
+        if total < 0:
+            return "--"
+        days = total // 86400
+        hours = (total % 86400) // 3600
+        minutes = (total % 3600) // 60
+        seconds = total % 60
+        text = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        return f"{days}d {text}" if days else text
+
+    def _format_vbat(self, vbat: Dict[str, Any], get_state: Dict[str, Any]) -> str:
+        if isinstance(vbat, dict) and vbat:
+            if not bool(vbat.get("enabled")):
+                return "Desabilitado"
+            if not bool(vbat.get("initialized")):
+                return "Nao inicializado"
+            if not self._num(vbat, "measurement_count", 0):
+                return f"Sem amostra | GPIO {self._value(vbat, 'gpio', '--')}"
+            voltage = self._num(vbat, "vbat_mv", 0) / 1000
+            return (
+                f"{voltage:.3f} V | GPIO {self._value(vbat, 'gpio', '--')} | "
+                f"{self._value(vbat, 'last_moment', '-')}"
+            )
+        vbat_mv = self._num(get_state, "vbat_mv", None)
+        if vbat_mv is None:
+            return "--"
+        return f"{vbat_mv / 1000:.3f} V"
+
+    def _format_power_good(self, power_good: Dict[str, Any], vbat: Dict[str, Any]) -> str:
+        pg_enabled = bool(power_good.get("enabled")) if isinstance(power_good, dict) else False
+        pg_gpio = self._value(power_good, "gpio", "--") if isinstance(power_good, dict) else "--"
+        shutdown_enabled = bool(vbat.get("shutdown_enabled")) if isinstance(vbat, dict) else False
+        threshold_mv = self._value(vbat, "shutdown_threshold_mv", "--") if isinstance(vbat, dict) else "--"
+        countdown_active = bool(vbat.get("shutdown_countdown_active")) if isinstance(vbat, dict) else False
+        countdown_elapsed = self._format_ms(self._num(vbat, "shutdown_countdown_elapsed_ms")) if isinstance(vbat, dict) else "--"
+        if shutdown_enabled:
+            countdown_text = f"ativo ({countdown_elapsed})" if countdown_active else "inativo"
+        else:
+            countdown_text = "desabilitado"
+        return (
+            f"PG {'on' if pg_enabled else 'off'} | GPIO {pg_gpio} | "
+            f"threshold {threshold_mv} mV | countdown {countdown_text}"
+        )
 
     def _build_details_panel(self):
         ctk.CTkLabel(self.details, text="Resumo do Dispositivo", font=ctk.CTkFont(size=16, weight="bold")).grid(
@@ -803,6 +1171,20 @@ class App(ctk.CTk):
         self.pass_var.set(str(mqtt_cfg.get("password", self.pass_var.get())))
         self.tls_var.set(bool(mqtt_cfg.get("tls", self.tls_var.get())))
         self.heartbeat_timeout_var.set(str(config_data.get("heartbeat_timeout_sec", self.heartbeat_timeout_var.get())))
+        self.technical_update_interval_var.set(
+            str(config_data.get("technical_status_update_interval_sec", self.technical_update_interval_var.get()))
+        )
+        self.technical_auto_update_var.set(
+            bool(config_data.get("technical_status_auto_update", self.technical_auto_update_var.get()))
+        )
+        self.auto_connect_on_start_var.set(
+            bool(config_data.get("auto_connect_on_start", self.auto_connect_on_start_var.get()))
+        )
+
+    def _auto_connect_if_configured(self):
+        if bool(self.auto_connect_on_start_var.get()) and not self.mqtt.connected:
+            self._append_log("Auto connect on start habilitado", tag="info")
+            self._connect()
 
     def _connect(self):
         host, port, tls_enabled, error = self._resolve_broker_params(
@@ -875,6 +1257,36 @@ class App(ctk.CTk):
             self._append_log("Selecione um dispositivo para get_state", tag="warn")
             return
         self._send_cmd_to_device(self.selected_device, "get_state")
+
+    def _request_technical_status_selected(self):
+        if not self.selected_device:
+            self._append_log("Selecione um dispositivo para status_tecnico", tag="warn")
+            return
+        self._send_cmd_to_device(self.selected_device, "get_technical_status")
+
+    def _technical_status_auto_update_tick(self):
+        interval_s = self._technical_update_interval_seconds()
+        if (
+            bool(self.technical_auto_update_var.get())
+            and self.mqtt.connected
+            and self.selected_device
+            and not self._has_pending_command(self.selected_device, "get_technical_status")
+        ):
+            self._send_cmd_to_device(self.selected_device, "get_technical_status", log_publish=False)
+        self.after(interval_s * 1000, self._technical_status_auto_update_tick)
+
+    def _technical_update_interval_seconds(self) -> int:
+        try:
+            value = int(str(self.technical_update_interval_var.get()).strip())
+            return min(60, max(1, value))
+        except ValueError:
+            return 3
+
+    def _has_pending_command(self, device_id: str, command: str) -> bool:
+        return any(
+            pending_device_id == device_id and pending_cmd == command
+            for pending_device_id, pending_cmd in self.pending_cmd_by_id.values()
+        )
 
     def _probe_known_devices(self):
         if not bool(self.auto_probe_var.get()):
@@ -1309,19 +1721,27 @@ class App(ctk.CTk):
             log_tag = "selected_cmd"
         self._append_log(log_line, tag=log_tag)
 
+        cmd_result_command = None
         if message_type == "cmd/out" and isinstance(payload_obj, dict):
             cmd_id = payload_obj.get("cmd_id")
             if isinstance(cmd_id, str) and cmd_id in self.pending_cmd_by_id:
                 pending_device_id, pending_cmd = self.pending_cmd_by_id.pop(cmd_id)
+                cmd_result_command = pending_cmd
                 if pending_device_id == device_id and pending_cmd == "get_state":
                     result = payload_obj.get("result")
                     if isinstance(result, dict) and payload_obj.get("ok") is True:
                         device.last_get_state_result = result
                         device.last_get_state_at = effective_ts
+                elif pending_device_id == device_id and pending_cmd == "get_technical_status":
+                    result = payload_obj.get("result")
+                    if isinstance(result, dict) and payload_obj.get("ok") is True:
+                        device.last_technical_status_result = result
+                        device.last_technical_status_at = effective_ts
 
         if (
             message_type == "cmd/out"
             and self.selected_device == device_id
+            and cmd_result_command in {"get_settings", "set_settings"}
             and isinstance(payload_obj, dict)
             and payload_obj.get("ok") is True
             and isinstance(payload_obj.get("result"), dict)
@@ -1554,6 +1974,16 @@ class App(ctk.CTk):
         if len(compact) > 180:
             compact = compact[:180] + "..."
         return f"{base} payload={compact}"
+
+    def _clear_log(self):
+        self.log_box.delete("1.0", END)
+
+    def _show_log_context_menu(self, event):
+        self.log_menu.post(event.x_root, event.y_root)
+        return "break"
+
+    def _hide_log_context_menu(self, _event=None):
+        self.log_menu.unpost()
 
     def _append_log(self, text: str, tag: str = "info"):
         ts = datetime.now().strftime("%H:%M:%S")

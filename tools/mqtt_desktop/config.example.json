@@ -6,5 +6,8 @@
     "password": "",
     "tls": false
   },
-  "heartbeat_timeout_sec": 180
+  "auto_connect_on_start": false,
+  "heartbeat_timeout_sec": 180,
+  "technical_status_auto_update": true,
+  "technical_status_update_interval_sec": 3
 }

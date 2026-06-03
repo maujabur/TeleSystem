@@ -22,6 +22,7 @@
 #include "time_sync.h"
 #include "acr_analysis_control.h"
 #include "acr_config_store.h"
+#include "acr_runtime_status.h"
 #include "acr_trigger_output.h"
 #include "device_config_store.h"
 #include "vbat_monitor.h"
@@ -61,6 +62,18 @@
 
 #ifndef CONFIG_MQTT_QOS_TELEMETRY
 #define CONFIG_MQTT_QOS_TELEMETRY 0
+#endif
+
+#ifndef CONFIG_POWER_GOOD_GPIO_ENABLED
+#define CONFIG_POWER_GOOD_GPIO_ENABLED 0
+#endif
+
+#ifndef CONFIG_POWER_GOOD_GPIO
+#define CONFIG_POWER_GOOD_GPIO 6
+#endif
+
+#ifndef CONFIG_POWER_GOOD_ACTIVE_LEVEL
+#define CONFIG_POWER_GOOD_ACTIVE_LEVEL 1
 #endif
 
 #define MQTT_TOPIC_BUF_SIZE 128
@@ -116,6 +129,7 @@ static void mqtt_presence_publish_command_reply(const char *cmd_id,
 
 static cJSON *mqtt_presence_build_state_result(void);
 static cJSON *mqtt_presence_build_settings_result(void);
+static cJSON *mqtt_presence_build_technical_status_result(void);
 static void mqtt_presence_handle_command_payload(const char *payload);
 
 static void mqtt_presence_add_common_fields(cJSON *root, const char *ts)
@@ -343,6 +357,127 @@ static cJSON *mqtt_presence_build_settings_result(void)
     return result;
 }
 
+static cJSON *mqtt_presence_build_technical_status_result(void)
+{
+    acr_runtime_status_t status = {0};
+    acr_analysis_control_config_t control = {0};
+    acr_trigger_output_status_t trigger_status = {0};
+    vbat_monitor_status_t vbat_status = {0};
+    int64_t now_ms = (int64_t)esp_log_timestamp();
+    cJSON *result = cJSON_CreateObject();
+    cJSON *control_json = NULL;
+    cJSON *vbat_json = NULL;
+    cJSON *power_good_json = NULL;
+
+    if (!result) {
+        return NULL;
+    }
+
+    acr_runtime_status_get(&status);
+    (void)acr_trigger_output_get_status(&trigger_status);
+
+    cJSON_AddNumberToObject(result, "uptime_seconds", (double)(now_ms / 1000));
+    cJSON_AddBoolToObject(result, "time_synchronized", time_sync_is_synchronized());
+    control_json = cJSON_AddObjectToObject(result, "acr_control");
+    if (control_json) {
+        if (acr_analysis_control_get_config(&control) == ESP_OK) {
+            cJSON_AddBoolToObject(control_json, "automatic_enabled", control.automatic_enabled);
+            cJSON_AddNumberToObject(control_json, "automatic_interval_ms", control.automatic_interval_ms);
+            cJSON_AddNumberToObject(control_json, "capture_duration_seconds", control.capture_duration_seconds);
+            cJSON_AddNumberToObject(control_json, "digital_gain", control.digital_gain);
+            cJSON_AddNumberToObject(control_json, "silence_threshold_rms", control.silence_threshold_rms);
+            cJSON_AddNumberToObject(control_json, "silence_hysteresis_rms", control.silence_hysteresis_rms);
+            cJSON_AddNumberToObject(control_json, "min_active_ms", control.min_active_ms);
+            cJSON_AddNumberToObject(control_json, "trigger_mode", control.trigger_mode);
+            cJSON_AddNumberToObject(control_json, "ai_probability_threshold", control.ai_probability_threshold);
+        } else {
+            cJSON_AddStringToObject(control_json, "error", "acr_control_unavailable");
+        }
+    }
+
+    power_good_json = cJSON_AddObjectToObject(result, "power_good");
+    if (power_good_json) {
+        cJSON_AddBoolToObject(power_good_json, "enabled", CONFIG_POWER_GOOD_GPIO_ENABLED);
+        cJSON_AddNumberToObject(power_good_json, "gpio", CONFIG_POWER_GOOD_GPIO);
+        cJSON_AddNumberToObject(power_good_json, "active_level", CONFIG_POWER_GOOD_ACTIVE_LEVEL);
+    }
+
+    if (vbat_monitor_get_status(&vbat_status) == ESP_OK) {
+        vbat_json = cJSON_AddObjectToObject(result, "vbat");
+        if (vbat_json) {
+            cJSON_AddBoolToObject(vbat_json, "enabled", vbat_status.enabled);
+            cJSON_AddBoolToObject(vbat_json, "initialized", vbat_status.initialized);
+            cJSON_AddBoolToObject(vbat_json, "calibrated", vbat_status.calibrated);
+            cJSON_AddNumberToObject(vbat_json, "gpio", vbat_status.gpio);
+            cJSON_AddNumberToObject(vbat_json, "raw_avg", vbat_status.raw_avg);
+            cJSON_AddNumberToObject(vbat_json, "gpio_mv", vbat_status.gpio_mv);
+            cJSON_AddNumberToObject(vbat_json, "vbat_mv", vbat_status.vbat_mv);
+            cJSON_AddNumberToObject(vbat_json, "last_measurement_ms", (double)vbat_status.last_measurement_ms);
+            cJSON_AddStringToObject(vbat_json, "last_moment", vbat_monitor_moment_name(vbat_status.last_moment));
+            cJSON_AddNumberToObject(vbat_json, "measurement_count", (double)vbat_status.measurement_count);
+            cJSON_AddBoolToObject(vbat_json, "shutdown_enabled", vbat_status.shutdown_enabled);
+            cJSON_AddNumberToObject(vbat_json, "shutdown_threshold_mv", vbat_status.shutdown_threshold_mv);
+            cJSON_AddNumberToObject(vbat_json, "shutdown_debounce_ms", vbat_status.shutdown_debounce_ms);
+            cJSON_AddBoolToObject(vbat_json, "shutdown_countdown_active", vbat_status.shutdown_countdown_active);
+            cJSON_AddNumberToObject(vbat_json,
+                                    "shutdown_below_threshold_since_ms",
+                                    (double)vbat_status.shutdown_below_threshold_since_ms);
+            cJSON_AddNumberToObject(vbat_json,
+                                    "shutdown_countdown_elapsed_ms",
+                                    vbat_status.shutdown_countdown_active &&
+                                    vbat_status.shutdown_below_threshold_since_ms > 0 ?
+                                    (double)(now_ms - vbat_status.shutdown_below_threshold_since_ms) :
+                                    0.0);
+        }
+    }
+
+    cJSON_AddBoolToObject(result, "acr_retry_pending", status.retry_pending);
+    cJSON_AddNumberToObject(result, "acr_retry_at_ms", (double)status.retry_at_ms);
+    int64_t retry_remaining_ms = status.retry_at_ms - now_ms;
+    cJSON_AddNumberToObject(result, "acr_retry_remaining_ms",
+                            status.retry_pending && retry_remaining_ms > 0 ?
+                            (double)retry_remaining_ms : 0);
+    cJSON_AddStringToObject(result, "acr_last_error",
+                            status.last_error == ESP_OK ? "" : esp_err_to_name(status.last_error));
+    cJSON_AddNumberToObject(result, "acr_consecutive_errors", status.consecutive_errors);
+    cJSON_AddNumberToObject(result, "acr_submitted_count", status.acr_submitted_count);
+    cJSON_AddNumberToObject(result, "acr_silence_discarded_count", status.silence_discarded_count);
+    cJSON_AddNumberToObject(result, "acr_error_count", status.acr_error_count);
+    cJSON_AddStringToObject(result, "acr_status", status.message);
+    cJSON_AddStringToObject(result, "acr_state", acr_runtime_status_state_name(status.state));
+    cJSON_AddStringToObject(result, "acr_uploaded_name", status.uploaded_name);
+    cJSON_AddNumberToObject(result, "audio_last_capture_size", (double)status.audio_last_capture_size);
+    cJSON_AddNumberToObject(result, "audio_last_active_ms", status.audio_last_active_ms);
+    cJSON_AddNumberToObject(result, "audio_last_rms", status.audio_last_rms);
+    cJSON_AddNumberToObject(result, "audio_last_peak_percent", status.audio_last_peak_percent);
+    cJSON_AddBoolToObject(result, "audio_last_clipped", status.audio_last_clipped);
+    cJSON_AddBoolToObject(result, "audio_last_clipped_detected", status.audio_last_clipped_detected);
+    cJSON_AddBoolToObject(result, "audio_last_silence_discarded", status.audio_last_silence_discarded);
+    cJSON_AddBoolToObject(result, "audio_last_silence_detected", status.audio_last_silence_detected);
+    cJSON_AddBoolToObject(result, "acr_last_trigger", status.last_trigger);
+    cJSON_AddBoolToObject(result, "bt_next_enabled", trigger_status.config.enabled);
+    cJSON_AddNumberToObject(result, "bt_next_gpio", trigger_status.config.gpio);
+    cJSON_AddNumberToObject(result, "bt_next_active_level", trigger_status.config.active_level);
+    cJSON_AddNumberToObject(result, "bt_next_pulse_ms", trigger_status.config.pulse_ms);
+    cJSON_AddNumberToObject(result, "bt_next_last_pulse_at_ms", (double)trigger_status.last_pulse_at_ms);
+    cJSON_AddStringToObject(result, "bt_next_last_error",
+                            trigger_status.last_error == ESP_OK ? "" :
+                            esp_err_to_name(trigger_status.last_error));
+    cJSON_AddNumberToObject(result, "acr_last_ai_probability", status.last_ai_probability);
+    cJSON_AddStringToObject(result, "acr_last_prediction", status.last_prediction);
+    cJSON_AddStringToObject(result, "acr_last_uploaded_name", status.last_uploaded_name);
+    cJSON_AddNumberToObject(result, "acr_last_result_at_ms", (double)status.last_result_at_ms);
+    cJSON_AddNumberToObject(result, "acr_capture_ms", (double)status.capture_ms);
+    cJSON_AddNumberToObject(result, "acr_upload_ms", (double)status.upload_ms);
+    cJSON_AddNumberToObject(result, "acr_upload_connect_ms", (double)status.upload_connect_ms);
+    cJSON_AddNumberToObject(result, "acr_upload_write_ms", (double)status.upload_write_ms);
+    cJSON_AddNumberToObject(result, "acr_upload_response_ms", (double)status.upload_response_ms);
+    cJSON_AddNumberToObject(result, "acr_response_wait_ms", (double)status.response_wait_ms);
+    cJSON_AddNumberToObject(result, "acr_total_cycle_ms", (double)status.total_cycle_ms);
+
+    return result;
+}
+
 static void mqtt_presence_handle_command_payload(const char *payload)
 {
     cJSON *root = NULL;
@@ -398,6 +533,14 @@ static void mqtt_presence_handle_command_payload(const char *payload)
 
     if (strcmp(cmd_name, "get_settings") == 0) {
         cJSON *result = mqtt_presence_build_settings_result();
+        mqtt_presence_publish_command_reply(cmd_id, true, NULL, result);
+        cJSON_Delete(result);
+        cJSON_Delete(root);
+        return;
+    }
+
+    if (strcmp(cmd_name, "get_technical_status") == 0) {
+        cJSON *result = mqtt_presence_build_technical_status_result();
         mqtt_presence_publish_command_reply(cmd_id, true, NULL, result);
         cJSON_Delete(result);
         cJSON_Delete(root);

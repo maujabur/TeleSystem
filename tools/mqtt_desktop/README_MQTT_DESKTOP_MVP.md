@@ -28,6 +28,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 ## Funcionalidades MVP
 
 - Conexao MQTT (host, porta, usuario, senha, TLS on/off)
+  - opcao `auto_connect_on_start` no `config.json` para conectar ao iniciar
 - Descoberta de dispositivos por wildcard:
   - `v1/acr/+/status`
   - `v1/acr/+/heartbeat`
@@ -52,6 +53,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `ping`
   - `get_state`
   - `get_settings`
+  - `get_technical_status`
   - `apply_and_reboot`
   - `set_heartbeat_interval`
 - Settings via MQTT:
@@ -69,9 +71,11 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - online/offline considera apenas mensagem live (nao retained) dentro do timeout
   - toggle `Auto-probe presenca` na UI para ativar/desativar sonda automatica
   - com auto-probe ligado, o app envia `get_state` para devices conhecidos sem live recente
-- Aba Status (foco em state):
-  - mostra campos key/value do payload de `state` e do resultado do comando `get_state`
-  - botao `get_state` proprio para atualizacao ativa
+- Aba Status:
+  - mostra cards formatados para loop, automatico, resultado, audio, BT_NEXT, erros, contadores, bateria e tempos
+  - mantem tabela de campos brutos do payload de `state`, do resultado de `get_state` e do status tecnico
+  - botoes `get_state` e `status_tecnico` para atualizacao ativa
+  - auto-update configuravel para `status_tecnico` com default de 3 segundos
 - UX de botoes:
   - barras de acoes de Comandos, Settings e Status ficam fixas (nao rolam com o conteudo)
 - `cmd_id` gerado automaticamente
@@ -137,7 +141,10 @@ Use em `config.json`:
     "password": "SUA_SENHA_HIVEMQ",
     "tls": true
   },
-  "heartbeat_timeout_sec": 180
+  "auto_connect_on_start": true,
+  "heartbeat_timeout_sec": 180,
+  "technical_status_auto_update": true,
+  "technical_status_update_interval_sec": 3
 }
 ```
 

@@ -11,6 +11,8 @@
 #include "esp_log.h"
 #include "esp_system.h"
 
+#include "cJSON.h"
+
 #include "acr_client.h"
 #include "acr_analysis_control.h"
 #include "acr_parser.h"
@@ -191,6 +193,36 @@ static void build_unique_upload_name(const char *path, char *out, size_t out_siz
     build_unique_upload_name_with_extension(extension, out, out_size);
 }
 
+static esp_err_t extract_uploaded_file_id_from_response(char *file_id, size_t file_id_size)
+{
+    cJSON *root = NULL;
+    cJSON *data = NULL;
+    cJSON *id = NULL;
+
+    if (!file_id || file_id_size == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    file_id[0] = '\0';
+
+    root = cJSON_Parse(s_http_response_buffer);
+    if (!root) {
+        ESP_LOGW(TAG, "Upload ACR sem JSON valido para extrair file_id");
+        return ESP_FAIL;
+    }
+
+    data = cJSON_GetObjectItemCaseSensitive(root, "data");
+    id = cJSON_IsObject(data) ? cJSON_GetObjectItemCaseSensitive(data, "id") : NULL;
+    if (!cJSON_IsString(id) || !id->valuestring || id->valuestring[0] == '\0') {
+        cJSON_Delete(root);
+        ESP_LOGW(TAG, "Resposta de upload ACR sem data.id");
+        return ESP_FAIL;
+    }
+
+    snprintf(file_id, file_id_size, "%s", id->valuestring);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
 static esp_err_t build_auth_header(const acr_config_t *config, char *auth_header, size_t auth_header_size)
 {
     int auth_len = snprintf(auth_header, auth_header_size, "Bearer %s", config->bearer_token);
@@ -283,6 +315,8 @@ static esp_err_t acr_upload_file(const acr_config_t *config,
                                  const char *path,
                                  char *uploaded_name,
                                  size_t uploaded_name_size,
+                                 char *uploaded_file_id,
+                                 size_t uploaded_file_id_size,
                                  acr_client_result_t *out)
 {
     char url[256];
@@ -453,6 +487,16 @@ static esp_err_t acr_upload_file(const acr_config_t *config,
         goto cleanup;
     }
 
+    if (uploaded_file_id && uploaded_file_id_size > 0) {
+        err = extract_uploaded_file_id_from_response(uploaded_file_id, uploaded_file_id_size);
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "File ID do upload ACR: %s", uploaded_file_id);
+        } else {
+            ESP_LOGW(TAG, "Continuando sem file_id do upload ACR");
+            err = ESP_OK;
+        }
+    }
+
     err = ESP_OK;
 
 cleanup:
@@ -476,6 +520,8 @@ static esp_err_t acr_upload_pcm_wav_memory(const acr_config_t *config,
                                            int bits_per_sample,
                                            char *uploaded_name,
                                            size_t uploaded_name_size,
+                                           char *uploaded_file_id,
+                                           size_t uploaded_file_id_size,
                                            acr_client_result_t *out)
 {
     char url[256];
@@ -645,6 +691,16 @@ static esp_err_t acr_upload_pcm_wav_memory(const acr_config_t *config,
         goto cleanup;
     }
 
+    if (uploaded_file_id && uploaded_file_id_size > 0) {
+        err = extract_uploaded_file_id_from_response(uploaded_file_id, uploaded_file_id_size);
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "File ID do upload ACR: %s", uploaded_file_id);
+        } else {
+            ESP_LOGW(TAG, "Continuando sem file_id do upload ACR");
+            err = ESP_OK;
+        }
+    }
+
     err = ESP_OK;
 
 cleanup:
@@ -734,15 +790,24 @@ static void fill_client_result(const acr_result_t *acr_result,
 
 static esp_err_t acr_wait_for_result(const acr_config_t *config,
                                      const char *uploaded_name,
+                                     const char *uploaded_file_id,
                                      acr_client_result_t *out)
 {
     char url[384];
     char auth_header[1100];
     int attempt = 0;
 
-    snprintf(url, sizeof(url),
-             "https://api-%s.acrcloud.com/api/fs-containers/%s/files?search=%s&with_result=1&per_page=1",
-             config->region, config->container_id, uploaded_name);
+    if (uploaded_file_id && uploaded_file_id[0] != '\0') {
+        snprintf(url, sizeof(url),
+                 "https://api-%s.acrcloud.com/api/fs-containers/%s/files/%s",
+                 config->region, config->container_id, uploaded_file_id);
+        ESP_LOGI(TAG, "Polling ACR por file_id: %s", uploaded_file_id);
+    } else {
+        snprintf(url, sizeof(url),
+                 "https://api-%s.acrcloud.com/api/fs-containers/%s/files?search=%s&with_result=1&per_page=1",
+                 config->region, config->container_id, uploaded_name);
+        ESP_LOGW(TAG, "Polling ACR por search de nome por falta de file_id");
+    }
 
     esp_err_t err = build_auth_header(config, auth_header, sizeof(auth_header));
     if (err != ESP_OK) {
@@ -784,16 +849,20 @@ static esp_err_t acr_wait_for_result(const acr_config_t *config,
         esp_http_client_cleanup(client);
 
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Falha na consulta da ACRCloud: %s", esp_err_to_name(err));
-            return err;
-        }
-
-        if (status < 200 || status >= 300) {
+            if (err == ESP_ERR_HTTP_EAGAIN || err == ESP_ERR_TIMEOUT) {
+                ESP_LOGW(TAG,
+                         "Consulta ACRCloud sem resposta pronta (%d/%d): %s",
+                         attempt,
+                         CONFIG_ACR_POLL_MAX_ATTEMPTS,
+                         esp_err_to_name(err));
+            } else {
+                ESP_LOGE(TAG, "Falha na consulta da ACRCloud: %s", esp_err_to_name(err));
+                return err;
+            }
+        } else if (status < 200 || status >= 300) {
             ESP_LOGW(TAG, "Resposta HTTP inesperada da ACRCloud: %d", status);
             return ESP_FAIL;
-        }
-
-        if (!acr_parser_extract_matching_file_result(s_http_response_buffer, uploaded_name, &result)) {
+        } else if (!acr_parser_extract_matching_file_result(s_http_response_buffer, uploaded_name, &result)) {
             ESP_LOGW(TAG, "Arquivo %s ainda nao apareceu na consulta", uploaded_name);
         } else if (result.state == 0) {
             ESP_LOGI(TAG, "Arquivo %s ainda esta em processamento", uploaded_name);
@@ -838,6 +907,7 @@ esp_err_t acr_client_submit_and_wait_result(const acr_config_t *config,
                                             acr_client_result_t *out)
 {
     char uploaded_name[128];
+    char uploaded_file_id[64];
     esp_err_t err = ESP_OK;
     esp_err_t restore_err = ESP_OK;
     int64_t upload_start_ms = 0;
@@ -848,6 +918,7 @@ esp_err_t acr_client_submit_and_wait_result(const acr_config_t *config,
     if (!config || !path) {
         return ESP_ERR_INVALID_ARG;
     }
+    uploaded_file_id[0] = '\0';
     if (out) {
         memset(out, 0, sizeof(*out));
         out->decision = ACR_DECISION_UNKNOWN;
@@ -860,7 +931,7 @@ esp_err_t acr_client_submit_and_wait_result(const acr_config_t *config,
     }
 
     upload_start_ms = esp_log_timestamp();
-    err = acr_upload_file(config, path, uploaded_name, sizeof(uploaded_name), out);
+    err = acr_upload_file(config, path, uploaded_name, sizeof(uploaded_name), uploaded_file_id, sizeof(uploaded_file_id), out);
     upload_end_ms = esp_log_timestamp();
     if (out) {
         snprintf(out->uploaded_name, sizeof(out->uploaded_name), "%s", uploaded_name);
@@ -872,7 +943,7 @@ esp_err_t acr_client_submit_and_wait_result(const acr_config_t *config,
     }
 
     wait_start_ms = esp_log_timestamp();
-    err = acr_wait_for_result(config, uploaded_name, out);
+    err = acr_wait_for_result(config, uploaded_name, uploaded_file_id, out);
     wait_end_ms = esp_log_timestamp();
     if (out) {
         out->response_wait_ms = wait_end_ms - wait_start_ms;
@@ -900,6 +971,7 @@ esp_err_t acr_client_submit_pcm_wav_and_wait_result(const acr_config_t *config,
                                                     acr_client_result_t *out)
 {
     char uploaded_name[128];
+    char uploaded_file_id[64];
     esp_err_t err = ESP_OK;
     esp_err_t restore_err = ESP_OK;
     int64_t upload_start_ms = 0;
@@ -910,6 +982,7 @@ esp_err_t acr_client_submit_pcm_wav_and_wait_result(const acr_config_t *config,
     if (!config || !pcm_data || pcm_size == 0) {
         return ESP_ERR_INVALID_ARG;
     }
+    uploaded_file_id[0] = '\0';
     if (out) {
         memset(out, 0, sizeof(*out));
         out->decision = ACR_DECISION_UNKNOWN;
@@ -930,6 +1003,8 @@ esp_err_t acr_client_submit_pcm_wav_and_wait_result(const acr_config_t *config,
                                     bits_per_sample,
                                     uploaded_name,
                                     sizeof(uploaded_name),
+                                    uploaded_file_id,
+                                    sizeof(uploaded_file_id),
                                     out);
     upload_end_ms = esp_log_timestamp();
     if (out) {
@@ -942,7 +1017,7 @@ esp_err_t acr_client_submit_pcm_wav_and_wait_result(const acr_config_t *config,
     }
 
     wait_start_ms = esp_log_timestamp();
-    err = acr_wait_for_result(config, uploaded_name, out);
+    err = acr_wait_for_result(config, uploaded_name, uploaded_file_id, out);
     wait_end_ms = esp_log_timestamp();
     if (out) {
         out->response_wait_ms = wait_end_ms - wait_start_ms;
