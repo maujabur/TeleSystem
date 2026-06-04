@@ -17,6 +17,9 @@
 *.log
 logs/
 
+# MQTT desktop local settings profiles
+tools/mqtt_desktop/settings_*.json
+
 # Build artifacts and directories
 **/build/
 build/

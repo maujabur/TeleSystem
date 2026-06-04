@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import customtkinter as ctk
 import paho.mqtt.client as mqtt
-from tkinter import END, StringVar, TclError
+from tkinter import END, StringVar, TclError, filedialog
 from tkinter import ttk
 
 
@@ -218,8 +218,6 @@ class App(ctk.CTk):
         self.settings_snapshot: Dict[str, Any] = {}
         self.settings_loaded = False
         self.settings_loaded_device_id: Optional[str] = None
-        self.settings_memory_snapshot: Dict[str, Dict[str, Any]] = {}
-        self.settings_memory_device_id: Optional[str] = None
         self.settings_save_queue: list[tuple[str, Dict[str, Any]]] = []
         self.settings_save_device_id: Optional[str] = None
         self.settings_save_total = 0
@@ -536,8 +534,7 @@ class App(ctk.CTk):
         parent.grid_columnconfigure(0, weight=1)
         parent.grid_rowconfigure(0, weight=0)
         parent.grid_rowconfigure(1, weight=0)
-        parent.grid_rowconfigure(2, weight=0)
-        parent.grid_rowconfigure(3, weight=1)
+        parent.grid_rowconfigure(2, weight=1)
 
         self.settings_vars = {
             "automatic_enabled": ctk.BooleanVar(value=False),
@@ -574,15 +571,15 @@ class App(ctk.CTk):
         self.btn_save_settings.grid(
             row=0, column=1, sticky="ew", padx=4, pady=4
         )
-        memory_actions = ctk.CTkFrame(actions, fg_color="transparent")
-        memory_actions.grid(row=0, column=2, sticky="ew", padx=4, pady=4)
-        memory_actions.grid_columnconfigure((0, 1), weight=1)
-        self.btn_settings_ms = ctk.CTkButton(memory_actions, text="MS", width=36, command=self._store_settings_memory)
-        self.btn_settings_ms.grid(row=0, column=0, sticky="ew", padx=(0, 2))
-        self.btn_settings_mr = ctk.CTkButton(memory_actions, text="MR", width=36, command=self._recall_settings_memory_to_selected)
-        self.btn_settings_mr.grid(row=0, column=1, sticky="ew", padx=(2, 0))
-        self._bind_delayed_tooltip(self.btn_settings_ms, lambda: "MS: memorizar snapshot atual de settings")
-        self._bind_delayed_tooltip(self.btn_settings_mr, lambda: "MR: carregar snapshot memorizado no formulario")
+        profile_actions = ctk.CTkFrame(actions, fg_color="transparent")
+        profile_actions.grid(row=0, column=2, sticky="ew", padx=4, pady=4)
+        profile_actions.grid_columnconfigure((0, 1), weight=1)
+        self.btn_settings_file_open = ctk.CTkButton(profile_actions, text="Abrir perfil", command=self._load_settings_file)
+        self.btn_settings_file_open.grid(row=0, column=0, sticky="ew", padx=(0, 2))
+        self.btn_settings_file_save = ctk.CTkButton(profile_actions, text="Salvar perfil", command=self._save_settings_file)
+        self.btn_settings_file_save.grid(row=0, column=1, sticky="ew", padx=(2, 0))
+        self._bind_delayed_tooltip(self.btn_settings_file_open, lambda: "Abrir perfil JSON de settings no formulario")
+        self._bind_delayed_tooltip(self.btn_settings_file_save, lambda: "Salvar perfil JSON com o snapshot atual de settings")
         ctk.CTkButton(actions, text="Salvar heartbeat", command=self._send_set_heartbeat).grid(
             row=0, column=3, sticky="ew", padx=4, pady=4
         )
@@ -592,19 +589,11 @@ class App(ctk.CTk):
 
         self.settings_status_label = ctk.CTkLabel(parent, text="Ultima leitura: - | leia os settings antes de salvar", anchor="w")
         self.settings_status_label.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 4))
-        self.settings_memory_label = ctk.CTkLabel(
-            parent,
-            text=self._settings_memory_text(),
-            anchor="w",
-            text_color=("gray40", "gray70"),
-        )
-        self.settings_memory_label.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 4))
         self.btn_save_settings.configure(state="disabled")
-        self.btn_settings_ms.configure(state="disabled")
-        self.btn_settings_mr.configure(state="disabled")
+        self.btn_settings_file_save.configure(state="disabled")
 
         scroll = ctk.CTkScrollableFrame(parent)
-        scroll.grid(row=3, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        scroll.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
         scroll.grid_columnconfigure(0, weight=1)
         self.mousewheel_scroll_frames.append(scroll)
 
@@ -1956,7 +1945,7 @@ class App(ctk.CTk):
             )
             if hasattr(self, "settings_status_label"):
                 self.settings_status_label.configure(
-                    text=f"Settings carregados de {self.settings_loaded_device_id}; leia settings de {self.selected_device} ou use MR."
+                    text=f"Settings carregados de {self.settings_loaded_device_id}; leia settings de {self.selected_device} ou abra um perfil."
                 )
             return
 
@@ -2169,44 +2158,98 @@ class App(ctk.CTk):
             "acr_cloud": acr_cloud,
         }
 
-    def _store_settings_memory(self):
+    def _settings_profile_from_form(self) -> Optional[Dict[str, Dict[str, Any]]]:
+        payload = self._build_settings_payload_from_form()
+        if payload is None:
+            return None
+        profile = json.loads(json.dumps(payload))
+        connectivity = profile.get("device_connectivity", {})
+        if isinstance(connectivity, dict):
+            connectivity.pop("provisioning_ssid", None)
+        acr_cloud = profile.get("acr_cloud", {})
+        if isinstance(acr_cloud, dict):
+            acr_cloud.pop("upload_prefix", None)
+        return profile
+
+    def _settings_profile_filename(self) -> str:
+        device_id = self.settings_loaded_device_id or self.selected_device or "device"
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_device_id = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in device_id)
+        return f"settings_{safe_device_id}_{stamp}.json"
+
+    def _save_settings_file(self):
         if not self.settings_loaded or not self.settings_loaded_device_id:
-            self._append_log("Leia settings antes de usar MS", tag="warn")
+            self._append_log("Leia settings antes de salvar arquivo", tag="warn")
             return
-        memory_payload = self._build_settings_payload_from_form()
-        if memory_payload is None:
+        profile = self._settings_profile_from_form()
+        if profile is None:
             return
-        self.settings_memory_snapshot = json.loads(json.dumps(memory_payload))
-        self.settings_memory_device_id = self.settings_loaded_device_id
-        if hasattr(self, "btn_settings_mr"):
-            self.btn_settings_mr.configure(state="normal")
-        self._update_settings_memory_label()
+        file_path = filedialog.asksaveasfilename(
+            title="Salvar arquivo de settings",
+            defaultextension=".json",
+            initialfile=self._settings_profile_filename(),
+            filetypes=[("JSON", "*.json"), ("Todos os arquivos", "*.*")],
+        )
+        if not file_path:
+            return
+        document = {
+            "type": "acr_mqtt_desktop_settings_profile",
+            "version": 1,
+            "source_device_id": self.settings_loaded_device_id,
+            "saved_at": datetime.now().isoformat(timespec="seconds"),
+            "settings": profile,
+            "excluded_fields": ["device_connectivity.provisioning_ssid", "acr_cloud.upload_prefix"],
+        }
+        try:
+            with open(file_path, "w", encoding="utf-8") as handle:
+                json.dump(document, handle, ensure_ascii=True, indent=2, sort_keys=True)
+                handle.write("\n")
+        except OSError as exc:
+            self._append_log(f"Falha ao salvar arquivo de settings: {exc}", tag="error")
+            return
+        self._append_log(f"Arquivo de settings salvo: {file_path}", tag="info")
         if hasattr(self, "settings_status_label"):
-            self.settings_status_label.configure(text="MS: snapshot memorizado. Selecione destino e use MR.")
-        self._append_log(f"MS settings: memoria armazenada de {self.settings_memory_device_id}", tag="info")
+            self.settings_status_label.configure(text=f"Arquivo salvo: {Path(file_path).name}")
 
-    def _recall_settings_memory_to_selected(self):
-        if not self.settings_memory_snapshot or not self.settings_memory_device_id:
-            self._append_log("Nenhum snapshot em memoria. Use MS depois de ler settings.", tag="warn")
-            return
+    def _load_settings_file(self):
         if not self.selected_device:
-            self._append_log("Selecione um dispositivo destino para MR", tag="warn")
+            self._append_log("Selecione um dispositivo destino antes de abrir arquivo de settings", tag="warn")
             return
-        recall_payload = json.loads(json.dumps(self.settings_memory_snapshot))
+        file_path = filedialog.askopenfilename(
+            title="Abrir arquivo de settings",
+            filetypes=[("JSON", "*.json"), ("Todos os arquivos", "*.*")],
+        )
+        if not file_path:
+            return
+        try:
+            with open(file_path, "r", encoding="utf-8") as handle:
+                document = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            self._append_log(f"Falha ao abrir arquivo de settings: {exc}", tag="error")
+            return
+
+        settings_payload = document.get("settings") if isinstance(document, dict) else None
+        if settings_payload is None and isinstance(document, dict):
+            settings_payload = document
+        if not isinstance(settings_payload, dict) or not any(
+            section in settings_payload
+            for section in ("acr_control", "trigger_output", "device_connectivity", "acr_cloud")
+        ):
+            self._append_log("Arquivo de settings nao contem secoes reconhecidas", tag="error")
+            return
+
+        recall_payload = json.loads(json.dumps(settings_payload))
         connectivity = recall_payload.get("device_connectivity", {})
-        connectivity.pop("provisioning_ssid", None)
+        if isinstance(connectivity, dict):
+            connectivity.pop("provisioning_ssid", None)
         acr_cloud = recall_payload.get("acr_cloud", {})
-        acr_cloud.pop("upload_prefix", None)
+        if isinstance(acr_cloud, dict):
+            acr_cloud.pop("upload_prefix", None)
 
-        if not any(recall_payload.values()):
-            self._append_log("Snapshot em memoria nao tem campos para carregar", tag="warn")
-            return
-
-        source_id = self.settings_memory_device_id
         target_id = self.selected_device
         preserved_provisioning_ssid = self.settings_vars["provisioning_ssid"].get().strip()
         preserved_upload_prefix = self.settings_vars["acr_upload_prefix"].get().strip()
-        self._clear_settings_form_state("MR: carregando memoria no formulario...")
+        self._clear_settings_form_state("Arquivo: carregando settings no formulario...")
         self._apply_settings_form_values(recall_payload)
         self.settings_vars["provisioning_ssid"].set(preserved_provisioning_ssid)
         self.settings_vars["acr_upload_prefix"].set(preserved_upload_prefix)
@@ -2218,22 +2261,18 @@ class App(ctk.CTk):
         self.settings_loaded_device_id = target_id
         if hasattr(self, "btn_save_settings"):
             self.btn_save_settings.configure(state="normal")
-        if hasattr(self, "btn_settings_ms"):
-            self.btn_settings_ms.configure(state="normal")
-        self._update_settings_memory_label()
-        self._append_log(f"MR settings: memoria {source_id} carregada no formulario para {target_id}", tag="info")
+        if hasattr(self, "btn_settings_file_save"):
+            self.btn_settings_file_save.configure(state="normal")
+        self._append_log(f"Arquivo de settings carregado para {target_id}: {file_path}", tag="info")
         if hasattr(self, "settings_status_label"):
             self.settings_status_label.configure(
-                text=f"MR: memoria {source_id} carregada no formulario para {target_id}; revise e clique Salvar settings"
+                text=f"Arquivo {Path(file_path).name} carregado para {target_id}; revise e clique Salvar settings"
             )
 
-    def _clear_settings_form_state(self, status_text: Optional[str] = None, clear_memory: bool = False):
+    def _clear_settings_form_state(self, status_text: Optional[str] = None):
         self.settings_snapshot = {}
         self.settings_loaded = False
         self.settings_loaded_device_id = None
-        if clear_memory:
-            self.settings_memory_snapshot = {}
-            self.settings_memory_device_id = None
         for key, variable in self.settings_vars.items():
             if isinstance(variable, ctk.BooleanVar):
                 variable.set(False)
@@ -2244,24 +2283,12 @@ class App(ctk.CTk):
         self._reset_settings_field_styles()
         if hasattr(self, "btn_save_settings"):
             self.btn_save_settings.configure(state="disabled")
-        if hasattr(self, "btn_settings_ms"):
-            self.btn_settings_ms.configure(state="disabled")
-        if hasattr(self, "btn_settings_mr"):
-            self.btn_settings_mr.configure(state="normal" if self.settings_memory_snapshot else "disabled")
+        if hasattr(self, "btn_settings_file_save"):
+            self.btn_settings_file_save.configure(state="disabled")
         if hasattr(self, "settings_status_label"):
             self.settings_status_label.configure(
                 text=status_text or "Ultima leitura: - | leia os settings antes de salvar"
             )
-        self._update_settings_memory_label()
-
-    def _settings_memory_text(self) -> str:
-        if self.settings_memory_device_id:
-            return f"Memoria: {self.settings_memory_device_id} armazenada"
-        return "Memoria: -"
-
-    def _update_settings_memory_label(self):
-        if hasattr(self, "settings_memory_label"):
-            self.settings_memory_label.configure(text=self._settings_memory_text())
 
     def _parse_int_field(self, field_name: str, variable, min_value: int, max_value: int) -> Optional[int]:
         try:
@@ -2390,10 +2417,8 @@ class App(ctk.CTk):
         self.settings_loaded_device_id = device_id or self.selected_device
         if hasattr(self, "btn_save_settings"):
             self.btn_save_settings.configure(state="normal")
-        if hasattr(self, "btn_settings_ms"):
-            self.btn_settings_ms.configure(state="normal")
-        if hasattr(self, "btn_settings_mr") and self.settings_memory_snapshot:
-            self.btn_settings_mr.configure(state="normal")
+        if hasattr(self, "btn_settings_file_save"):
+            self.btn_settings_file_save.configure(state="normal")
 
         if hasattr(self, "settings_status_label"):
             self.settings_status_label.configure(
@@ -2402,7 +2427,6 @@ class App(ctk.CTk):
                     f"origem: {self.settings_loaded_device_id}"
                 )
             )
-        self._update_settings_memory_label()
 
     def _set_var_if_present(self, key: str, value: Any):
         if value is None or key not in self.settings_vars:
