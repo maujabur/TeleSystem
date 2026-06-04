@@ -39,6 +39,7 @@ TOPICS_TO_SUBSCRIBE = [
     f"{BASE_TOPIC}/+/event",
     f"{BASE_TOPIC}/+/cmd/out",
 ]
+PRESENCE_MESSAGE_TYPES = {"status", "heartbeat", "state", "event"}
 PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
 
@@ -770,7 +771,7 @@ class App(ctk.CTk):
             ("automatic", "Automatico"),
             ("last_result", "Ultimo resultado"),
             ("audio", "Audio"),
-            ("bt_next", "BT_NEXT"),
+            ("network", "Rede"),
             ("errors_retry", "Erros / retry"),
             ("counters", "Contadores"),
             ("vbat", "VBAT"),
@@ -1011,14 +1012,6 @@ class App(ctk.CTk):
             f"silencio {'sim' if bool(tech.get('audio_last_silence_detected')) else 'nao'} | "
             f"clipped {'sim' if bool(tech.get('audio_last_clipped_detected')) else 'nao'}"
         )
-        bt_text = (
-            f"{'Habilitado' if bool(tech.get('bt_next_enabled')) else 'Desabilitado'} | "
-            f"GPIO {self._value(tech, 'bt_next_gpio', '--')} | "
-            f"{self._format_ms(self._num(tech, 'bt_next_pulse_ms'))}"
-        )
-        if tech.get("bt_next_last_error"):
-            bt_text += f" | {tech.get('bt_next_last_error')}"
-
         counters_text = (
             f"envios {self._value(tech, 'acr_submitted_count', 0)} | "
             f"silencio {self._value(tech, 'acr_silence_discarded_count', 0)} | "
@@ -1026,6 +1019,22 @@ class App(ctk.CTk):
         )
         vbat_text = self._format_vbat(vbat, get_state)
         power_good_text = self._format_power_good(power_good, vbat)
+        network_payloads = [get_state, state_topic, heartbeat]
+        network_ssid = "-"
+        network_ip = "-"
+        network_rssi = "-"
+        for payload in network_payloads:
+            if not isinstance(payload, dict):
+                continue
+            if network_ssid == "-":
+                network_ssid = self._field(payload, "ssid", "wifi_ssid")
+            if network_ip == "-":
+                network_ip = self._field(payload, "ip", "ipv4", "sta_ip", "wifi_ip")
+            if network_rssi == "-":
+                network_rssi = self._field(payload, "rssi")
+        network_value = f"IP {network_ip}"
+        if network_rssi != "-":
+            network_value += f" | RSSI {network_rssi}"
         uptime_value = (
             self._num(tech, "uptime_seconds", None)
             if tech
@@ -1043,8 +1052,8 @@ class App(ctk.CTk):
         self._set_status_label("card.last_result.detail", self._value(tech, "acr_last_prediction", "--"))
         self._set_status_label("card.audio.value", self._format_ms(self._num(tech, "audio_last_active_ms")))
         self._set_status_label("card.audio.detail", audio_detail)
-        self._set_status_label("card.bt_next.value", bt_text)
-        self._set_status_label("card.bt_next.detail", " ")
+        self._set_status_label("card.network.value", network_value)
+        self._set_status_label("card.network.detail", f"SSID {network_ssid}")
         self._set_status_label("card.errors_retry.value", f"{self._value(tech, 'acr_consecutive_errors', 0)} erros | {retry_text}")
         self._set_status_label("card.errors_retry.detail", self._value(tech, "acr_last_error", ""))
         self._set_status_label("card.counters.value", counters_text)
@@ -1213,6 +1222,8 @@ class App(ctk.CTk):
             ("Device ID", "device_id"),
             ("Online", "online"),
             ("Last seen (local)", "last_seen"),
+            ("Wi-Fi SSID", "wifi_ssid"),
+            ("IP", "ip"),
             ("FW", "fw"),
             ("Session", "session_id"),
             ("Heartbeat ts", "hb_ts"),
@@ -1413,7 +1424,8 @@ class App(ctk.CTk):
             return ""
         column_name = columns[col_index]
         if column_name == "summary":
-            return self._device_summary(device)
+            ssid, ip, rssi = self._device_network_info(device)
+            return f"{self._device_summary(device)} | ssid: {ssid} | ip: {ip} | rssi: {rssi}"
         if column_name == "age":
             return f"idade {self._format_age(device.last_seen)} | ultimo contato: {self._format_local_datetime(device.last_seen)}"
         if column_name == "presence":
@@ -1457,14 +1469,16 @@ class App(ctk.CTk):
         action_enabled = bool(device and device.online and self.mqtt.connected)
         if device:
             _presence_key, presence_text = self._device_presence(device)
+            ssid, ip, _rssi = self._device_network_info(device)
             header_lines = [
                 row_id,
                 f"{presence_text} | idade {self._format_age(device.last_seen)}",
                 f"ultimo contato: {self._format_local_datetime(device.last_seen)}",
+                f"ssid: {ssid} | ip: {ip}",
                 self._device_summary(device),
             ]
         else:
-            header_lines = [row_id, "sem dados", "ultimo contato: -", "-"]
+            header_lines = [row_id, "sem dados", "ultimo contato: -", "ssid: - | ip: -", "-"]
 
         header = ctk.CTkFrame(frame, fg_color=("gray90", "gray22"), corner_radius=6)
         header.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
@@ -1486,6 +1500,7 @@ class App(ctk.CTk):
 
         actions = [
             ("Copiar device_id", lambda device_id=row_id: self._copy_device_id(device_id), True),
+            ("Copiar IP", lambda device_id=row_id: self._copy_device_ip(device_id), True),
             ("get_state", lambda device_id=row_id: self._send_context_command(device_id, "get_state", "Status"), action_enabled),
             (
                 "status_tecnico",
@@ -1681,6 +1696,19 @@ class App(ctk.CTk):
         self.clipboard_clear()
         self.clipboard_append(device_id)
         self._append_log(f"device_id copiado: {device_id}", tag="info")
+
+    def _copy_device_ip(self, device_id: str):
+        device = self.devices.get(device_id)
+        if not device:
+            self._append_log(f"Sem dados para copiar IP de {device_id}", tag="warn")
+            return
+        _ssid, ip, _rssi = self._device_network_info(device)
+        if ip == "-":
+            self._append_log(f"IP indisponivel para {device_id}; use get_state primeiro.", tag="warn")
+            return
+        self.clipboard_clear()
+        self.clipboard_append(ip)
+        self._append_log(f"IP copiado para {device_id}: {ip}", tag="info")
 
     def _send_context_command(self, device_id: str, command: str, tab_name: Optional[str] = None):
         if tab_name:
@@ -2432,22 +2460,36 @@ class App(ctk.CTk):
 
         payload_obj = data.get("payload_obj")
         payload_raw = data.get("payload_raw", "")
+        is_empty_payload = not str(payload_raw).strip()
 
         payload_ts = self._extract_payload_timestamp(payload_obj)
         effective_ts = payload_ts or broker_time
         contact_ts = broker_time
+        counts_as_presence = message_type in PRESENCE_MESSAGE_TYPES and not is_empty_payload
+
+        if is_empty_payload:
+            device.last_messages.pop(message_type, None)
+            if message_type in PRESENCE_MESSAGE_TYPES and not device.seen_live:
+                device.last_seen = None
+                device.online = False
+            self._upsert_tree_row(device)
+            self._append_log(f"Payload vazio recebido em {topic}; snapshot local removido", tag="info")
+            if self.selected_device == device_id:
+                self._refresh_device_details()
+                self._refresh_status_panel()
+            return
 
         if is_retained:
             # Retained snapshots nao significam dispositivo online agora.
-            if payload_ts and not device.seen_live:
+            if counts_as_presence and payload_ts and not device.seen_live:
                 if not device.last_seen or payload_ts > device.last_seen:
                     device.last_seen = payload_ts
-            if self.mqtt.connected and bool(self.auto_probe_var.get()) and not device.seen_live:
+            if counts_as_presence and self.mqtt.connected and bool(self.auto_probe_var.get()) and not device.seen_live:
                 now = datetime.now()
                 if not device.last_probe_at or now - device.last_probe_at > timedelta(seconds=30):
                     device.last_probe_at = now
                     self._send_cmd_to_device(device_id, "get_state", log_publish=False)
-        else:
+        elif counts_as_presence:
             device.seen_live = True
             device.last_seen = contact_ts
             device.online = True
@@ -2671,12 +2713,16 @@ class App(ctk.CTk):
         if not search:
             return True
 
+        ssid, ip, rssi = self._device_network_info(device)
         haystack = " ".join(
             [
                 device.device_id,
                 device.fw,
                 device.session_id,
                 presence_key,
+                ssid,
+                ip,
+                rssi,
                 self._device_summary(device),
             ]
         ).casefold()
@@ -2691,7 +2737,13 @@ class App(ctk.CTk):
         technical = device.last_technical_status_result or {}
 
         parts = []
+        _ssid, ip, rssi_from_state = self._device_network_info(device)
+        if ip != "-":
+            parts.append(f"IP {ip}")
+
         rssi = self._field(heartbeat, "rssi")
+        if rssi == "-":
+            rssi = rssi_from_state
         if rssi != "-":
             parts.append(f"RSSI {rssi}")
 
@@ -2829,10 +2881,13 @@ class App(ctk.CTk):
         status = self._payload_for(device, "status")
         event = self._payload_for(device, "event")
         cmd_out = self._payload_for(device, "cmd/out")
+        ssid, ip, _rssi = self._device_network_info(device)
 
         self._set_detail("device_id", device.device_id)
         self._set_detail("online", "online" if device.online else "offline")
         self._set_detail("last_seen", self._format_local_datetime(device.last_seen))
+        self._set_detail("wifi_ssid", ssid)
+        self._set_detail("ip", ip)
         self._set_detail("fw", device.fw)
         self._set_detail("session_id", device.session_id)
 
@@ -2870,6 +2925,27 @@ class App(ctk.CTk):
         if snap and isinstance(snap.payload_obj, dict):
             return snap.payload_obj
         return {}
+
+    def _device_network_info(self, device: DeviceInfo) -> Tuple[str, str, str]:
+        payloads = [
+            device.last_get_state_result or {},
+            self._payload_for(device, "state"),
+            self._payload_for(device, "heartbeat"),
+            self._payload_for(device, "status"),
+        ]
+        ssid = "-"
+        ip = "-"
+        rssi = "-"
+        for payload in payloads:
+            if not isinstance(payload, dict):
+                continue
+            if ssid == "-":
+                ssid = self._field(payload, "ssid", "wifi_ssid")
+            if ip == "-":
+                ip = self._field(payload, "ip", "ipv4", "sta_ip", "wifi_ip")
+            if rssi == "-":
+                rssi = self._field(payload, "rssi")
+        return ssid, ip, rssi
 
     def _field(self, payload: Dict[str, Any], *keys: str) -> str:
         for key in keys:

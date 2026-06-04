@@ -42,8 +42,9 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - contadores de total, online, offline, triagem e retained
   - colunas `estado`, `device_id`, `idade`, `fw` e `resumo`
   - `idade` mostra tempo desde o ultimo contato observado pelo desktop
-  - `resumo` condensa RSSI, bateria, estado, evento, erro e comandos pendentes
-  - menu de contexto por device para copiar ID, enviar comandos, abrir abas e limpar retained
+  - `resumo` condensa IP, RSSI, bateria, estado, evento, erro e comandos pendentes
+  - tooltip do resumo mostra SSID/IP quando disponivel
+  - menu de contexto por device para copiar ID/IP, enviar comandos, abrir abas e limpar retained
 - Painel do dispositivo selecionado com:
   - campos destacados para heartbeat, status/state, evento e cmd/out
   - foco em leitura rapida de valores relevantes
@@ -78,7 +79,9 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - area de log e redimensionavel com mouse (splitter vertical)
 - Presenca de device:
   - mensagens MQTT retained nao marcam o device como online
-  - online/offline considera apenas mensagem live (nao retained) dentro do timeout
+  - payload vazio usado para limpar retained remove o snapshot local e nao conta como presenca
+  - online/offline considera apenas mensagem live de `status`, `heartbeat`, `state` ou `event` dentro do timeout
+  - `cmd/out` nao conta como presenca; respostas de comando continuam no log e no controle de pendencias
   - `retained` indica device conhecido apenas por snapshot retido do broker nesta sessao
   - se o device ja foi visto live na sessao, ao expirar o timeout ele vira `offline`, nao `retained`
   - em uma nova abertura do app, um device pode aparecer como `retained` novamente se ainda houver payload retido no broker
