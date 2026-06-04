@@ -216,8 +216,8 @@ Funcoes internas relevantes:
 Camada de persistencia da configuracao ACR.
 
 - Carrega/salva region, container_id, bearer_token e upload_prefix.
-- Carrega/salva certificado raiz (NVS/arquivo com fallback embarcado).
-- Sanitiza entradas textuais e valida PEM basica.
+- O cliente ACR usa o bundle publico de CAs do ESP-IDF para TLS; nao ha certificado ACR persistido.
+- Sanitiza entradas textuais.
 - Expoe versao publica da config para a API.
 
 Funcoes principais:
@@ -225,7 +225,7 @@ Funcoes principais:
 - acr_config_store_load: carrega config completa para uso do cliente ACR.
 - acr_config_store_get_public_info: retorna dados seguros para UI.
 - acr_config_store_load_upload_prefix: recupera prefixo do nome de upload.
-- acr_config_store_save_region/container_id/bearer_token/upload_prefix/root_cert: persistencia dos campos.
+- acr_config_store_save_region/container_id/bearer_token/upload_prefix: persistencia dos campos.
 
 ### acr_orchestrator.c / acr_orchestrator.h
 

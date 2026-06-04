@@ -110,6 +110,7 @@ class MQTTManager:
             self.event_queue.put(("log", {"level": "info", "text": f"Connecting to {host}:{port}..."}))
         except Exception as exc:
             self.event_queue.put(("error", f"Connection failed: {exc}"))
+            self.event_queue.put(("connection", {"connected": False, "reason": "Connect failed"}))
 
     def disconnect(self) -> None:
         if self.client is None:
@@ -230,6 +231,7 @@ class App(ctk.CTk):
         self.tree_heading_labels: Dict[str, str] = {}
         self.status_icons: Dict[str, tk.PhotoImage] = {}
         self.device_tree_refresh_after_id: Optional[str] = None
+        self.auto_connect_pending = False
         self.device_context_menu: Optional[ctk.CTkToplevel] = None
         self.tooltip_window: Optional[ctk.CTkToplevel] = None
         self.tooltip_after_id: Optional[str] = None
@@ -250,11 +252,15 @@ class App(ctk.CTk):
         self.auto_connect_on_start_var = ctk.BooleanVar(value=False)
         self.technical_auto_update_var = ctk.BooleanVar(value=True)
         self.technical_update_interval_var = StringVar(value="3")
-        self.conn_state_var = StringVar(value="Disconnected")
+        self.conn_state_var = StringVar(value="Starting...")
 
         self._build_ui()
         self._enable_mousewheel_scrolling()
         self._load_example_or_local_config()
+        if bool(self.auto_connect_on_start_var.get()):
+            self._set_auto_connect_visual_state()
+        else:
+            self._set_disconnected_visual_state("Disconnected")
 
         self.after(100, self._drain_events)
         self.after(1000, self._check_offline_devices)
@@ -314,10 +320,10 @@ class App(ctk.CTk):
 
         status_frame = ctk.CTkFrame(conn)
         status_frame.grid(row=8, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
-        self.conn_indicator = ctk.CTkLabel(status_frame, text=" ", width=18, height=18, fg_color="#a33", corner_radius=8)
+        self.conn_indicator = ctk.CTkLabel(status_frame, text=" ", width=18, height=18, fg_color="#6c757d", corner_radius=8)
         self.conn_indicator.grid(row=0, column=0, padx=(6, 8), pady=6)
         ctk.CTkLabel(status_frame, textvariable=self.conn_state_var).grid(row=0, column=1, sticky="w")
-        self._set_connection_ui_state("disconnected")
+        self._set_connection_ui_state("starting")
 
         devices_frame = ctk.CTkFrame(left)
         devices_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(6, 10))
@@ -1308,19 +1314,47 @@ class App(ctk.CTk):
         )
 
     def _auto_connect_if_configured(self):
-        if bool(self.auto_connect_on_start_var.get()) and not self.mqtt.connected:
+        if self.auto_connect_pending and bool(self.auto_connect_on_start_var.get()) and not self.mqtt.connected:
             self._append_log("Auto connect on start habilitado", tag="info")
+            self.auto_connect_pending = False
             self._connect()
 
     def _set_connection_ui_state(self, state: str):
         if not hasattr(self, "btn_connect") or not hasattr(self, "btn_disconnect"):
             return
-        if state in {"connecting", "connected"}:
-            self.btn_connect.configure(state="disabled")
-            self.btn_disconnect.configure(state="normal")
+        if state == "starting":
+            self.btn_connect.configure(state="disabled", text="Connect")
+            self.btn_disconnect.configure(state="disabled", text="Disconnect")
+        elif state == "auto_connect":
+            self.btn_connect.configure(state="disabled", text="Connect")
+            self.btn_disconnect.configure(state="normal", text="Cancel")
+        elif state == "connecting":
+            self.btn_connect.configure(state="disabled", text="Connecting...")
+            self.btn_disconnect.configure(state="normal", text="Cancel")
+        elif state == "connected":
+            self.btn_connect.configure(state="disabled", text="Connect")
+            self.btn_disconnect.configure(state="normal", text="Disconnect")
         else:
-            self.btn_connect.configure(state="normal")
-            self.btn_disconnect.configure(state="disabled")
+            self.btn_connect.configure(state="normal", text="Connect")
+            self.btn_disconnect.configure(state="disabled", text="Disconnect")
+
+    def _set_disconnected_visual_state(self, reason: str = "Disconnected"):
+        self.auto_connect_pending = False
+        self.conn_state_var.set(reason)
+        self.conn_indicator.configure(fg_color="#a33")
+        self._set_connection_ui_state("disconnected")
+
+    def _set_auto_connect_visual_state(self):
+        self.auto_connect_pending = True
+        self.conn_state_var.set("Auto-connect...")
+        self.conn_indicator.configure(fg_color="#0b5ed7")
+        self._set_connection_ui_state("auto_connect")
+
+    def _set_connecting_visual_state(self):
+        self.auto_connect_pending = False
+        self.conn_state_var.set("Connecting...")
+        self.conn_indicator.configure(fg_color="#d67a00")
+        self._set_connection_ui_state("connecting")
 
     def _connect(self):
         if self.mqtt.connected:
@@ -1333,12 +1367,10 @@ class App(ctk.CTk):
         )
         if error:
             self._append_log(error, tag="error")
-            self._set_connection_ui_state("disconnected")
+            self._set_disconnected_visual_state("Disconnected")
             return
 
-        self.conn_state_var.set("Connecting...")
-        self.conn_indicator.configure(fg_color="#d67a00")
-        self._set_connection_ui_state("connecting")
+        self._set_connecting_visual_state()
         self.mqtt.connect(
             host=host,
             port=port,
@@ -1381,7 +1413,11 @@ class App(ctk.CTk):
         return host, port, tls_enabled, None
 
     def _disconnect(self):
-        self._set_connection_ui_state("disconnected")
+        if self.auto_connect_pending and not self.mqtt.connected:
+            self._append_log("Auto connect cancelado", tag="warn")
+            self._set_disconnected_visual_state("Disconnected")
+            return
+        self._set_disconnected_visual_state("Disconnected")
         self.mqtt.disconnect()
 
     def _on_select_device(self, _event=None):
@@ -2492,16 +2528,17 @@ class App(ctk.CTk):
     def _on_connection_event(self, data: Dict[str, Any]):
         connected = bool(data.get("connected"))
         reason = data.get("reason", "")
-        self.conn_state_var.set(reason)
-        self.conn_indicator.configure(fg_color="#1f8b24" if connected else "#a33")
         if connected:
+            self.auto_connect_pending = False
+            self.conn_state_var.set(reason or "Connected")
+            self.conn_indicator.configure(fg_color="#1f8b24")
             self._set_connection_ui_state("connected")
             self._append_log("MQTT connected", tag="info")
             if bool(self.auto_probe_var.get()):
                 self._probe_known_devices()
         else:
+            self._set_disconnected_visual_state(reason or "Disconnected")
             self.pending_cmd_by_id.clear()
-            self._set_connection_ui_state("disconnected")
             self._append_log(reason or "MQTT disconnected", tag="warn")
 
     def _on_message_event(self, data: Dict[str, Any]):
@@ -2740,7 +2777,7 @@ class App(ctk.CTk):
             if self._device_needs_attention(device):
                 return "attention", "triagem"
             return "online", "online"
-        if device.last_seen and not device.seen_live:
+        if not device.seen_live and (device.last_seen or device.last_messages):
             return "retained", "retained"
         return "offline", "offline"
 

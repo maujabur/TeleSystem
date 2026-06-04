@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +8,7 @@
 
 #include "freertos/FreeRTOS.h"
 
+#include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -16,8 +18,10 @@
 #include "acr_client.h"
 #include "acr_analysis_control.h"
 #include "acr_parser.h"
+#include "mqtt_presence.h"
 #include "vbat_monitor.h"
 #include "wav_writer.h"
+#include "web_portal.h"
 #include "wifi_manager.h"
 
 static const char *TAG = "acr-client";
@@ -89,6 +93,58 @@ static void log_heap_snapshot(const char *label)
 #else
     (void)label;
 #endif
+}
+
+static void acr_suspend_local_network_services(bool *portal_was_running)
+{
+    esp_err_t err = ESP_OK;
+
+    if (portal_was_running) {
+        *portal_was_running = web_portal_is_running();
+    }
+
+    err = mqtt_presence_suspend_for_acr();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Nao foi possivel suspender MQTT antes do ACR: %s", esp_err_to_name(err));
+    }
+
+    if (portal_was_running && *portal_was_running) {
+        err = web_portal_stop();
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "Nao foi possivel parar portal web antes do ACR: %s", esp_err_to_name(err));
+        } else {
+            ESP_LOGI(TAG, "Portal web suspenso durante ciclo ACR");
+        }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(250));
+}
+
+static void acr_resume_local_network_services(bool portal_was_running)
+{
+    esp_err_t err = ESP_OK;
+
+    if (portal_was_running) {
+        wifi_manager_status_t wifi_status = {0};
+        err = wifi_manager_get_status(&wifi_status);
+        if (err == ESP_OK) {
+            if (wifi_status.state == WIFI_MANAGER_STATE_PROVISIONING_AP) {
+                err = web_portal_start(true);
+            } else if (wifi_status.state == WIFI_MANAGER_STATE_STA_CONNECTED) {
+                err = web_portal_start(false);
+            }
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "Nao foi possivel retomar portal web apos ACR: %s", esp_err_to_name(err));
+            }
+        } else {
+            ESP_LOGW(TAG, "Nao foi possivel consultar Wi-Fi para retomar portal web: %s", esp_err_to_name(err));
+        }
+    }
+
+    err = mqtt_presence_resume_after_acr();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Nao foi possivel retomar MQTT apos ACR: %s", esp_err_to_name(err));
+    }
 }
 
 static void trim_trailing_whitespace(char *text)
@@ -383,7 +439,7 @@ static esp_err_t acr_upload_file(const acr_config_t *config,
         .timeout_ms = HTTP_TIMEOUT_MS,
         .buffer_size = HTTP_CLIENT_BUFFER_SIZE,
         .buffer_size_tx = HTTP_CLIENT_TX_BUFFER_SIZE,
-        .cert_pem = config->active_root_cert_pem,
+        .crt_bundle_attach = esp_crt_bundle_attach,
     };
 
     client = esp_http_client_init(&http_config);
@@ -416,13 +472,17 @@ static esp_err_t acr_upload_file(const acr_config_t *config,
     post_acr_event_with_file(ACR_CLIENT_EVENT_UPLOAD_STARTED, uploaded_name);
     log_heap_snapshot("antes do upload HTTP");
     connect_start_ms = esp_log_timestamp();
+    errno = 0;
     err = esp_http_client_open(client, multipart_header_len + (int)file_size + multipart_footer_len);
     connect_end_ms = esp_log_timestamp();
     if (out) {
         out->upload_connect_ms = connect_end_ms - connect_start_ms;
     }
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao abrir conexao HTTP: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG,
+                 "Falha ao abrir conexao HTTP: %s | errno=%d",
+                 esp_err_to_name(err),
+                 errno);
         log_heap_snapshot("apos falha ao abrir HTTP");
         goto cleanup;
     }
@@ -591,7 +651,7 @@ static esp_err_t acr_upload_pcm_wav_memory(const acr_config_t *config,
         .timeout_ms = HTTP_TIMEOUT_MS,
         .buffer_size = HTTP_CLIENT_BUFFER_SIZE,
         .buffer_size_tx = HTTP_CLIENT_TX_BUFFER_SIZE,
-        .cert_pem = config->active_root_cert_pem,
+        .crt_bundle_attach = esp_crt_bundle_attach,
     };
 
     client = esp_http_client_init(&http_config);
@@ -613,6 +673,7 @@ static esp_err_t acr_upload_pcm_wav_memory(const acr_config_t *config,
     post_acr_event_with_file(ACR_CLIENT_EVENT_UPLOAD_STARTED, uploaded_name);
     log_heap_snapshot("antes do upload HTTP em memoria");
     connect_start_ms = esp_log_timestamp();
+    errno = 0;
     err = esp_http_client_open(client,
                                multipart_header_len +
                                WAV_WRITER_HEADER_SIZE +
@@ -623,7 +684,10 @@ static esp_err_t acr_upload_pcm_wav_memory(const acr_config_t *config,
         out->upload_connect_ms = connect_end_ms - connect_start_ms;
     }
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao abrir conexao HTTP: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG,
+                 "Falha ao abrir conexao HTTP: %s | errno=%d",
+                 esp_err_to_name(err),
+                 errno);
         log_heap_snapshot("apos falha ao abrir HTTP");
         goto cleanup;
     }
@@ -828,7 +892,7 @@ static esp_err_t acr_wait_for_result(const acr_config_t *config,
             .buffer_size = HTTP_CLIENT_BUFFER_SIZE,
             .buffer_size_tx = HTTP_CLIENT_TX_BUFFER_SIZE,
             .event_handler = http_event_handler,
-            .cert_pem = config->active_root_cert_pem,
+            .crt_bundle_attach = esp_crt_bundle_attach,
         };
 
         esp_http_client_handle_t client = esp_http_client_init(&http_config);
@@ -910,6 +974,7 @@ esp_err_t acr_client_submit_and_wait_result(const acr_config_t *config,
     char uploaded_file_id[64];
     esp_err_t err = ESP_OK;
     esp_err_t restore_err = ESP_OK;
+    bool portal_was_running = false;
     int64_t upload_start_ms = 0;
     int64_t upload_end_ms = 0;
     int64_t wait_start_ms = 0;
@@ -925,6 +990,8 @@ esp_err_t acr_client_submit_and_wait_result(const acr_config_t *config,
     }
 
     vbat_monitor_maybe_measure(VBAT_MONITOR_MOMENT_BEFORE_WIFI_PS_EXIT);
+    acr_suspend_local_network_services(&portal_was_running);
+
     err = wifi_manager_set_high_throughput_mode(true);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Nao foi possivel ativar modo high throughput Wi-Fi: %s", esp_err_to_name(err));
@@ -958,6 +1025,7 @@ cleanup:
     if (restore_err != ESP_OK) {
         ESP_LOGW(TAG, "Nao foi possivel restaurar power save Wi-Fi: %s", esp_err_to_name(restore_err));
     }
+    acr_resume_local_network_services(portal_was_running);
 
     return err;
 }
@@ -974,6 +1042,7 @@ esp_err_t acr_client_submit_pcm_wav_and_wait_result(const acr_config_t *config,
     char uploaded_file_id[64];
     esp_err_t err = ESP_OK;
     esp_err_t restore_err = ESP_OK;
+    bool portal_was_running = false;
     int64_t upload_start_ms = 0;
     int64_t upload_end_ms = 0;
     int64_t wait_start_ms = 0;
@@ -989,6 +1058,8 @@ esp_err_t acr_client_submit_pcm_wav_and_wait_result(const acr_config_t *config,
     }
 
     vbat_monitor_maybe_measure(VBAT_MONITOR_MOMENT_BEFORE_WIFI_PS_EXIT);
+    acr_suspend_local_network_services(&portal_was_running);
+
     err = wifi_manager_set_high_throughput_mode(true);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Nao foi possivel ativar modo high throughput Wi-Fi: %s", esp_err_to_name(err));
@@ -1032,6 +1103,7 @@ cleanup:
     if (restore_err != ESP_OK) {
         ESP_LOGW(TAG, "Nao foi possivel restaurar power save Wi-Fi: %s", esp_err_to_name(restore_err));
     }
+    acr_resume_local_network_services(portal_was_running);
 
     return err;
 }

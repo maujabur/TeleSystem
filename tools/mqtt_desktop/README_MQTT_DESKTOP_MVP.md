@@ -29,7 +29,8 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 
 - Conexao MQTT (host, porta, usuario, senha, TLS on/off)
   - opcao `auto_connect_on_start` no `config.json` para conectar ao iniciar
-  - botoes Connect/Disconnect refletem o estado atual da conexao
+  - estado visual intermediario `Starting...`/`Auto-connect...`/`Connecting...` evita mostrar desconectado enquanto a configuracao e a conexao automatica estao pendentes
+  - botoes Connect/Disconnect refletem o estado atual; `Disconnect` atua como cancelamento antes de conectar
 - Descoberta de dispositivos por wildcard:
   - `v1/acr/+/status`
   - `v1/acr/+/heartbeat`
@@ -81,7 +82,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - payload vazio usado para limpar retained remove o snapshot local e nao conta como presenca
   - online/offline considera apenas mensagem live de `status`, `heartbeat`, `state` ou `event` dentro do timeout
   - envio de comando nao conta como presenca; `cmd/out` OK de comando pendente conta, pois confirma resposta do device
-  - `retained` indica device conhecido apenas por snapshot retido do broker nesta sessao
+  - `retained` indica device conhecido apenas por snapshot retido do broker nesta sessao, mesmo quando o snapshot retido e um LWT `offline` sem timestamp
   - se o device ja foi visto live na sessao, ao expirar o timeout ele vira `offline`, nao `retained`
   - em uma nova abertura do app, um device pode aparecer como `retained` novamente se ainda houver payload retido no broker
   - `pendente` indica device online com comando enviado e ainda sem resposta

@@ -40,7 +40,6 @@ idf_component_register(
     SRCS ${MAIN_SRCS}
     INCLUDE_DIRS "." "app" "audio" "connectivity" "portal"
     EMBED_TXTFILES
-        "../firmware_assets/certs/acr_root_cert.pem"
         "../firmware_assets/web/index.html"
         "../firmware_assets/web/status.html"
         "../firmware_assets/web/settings.html"

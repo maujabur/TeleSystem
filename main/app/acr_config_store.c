@@ -17,10 +17,6 @@
 
 static const char *TAG = "acr-config";
 
-extern const char _binary_acr_root_cert_pem_start[];
-
-static const char *g_root_cert_pem = _binary_acr_root_cert_pem_start;
-
 static void trim_trailing_whitespace(char *text)
 {
     size_t len = 0;
@@ -38,16 +34,6 @@ static void trim_trailing_whitespace(char *text)
         text[len - 1] = '\0';
         len--;
     }
-}
-
-static int pem_looks_valid(const char *pem)
-{
-    if (!pem || pem[0] == '\0') {
-        return 0;
-    }
-
-    return strstr(pem, "-----BEGIN CERTIFICATE-----") != NULL &&
-           strstr(pem, "-----END CERTIFICATE-----") != NULL;
 }
 
 static int is_upload_prefix_char_allowed(char c)
@@ -226,20 +212,6 @@ static esp_err_t load_config_string(const char *key,
     return ESP_OK;
 }
 
-static esp_err_t load_root_cert(acr_config_t *config)
-{
-    memset(config->root_cert_pem, 0, sizeof(config->root_cert_pem));
-    config->active_root_cert_pem = g_root_cert_pem;
-
-    if (!pem_looks_valid(g_root_cert_pem)) {
-        ESP_LOGE(TAG, "Certificado raiz embutido esta invalido");
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(TAG, "Certificado raiz carregado do firmware");
-    return ESP_OK;
-}
-
 esp_err_t acr_config_store_load(acr_config_t *config)
 {
     esp_err_t err = ESP_OK;
@@ -277,7 +249,7 @@ esp_err_t acr_config_store_load(acr_config_t *config)
         return err;
     }
 
-    return load_root_cert(config);
+    return ESP_OK;
 }
 
 esp_err_t acr_config_store_get_public_info(acr_config_public_info_t *info)
@@ -321,8 +293,6 @@ esp_err_t acr_config_store_get_public_info(acr_config_public_info_t *info)
                              "Bearer token");
     info->token_configured = err == ESP_OK && token[0] != '\0';
 
-    info->root_cert_configured = pem_looks_valid(g_root_cert_pem);
-
     return ESP_OK;
 }
 
@@ -363,15 +333,4 @@ esp_err_t acr_config_store_save_bearer_token(const char *token)
 esp_err_t acr_config_store_save_upload_prefix(const char *prefix)
 {
     return save_sanitized_upload_prefix_to_nvs(prefix);
-}
-
-esp_err_t acr_config_store_save_root_cert(const char *pem)
-{
-    if (!pem || pem[0] == '\0') {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ESP_LOGW(TAG,
-             "Persistencia de certificado em /data desabilitada; usando certificado embutido no firmware");
-    return ESP_ERR_NOT_SUPPORTED;
 }

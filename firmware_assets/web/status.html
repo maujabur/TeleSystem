@@ -250,6 +250,10 @@
             <strong id="acrState">--</strong>
           </div>
           <div class="card">
+            <span>Firmware</span>
+            <strong id="firmwareVersion">--</strong>
+          </div>
+          <div class="card">
             <span>Automatico</span>
             <strong id="autoMode">--</strong>
           </div>
@@ -399,6 +403,8 @@
             "Ultima atualizacao: " + new Date().toLocaleTimeString();
 
           document.getElementById("acrState").textContent = formatState(status.acr_state);
+          document.getElementById("firmwareVersion").textContent =
+            status.firmware_version || "--";
           document.getElementById("autoMode").textContent =
             (control.automatic_enabled ? "Ligado" : "Desligado") +
             " | intervalo " + formatMs(control.automatic_interval_ms || 0) +

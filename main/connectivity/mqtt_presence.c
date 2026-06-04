@@ -90,6 +90,7 @@ static const char *TAG = "mqtt-presence";
 static bool s_started;
 static bool s_client_started;
 static bool s_connected;
+static bool s_suspended_for_acr;
 static esp_mqtt_client_handle_t s_client;
 static TaskHandle_t s_heartbeat_task;
 static bool s_wifi_event_registered;
@@ -331,7 +332,6 @@ static cJSON *mqtt_presence_build_settings_result(void)
             cJSON_AddStringToObject(section, "container_id", acr_info.container_id);
             cJSON_AddStringToObject(section, "upload_prefix", acr_info.upload_prefix);
             cJSON_AddBoolToObject(section, "token_configured", acr_info.token_configured);
-            cJSON_AddBoolToObject(section, "root_cert_configured", acr_info.root_cert_configured);
         } else {
             cJSON_AddStringToObject(section, "error", "acr_cloud_unavailable");
         }
@@ -1435,6 +1435,10 @@ static esp_err_t mqtt_presence_start_client_if_needed(void)
     esp_mqtt_client_config_t mqtt_cfg = {0};
     wifi_manager_status_t wifi_status = {0};
 
+    if (s_suspended_for_acr) {
+        return ESP_OK;
+    }
+
     if (s_client_started) {
         return ESP_OK;
     }
@@ -1493,12 +1497,16 @@ static esp_err_t mqtt_presence_start_client_if_needed(void)
                                                    NULL);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar handler MQTT: %s", esp_err_to_name(err));
+        esp_mqtt_client_destroy(s_client);
+        s_client = NULL;
         return err;
     }
 
     err = esp_mqtt_client_start(s_client);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao iniciar cliente MQTT: %s", esp_err_to_name(err));
+        esp_mqtt_client_destroy(s_client);
+        s_client = NULL;
         return err;
     }
 
@@ -1584,5 +1592,51 @@ esp_err_t mqtt_presence_start(void)
              s_broker_host,
              s_broker_port);
     return ESP_OK;
+#endif
+}
+
+esp_err_t mqtt_presence_suspend_for_acr(void)
+{
+#if !CONFIG_MQTT_PRESENCE_ENABLED
+    return ESP_OK;
+#else
+    s_suspended_for_acr = true;
+
+    if (!s_started || !s_client) {
+        return ESP_OK;
+    }
+
+    ESP_LOGI(TAG, "Suspendendo MQTT durante ciclo ACR");
+    if (s_connected) {
+        mqtt_presence_publish_status("offline", "acr_upload");
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    esp_err_t err = esp_mqtt_client_stop(s_client);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "Falha ao parar MQTT para ACR: %s", esp_err_to_name(err));
+    }
+
+    esp_mqtt_client_destroy(s_client);
+    s_client = NULL;
+    s_client_started = false;
+    s_connected = false;
+    return ESP_OK;
+#endif
+}
+
+esp_err_t mqtt_presence_resume_after_acr(void)
+{
+#if !CONFIG_MQTT_PRESENCE_ENABLED
+    return ESP_OK;
+#else
+    if (!s_started) {
+        s_suspended_for_acr = false;
+        return ESP_OK;
+    }
+
+    ESP_LOGI(TAG, "Retomando MQTT apos ciclo ACR");
+    s_suspended_for_acr = false;
+    return mqtt_presence_start_client_if_needed();
 #endif
 }

@@ -38,13 +38,11 @@ static esp_err_t api_config_get_handler(httpd_req_t *req)
         cJSON_AddStringToObject(json, "container_id", config.container_id);
         cJSON_AddStringToObject(json, "upload_prefix", config.upload_prefix);
         cJSON_AddBoolToObject(json, "token_configured", config.token_configured);
-        cJSON_AddBoolToObject(json, "root_cert_configured", config.root_cert_configured);
     } else {
         cJSON_AddStringToObject(json, "region", "");
         cJSON_AddStringToObject(json, "container_id", "");
         cJSON_AddStringToObject(json, "upload_prefix", "");
         cJSON_AddBoolToObject(json, "token_configured", false);
-        cJSON_AddBoolToObject(json, "root_cert_configured", false);
     }
 
     err = http_helpers_send_json(req, json, 200);
