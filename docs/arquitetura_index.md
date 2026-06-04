@@ -24,6 +24,7 @@ Documentos de apoio que continuam uteis, mas nao precisam ser lidos em todo flux
 
 - [audio_acr_loop_architecture.md](audio_acr_loop_architecture.md)
 - [home_page_branding_manual.md](home_page_branding_manual.md)
+- [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
 - [roadmap_melhorias_faseado.md](roadmap_melhorias_faseado.md)
 
 Documentos temporarios ou de planejamento pontual:
