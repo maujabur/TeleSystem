@@ -66,7 +66,8 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `Salvar settings` so permite salvar no mesmo device de origem da ultima leitura
   - ao trocar de device, campos de Settings sao limpos para evitar salvar valores do device anterior
   - botoes `Abrir perfil` e `Salvar perfil` permitem carregar/salvar perfis JSON de settings entre sessoes
-  - perfis de arquivo nao aplicam `provisioning_ssid` nem `upload_prefix`; esses campos preservam o valor atual do destino
+  - por padrao, perfis de arquivo preservam `provisioning_ssid` e `upload_prefix` do destino
+  - checkbox `aplicar identidade` permite aplicar `provisioning_ssid` e `upload_prefix` do perfil quando necessario
   - depois de abrir um perfil, o usuario revisa e clica `Salvar settings` explicitamente para enviar
   - botao `Salvar heartbeat` envia `set_heartbeat_interval`
   - botao `Apply + reboot` envia `apply_and_reboot`
@@ -79,7 +80,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - mensagens MQTT retained nao marcam o device como online
   - payload vazio usado para limpar retained remove o snapshot local e nao conta como presenca
   - online/offline considera apenas mensagem live de `status`, `heartbeat`, `state` ou `event` dentro do timeout
-  - `cmd/out` nao conta como presenca; respostas de comando continuam no log e no controle de pendencias
+  - envio de comando nao conta como presenca; `cmd/out` OK de comando pendente conta, pois confirma resposta do device
   - `retained` indica device conhecido apenas por snapshot retido do broker nesta sessao
   - se o device ja foi visto live na sessao, ao expirar o timeout ele vira `offline`, nao `retained`
   - em uma nova abertura do app, um device pode aparecer como `retained` novamente se ainda houver payload retido no broker

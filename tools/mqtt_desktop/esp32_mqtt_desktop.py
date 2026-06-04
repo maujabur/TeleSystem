@@ -564,7 +564,12 @@ class App(ctk.CTk):
 
         actions = ctk.CTkFrame(parent)
         actions.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
-        actions.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+        actions.grid_columnconfigure(0, weight=0)
+        actions.grid_columnconfigure(1, weight=0)
+        actions.grid_columnconfigure(2, weight=1)
+        actions.grid_columnconfigure(3, weight=0)
+        actions.grid_columnconfigure(4, weight=0)
+        actions.grid_columnconfigure(5, weight=0)
         ctk.CTkButton(actions, text="Ler settings", command=self._request_get_settings).grid(
             row=0, column=0, sticky="ew", padx=4, pady=4
         )
@@ -572,31 +577,42 @@ class App(ctk.CTk):
         self.btn_save_settings.grid(
             row=0, column=1, sticky="ew", padx=4, pady=4
         )
-        profile_actions = ctk.CTkFrame(actions, fg_color="transparent")
-        profile_actions.grid(row=0, column=2, sticky="ew", padx=4, pady=4)
-        profile_actions.grid_columnconfigure((0, 1), weight=1)
-        self.btn_settings_file_open = ctk.CTkButton(profile_actions, text="Abrir perfil", command=self._load_settings_file)
-        self.btn_settings_file_open.grid(row=0, column=0, sticky="ew", padx=(0, 2))
-        self.btn_settings_file_save = ctk.CTkButton(profile_actions, text="Salvar perfil", command=self._save_settings_file)
-        self.btn_settings_file_save.grid(row=0, column=1, sticky="ew", padx=(2, 0))
-        self._bind_delayed_tooltip(self.btn_settings_file_open, lambda: "Abrir perfil JSON de settings no formulario")
-        self._bind_delayed_tooltip(self.btn_settings_file_save, lambda: "Salvar perfil JSON com o snapshot atual de settings")
-        apply_identity_check = ctk.CTkCheckBox(
-            profile_actions,
-            text="aplicar identidade",
-            variable=self.settings_apply_identity_var,
-        )
-        apply_identity_check.grid(row=1, column=0, columnspan=2, sticky="w", padx=2, pady=(4, 0))
-        self._bind_delayed_tooltip(
-            apply_identity_check,
-            lambda: "Quando marcado, Abrir perfil tambem aplica provisioning_ssid e upload_prefix",
-        )
         ctk.CTkButton(actions, text="Salvar heartbeat", command=self._send_set_heartbeat).grid(
             row=0, column=3, sticky="ew", padx=4, pady=4
         )
         ctk.CTkButton(actions, text="Apply + reboot", command=lambda: self._send_cmd("apply_and_reboot")).grid(
             row=0, column=4, sticky="ew", padx=4, pady=4
         )
+        profile_actions = ctk.CTkFrame(actions, fg_color="transparent")
+        profile_actions.grid(row=0, column=5, sticky="e", padx=4, pady=4)
+        profile_actions.grid_columnconfigure((1, 2), weight=0)
+        apply_identity_check = ctk.CTkCheckBox(
+            profile_actions,
+            text="identidade",
+            variable=self.settings_apply_identity_var,
+            width=92,
+        )
+        apply_identity_check.grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.btn_settings_file_open = ctk.CTkButton(
+            profile_actions,
+            text="Abrir perfil",
+            width=112,
+            command=self._load_settings_file,
+        )
+        self.btn_settings_file_open.grid(row=0, column=1, sticky="ew", padx=(0, 4))
+        self.btn_settings_file_save = ctk.CTkButton(
+            profile_actions,
+            text="Salvar perfil",
+            width=112,
+            command=self._save_settings_file,
+        )
+        self.btn_settings_file_save.grid(row=0, column=2, sticky="ew")
+        self._bind_delayed_tooltip(
+            apply_identity_check,
+            lambda: "Quando marcado, Abrir perfil tambem aplica provisioning_ssid e upload_prefix",
+        )
+        self._bind_delayed_tooltip(self.btn_settings_file_open, lambda: "Abrir perfil JSON de settings no formulario")
+        self._bind_delayed_tooltip(self.btn_settings_file_save, lambda: "Salvar perfil JSON com o snapshot atual de settings")
 
         self.settings_status_label = ctk.CTkLabel(parent, text="Ultima leitura: - | leia os settings antes de salvar", anchor="w")
         self.settings_status_label.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 4))
@@ -2273,6 +2289,8 @@ class App(ctk.CTk):
             self.settings_snapshot.setdefault("acr_cloud", {})["upload_prefix"] = preserved_upload_prefix
         self.settings_loaded = True
         self.settings_loaded_device_id = target_id
+        if apply_identity:
+            self.settings_apply_identity_var.set(False)
         if hasattr(self, "btn_save_settings"):
             self.btn_save_settings.configure(state="normal")
         if hasattr(self, "btn_settings_file_save"):
@@ -2561,6 +2579,11 @@ class App(ctk.CTk):
             if isinstance(cmd_id, str) and cmd_id in self.pending_cmd_by_id:
                 pending = self.pending_cmd_by_id.pop(cmd_id)
                 cmd_result_command = pending.command
+                if pending.device_id == device_id and payload_obj.get("ok") is True:
+                    device.seen_live = True
+                    device.last_seen = contact_ts
+                    device.online = True
+                    self._upsert_tree_row(device)
                 if pending.command == "set_settings" and self._handle_settings_save_reply(device_id, payload_obj):
                     if self.selected_device == device_id:
                         self._refresh_device_details()
