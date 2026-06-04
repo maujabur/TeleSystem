@@ -813,7 +813,7 @@ static void build_ap_ssid(char *ssid, size_t ssid_size)
     }
 
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
-    snprintf(ssid, ssid_size, "AI-Skips-AI-%02X%02X", mac[4], mac[5]);
+    snprintf(ssid, ssid_size, "AiSkipsAi-%02X%02X", mac[4], mac[5]);
 }
 
 static esp_err_t configure_and_start_ap(void)

@@ -559,6 +559,7 @@ class App(ctk.CTk):
             "acr_upload_prefix": StringVar(value=""),
             "acr_bearer_token": StringVar(value=""),
         }
+        self.settings_apply_identity_var = ctk.BooleanVar(value=False)
         self.settings_inputs = {}
 
         actions = ctk.CTkFrame(parent)
@@ -580,6 +581,16 @@ class App(ctk.CTk):
         self.btn_settings_file_save.grid(row=0, column=1, sticky="ew", padx=(2, 0))
         self._bind_delayed_tooltip(self.btn_settings_file_open, lambda: "Abrir perfil JSON de settings no formulario")
         self._bind_delayed_tooltip(self.btn_settings_file_save, lambda: "Salvar perfil JSON com o snapshot atual de settings")
+        apply_identity_check = ctk.CTkCheckBox(
+            profile_actions,
+            text="aplicar identidade",
+            variable=self.settings_apply_identity_var,
+        )
+        apply_identity_check.grid(row=1, column=0, columnspan=2, sticky="w", padx=2, pady=(4, 0))
+        self._bind_delayed_tooltip(
+            apply_identity_check,
+            lambda: "Quando marcado, Abrir perfil tambem aplica provisioning_ssid e upload_prefix",
+        )
         ctk.CTkButton(actions, text="Salvar heartbeat", command=self._send_set_heartbeat).grid(
             row=0, column=3, sticky="ew", padx=4, pady=4
         )
@@ -2162,14 +2173,7 @@ class App(ctk.CTk):
         payload = self._build_settings_payload_from_form()
         if payload is None:
             return None
-        profile = json.loads(json.dumps(payload))
-        connectivity = profile.get("device_connectivity", {})
-        if isinstance(connectivity, dict):
-            connectivity.pop("provisioning_ssid", None)
-        acr_cloud = profile.get("acr_cloud", {})
-        if isinstance(acr_cloud, dict):
-            acr_cloud.pop("upload_prefix", None)
-        return profile
+        return json.loads(json.dumps(payload))
 
     def _settings_profile_filename(self) -> str:
         device_id = self.settings_loaded_device_id or self.selected_device or "device"
@@ -2198,7 +2202,8 @@ class App(ctk.CTk):
             "source_device_id": self.settings_loaded_device_id,
             "saved_at": datetime.now().isoformat(timespec="seconds"),
             "settings": profile,
-            "excluded_fields": ["device_connectivity.provisioning_ssid", "acr_cloud.upload_prefix"],
+            "identity_fields": ["device_connectivity.provisioning_ssid", "acr_cloud.upload_prefix"],
+            "identity_apply_default": False,
         }
         try:
             with open(file_path, "w", encoding="utf-8") as handle:
@@ -2240,10 +2245,18 @@ class App(ctk.CTk):
 
         recall_payload = json.loads(json.dumps(settings_payload))
         connectivity = recall_payload.get("device_connectivity", {})
-        if isinstance(connectivity, dict):
-            connectivity.pop("provisioning_ssid", None)
+        if not isinstance(connectivity, dict):
+            connectivity = {}
+            recall_payload["device_connectivity"] = connectivity
         acr_cloud = recall_payload.get("acr_cloud", {})
-        if isinstance(acr_cloud, dict):
+        if not isinstance(acr_cloud, dict):
+            acr_cloud = {}
+            recall_payload["acr_cloud"] = acr_cloud
+        apply_identity = bool(self.settings_apply_identity_var.get())
+        has_profile_provisioning_ssid = "provisioning_ssid" in connectivity
+        has_profile_upload_prefix = "upload_prefix" in acr_cloud
+        if not apply_identity:
+            connectivity.pop("provisioning_ssid", None)
             acr_cloud.pop("upload_prefix", None)
 
         target_id = self.selected_device
@@ -2251,12 +2264,13 @@ class App(ctk.CTk):
         preserved_upload_prefix = self.settings_vars["acr_upload_prefix"].get().strip()
         self._clear_settings_form_state("Arquivo: carregando settings no formulario...")
         self._apply_settings_form_values(recall_payload)
-        self.settings_vars["provisioning_ssid"].set(preserved_provisioning_ssid)
-        self.settings_vars["acr_upload_prefix"].set(preserved_upload_prefix)
-        self.settings_snapshot = {
-            "device_connectivity": {"provisioning_ssid": preserved_provisioning_ssid},
-            "acr_cloud": {"upload_prefix": preserved_upload_prefix},
-        }
+        self.settings_snapshot = {}
+        if not apply_identity or not has_profile_provisioning_ssid:
+            self.settings_vars["provisioning_ssid"].set(preserved_provisioning_ssid)
+            self.settings_snapshot.setdefault("device_connectivity", {})["provisioning_ssid"] = preserved_provisioning_ssid
+        if not apply_identity or not has_profile_upload_prefix:
+            self.settings_vars["acr_upload_prefix"].set(preserved_upload_prefix)
+            self.settings_snapshot.setdefault("acr_cloud", {})["upload_prefix"] = preserved_upload_prefix
         self.settings_loaded = True
         self.settings_loaded_device_id = target_id
         if hasattr(self, "btn_save_settings"):
@@ -2265,8 +2279,12 @@ class App(ctk.CTk):
             self.btn_settings_file_save.configure(state="normal")
         self._append_log(f"Arquivo de settings carregado para {target_id}: {file_path}", tag="info")
         if hasattr(self, "settings_status_label"):
+            identity_text = "identidade aplicada" if apply_identity else "identidade preservada"
             self.settings_status_label.configure(
-                text=f"Arquivo {Path(file_path).name} carregado para {target_id}; revise e clique Salvar settings"
+                text=(
+                    f"Arquivo {Path(file_path).name} carregado para {target_id}; "
+                    f"{identity_text}; revise e clique Salvar settings"
+                )
             )
 
     def _clear_settings_form_state(self, status_text: Optional[str] = None):
