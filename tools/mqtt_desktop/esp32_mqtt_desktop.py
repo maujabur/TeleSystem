@@ -225,6 +225,10 @@ class App(ctk.CTk):
         self.status_icons: Dict[str, tk.PhotoImage] = {}
         self.device_tree_refresh_after_id: Optional[str] = None
         self.device_context_menu: Optional[ctk.CTkToplevel] = None
+        self.tooltip_window: Optional[ctk.CTkToplevel] = None
+        self.tooltip_after_id: Optional[str] = None
+        self.tooltip_widget: Optional[Any] = None
+        self.tooltip_tree_cell: Optional[Tuple[str, str]] = None
 
         self.host_var = StringVar(value="localhost")
         self.port_var = StringVar(value="1883")
@@ -322,6 +326,7 @@ class App(ctk.CTk):
         device_tools.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 6))
         device_tools.grid_columnconfigure(0, weight=1)
         device_tools.grid_columnconfigure(1, weight=0)
+        device_tools.grid_columnconfigure(2, weight=0)
         ctk.CTkEntry(
             device_tools,
             textvariable=self.device_search_var,
@@ -332,13 +337,22 @@ class App(ctk.CTk):
             variable=self.device_filter_var,
             values=["Todos", "Online", "Offline", "Triagem", "Retained"],
             width=116,
-        ).grid(row=0, column=1, sticky="e")
+        ).grid(row=0, column=1, sticky="e", padx=(0, 6))
+        self.btn_ping_all = ctk.CTkButton(
+            device_tools,
+            text="⟳",
+            width=32,
+            height=28,
+            command=self._ping_all_devices,
+        )
+        self.btn_ping_all.grid(row=0, column=2, sticky="e")
+        self._bind_delayed_tooltip(self.btn_ping_all, lambda: "Enviar ping para todos os dispositivos conhecidos")
         ctk.CTkLabel(
             device_tools,
             textvariable=self.device_counts_var,
             anchor="w",
             text_color=("gray40", "gray70"),
-        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+        ).grid(row=1, column=0, columnspan=3, sticky="ew", pady=(4, 0))
 
         self.device_search_var.trace_add("write", self._on_device_filter_changed)
         self.device_filter_var.trace_add("write", self._on_device_filter_changed)
@@ -349,6 +363,8 @@ class App(ctk.CTk):
         self.tree.bind("<<TreeviewSelect>>", self._on_select_device)
         self.tree.bind("<Button-3>", self._show_device_context_menu)
         self.tree.bind("<Button-2>", self._show_device_context_menu)
+        self.tree.bind("<Motion>", self._on_device_tree_motion, add="+")
+        self.tree.bind("<Leave>", self._hide_tooltip, add="+")
         self.tree.tag_configure("online", foreground="#1f8b24")
         self.tree.tag_configure("offline", foreground="#d11a2a")
         self.tree.tag_configure("retained", foreground="#6c757d")
@@ -693,6 +709,7 @@ class App(ctk.CTk):
             text_color=("gray40", "gray70"),
         )
         self.status_time_label.grid(row=1, column=0, columnspan=7, sticky="ew", padx=8, pady=(0, 4))
+        self._bind_delayed_tooltip(self.status_time_label, lambda: self.status_time_label.cget("text"))
         toolbar_spacer = ctk.CTkFrame(top, fg_color="transparent", height=1)
         toolbar_spacer.grid(row=0, column=2, sticky="ew")
         ctk.CTkCheckBox(top, text="Auto", variable=self.technical_auto_update_var, width=72).grid(
@@ -1324,6 +1341,52 @@ class App(ctk.CTk):
         self._refresh_device_details()
         self._refresh_status_panel()
 
+    def _on_device_tree_motion(self, event):
+        row_id = self.tree.identify_row(event.y)
+        col_id = self.tree.identify_column(event.x)
+        if not row_id or not col_id:
+            self._hide_tooltip()
+            return
+
+        tooltip_key = (row_id, col_id)
+        if getattr(self, "tooltip_tree_cell", None) == tooltip_key and self.tooltip_after_id is None:
+            self._remember_tooltip_motion(event)
+            return
+
+        text = self._device_tree_cell_tooltip_text(row_id, col_id)
+        if not text:
+            self._hide_tooltip()
+            return
+
+        if getattr(self, "tooltip_tree_cell", None) != tooltip_key:
+            self._hide_tooltip()
+            self.tooltip_tree_cell = tooltip_key
+            self._schedule_tooltip(self.tree, lambda value=text: value, event, 650)
+        else:
+            self._remember_tooltip_motion(event)
+
+    def _device_tree_cell_tooltip_text(self, row_id: str, col_id: str) -> str:
+        device = self.devices.get(row_id)
+        if not device:
+            return ""
+        col_index = int(col_id.lstrip("#")) - 1
+        columns = list(self.tree["columns"])
+        if col_index < 0 or col_index >= len(columns):
+            return ""
+        column_name = columns[col_index]
+        if column_name == "summary":
+            return self._device_summary(device)
+        if column_name == "age":
+            return f"idade {self._format_age(device.last_seen)} | ultimo contato: {self._format_local_datetime(device.last_seen)}"
+        if column_name == "presence":
+            _presence_key, presence_text = self._device_presence(device)
+            return presence_text
+        if column_name == "device_id":
+            return device.device_id
+        if column_name == "fw":
+            return device.fw
+        return ""
+
     def _show_device_context_menu(self, event):
         row_id = self.tree.identify_row(event.y)
         if not row_id:
@@ -1477,6 +1540,105 @@ class App(ctk.CTk):
         y_pos = min(max(min_y, y_root - height - margin), max_y)
         return x_pos, y_pos
 
+    def _bind_delayed_tooltip(self, widget, text_provider, delay_ms: int = 700):
+        widget.bind("<Enter>", lambda event, w=widget, provider=text_provider: self._schedule_tooltip(w, provider, event, delay_ms), add="+")
+        widget.bind("<Motion>", self._remember_tooltip_motion, add="+")
+        widget.bind("<Leave>", self._hide_tooltip, add="+")
+
+    def _schedule_tooltip(self, widget, text_provider, event, delay_ms: int):
+        self._cancel_tooltip_schedule()
+        self.tooltip_widget = widget
+        self.tooltip_last_xy = (event.x_root, event.y_root)
+        self.tooltip_after_id = self.after(delay_ms, lambda: self._show_tooltip(widget, text_provider))
+
+    def _remember_tooltip_motion(self, event):
+        self.tooltip_last_xy = (event.x_root, event.y_root)
+
+    def _cancel_tooltip_schedule(self):
+        if self.tooltip_after_id is not None:
+            try:
+                self.after_cancel(self.tooltip_after_id)
+            except tk.TclError:
+                pass
+            self.tooltip_after_id = None
+
+    def _show_tooltip(self, widget, text_provider):
+        self.tooltip_after_id = None
+        if self.tooltip_widget is not widget:
+            return
+        text = str(text_provider() or "").strip()
+        if not text:
+            return
+
+        self._destroy_tooltip_window()
+        tooltip = ctk.CTkToplevel(self)
+        tooltip.withdraw()
+        tooltip.overrideredirect(True)
+        tooltip.attributes("-topmost", True)
+        tooltip.configure(fg_color=("gray96", "gray15"))
+
+        frame = ctk.CTkFrame(
+            tooltip,
+            corner_radius=6,
+            border_width=1,
+            border_color=("gray70", "gray35"),
+            fg_color=("gray96", "gray15"),
+        )
+        frame.grid(row=0, column=0, sticky="nsew")
+        ctk.CTkLabel(
+            frame,
+            text=self._wrap_tooltip_text(text),
+            anchor="w",
+            justify="left",
+            wraplength=520,
+            text_color=("gray10", "gray90"),
+        ).grid(row=0, column=0, sticky="ew", padx=10, pady=8)
+
+        tooltip.update_idletasks()
+        x_root, y_root = getattr(self, "tooltip_last_xy", (widget.winfo_rootx(), widget.winfo_rooty()))
+        x_pos, y_pos = self._popup_below_position(x_root + 12, y_root + 16, tooltip.winfo_reqwidth(), tooltip.winfo_reqheight())
+        tooltip.geometry(f"+{x_pos}+{y_pos}")
+        tooltip.deiconify()
+        tooltip.lift()
+        self.tooltip_window = tooltip
+
+    def _wrap_tooltip_text(self, text: str) -> str:
+        parts = [part.strip() for part in text.split("|")]
+        if len(parts) <= 1:
+            return text
+        return "\n".join(part for part in parts if part)
+
+    def _popup_below_position(self, x_root: int, y_root: int, width: int, height: int) -> Tuple[int, int]:
+        margin = 8
+        root_x = self.winfo_rootx()
+        root_y = self.winfo_rooty()
+        root_width = self.winfo_width()
+        root_height = self.winfo_height()
+
+        min_x = root_x + margin
+        max_x = max(min_x, root_x + root_width - width - margin)
+        min_y = root_y + margin
+        max_y = max(min_y, root_y + root_height - height - margin)
+
+        x_pos = min(max(min_x, x_root), max_x)
+        y_pos = min(max(min_y, y_root), max_y)
+        return x_pos, y_pos
+
+    def _hide_tooltip(self, _event=None):
+        self._cancel_tooltip_schedule()
+        self.tooltip_widget = None
+        self.tooltip_tree_cell = None
+        self._destroy_tooltip_window()
+
+    def _destroy_tooltip_window(self):
+        tooltip = getattr(self, "tooltip_window", None)
+        if tooltip is not None:
+            try:
+                tooltip.destroy()
+            except tk.TclError:
+                pass
+            self.tooltip_window = None
+
     def _copy_device_id(self, device_id: str):
         self.clipboard_clear()
         self.clipboard_append(device_id)
@@ -1595,6 +1757,24 @@ class App(ctk.CTk):
             return
 
         self._send_cmd_to_device(self.selected_device, command, extra_params=extra_params)
+
+    def _ping_all_devices(self):
+        if not self.devices:
+            self._append_log("Nenhum dispositivo conhecido para ping", tag="warn")
+            return
+        if not self.mqtt.connected:
+            self._append_log("MQTT desconectado; nao foi possivel enviar ping geral", tag="warn")
+            return
+
+        device_ids = sorted(self.devices.keys(), key=str.casefold)
+        sent_count = 0
+        for device_id in device_ids:
+            before_count = len(self.pending_cmd_by_id)
+            self._send_cmd_to_device(device_id, "ping", log_publish=False)
+            if len(self.pending_cmd_by_id) > before_count:
+                sent_count += 1
+        self._append_log(f"Ping enviado para {sent_count}/{len(device_ids)} dispositivo(s)", tag="info")
+        self._refresh_device_tree()
 
     def _send_cmd_to_device(
         self,
