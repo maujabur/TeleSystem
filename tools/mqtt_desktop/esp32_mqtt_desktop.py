@@ -216,6 +216,13 @@ class App(ctk.CTk):
         self.settings_inputs: Dict[str, Any] = {}
         self.settings_snapshot: Dict[str, Any] = {}
         self.settings_loaded = False
+        self.settings_loaded_device_id: Optional[str] = None
+        self.settings_memory_snapshot: Dict[str, Dict[str, Any]] = {}
+        self.settings_memory_device_id: Optional[str] = None
+        self.settings_save_queue: list[tuple[str, Dict[str, Any]]] = []
+        self.settings_save_device_id: Optional[str] = None
+        self.settings_save_total = 0
+        self.settings_save_in_progress = False
         self.pending_cmd_by_id: Dict[str, PendingCommand] = {}
         self.log_line_count = 0
         self.mousewheel_scroll_frames: list[Any] = []
@@ -526,7 +533,10 @@ class App(ctk.CTk):
 
     def _build_settings_panel(self, parent):
         parent.grid_columnconfigure(0, weight=1)
-        parent.grid_rowconfigure(2, weight=1)
+        parent.grid_rowconfigure(0, weight=0)
+        parent.grid_rowconfigure(1, weight=0)
+        parent.grid_rowconfigure(2, weight=0)
+        parent.grid_rowconfigure(3, weight=1)
 
         self.settings_vars = {
             "automatic_enabled": ctk.BooleanVar(value=False),
@@ -555,7 +565,7 @@ class App(ctk.CTk):
 
         actions = ctk.CTkFrame(parent)
         actions.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
-        actions.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        actions.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
         ctk.CTkButton(actions, text="Ler settings", command=self._request_get_settings).grid(
             row=0, column=0, sticky="ew", padx=4, pady=4
         )
@@ -563,19 +573,37 @@ class App(ctk.CTk):
         self.btn_save_settings.grid(
             row=0, column=1, sticky="ew", padx=4, pady=4
         )
+        memory_actions = ctk.CTkFrame(actions, fg_color="transparent")
+        memory_actions.grid(row=0, column=2, sticky="ew", padx=4, pady=4)
+        memory_actions.grid_columnconfigure((0, 1), weight=1)
+        self.btn_settings_ms = ctk.CTkButton(memory_actions, text="MS", width=36, command=self._store_settings_memory)
+        self.btn_settings_ms.grid(row=0, column=0, sticky="ew", padx=(0, 2))
+        self.btn_settings_mr = ctk.CTkButton(memory_actions, text="MR", width=36, command=self._recall_settings_memory_to_selected)
+        self.btn_settings_mr.grid(row=0, column=1, sticky="ew", padx=(2, 0))
+        self._bind_delayed_tooltip(self.btn_settings_ms, lambda: "MS: memorizar snapshot atual de settings")
+        self._bind_delayed_tooltip(self.btn_settings_mr, lambda: "MR: carregar snapshot memorizado no formulario")
         ctk.CTkButton(actions, text="Salvar heartbeat", command=self._send_set_heartbeat).grid(
-            row=0, column=2, sticky="ew", padx=4, pady=4
+            row=0, column=3, sticky="ew", padx=4, pady=4
         )
         ctk.CTkButton(actions, text="Apply + reboot", command=lambda: self._send_cmd("apply_and_reboot")).grid(
-            row=0, column=3, sticky="ew", padx=4, pady=4
+            row=0, column=4, sticky="ew", padx=4, pady=4
         )
 
         self.settings_status_label = ctk.CTkLabel(parent, text="Ultima leitura: - | leia os settings antes de salvar", anchor="w")
         self.settings_status_label.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 4))
+        self.settings_memory_label = ctk.CTkLabel(
+            parent,
+            text=self._settings_memory_text(),
+            anchor="w",
+            text_color=("gray40", "gray70"),
+        )
+        self.settings_memory_label.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 4))
         self.btn_save_settings.configure(state="disabled")
+        self.btn_settings_ms.configure(state="disabled")
+        self.btn_settings_mr.configure(state="disabled")
 
         scroll = ctk.CTkScrollableFrame(parent)
-        scroll.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        scroll.grid(row=3, column=0, sticky="nsew", padx=8, pady=(0, 8))
         scroll.grid_columnconfigure(0, weight=1)
         self.mousewheel_scroll_frames.append(scroll)
 
@@ -1338,8 +1366,18 @@ class App(ctk.CTk):
 
         self.selected_device = selection[0]
         self.clear_retained_device_var.set(self.selected_device)
+        self._update_settings_selection_status()
         self._refresh_device_details()
         self._refresh_status_panel()
+
+    def _update_settings_selection_status(self):
+        if not hasattr(self, "settings_status_label") or not self.settings_loaded:
+            return
+        if self.settings_loaded_device_id and self.selected_device != self.settings_loaded_device_id:
+            previous_device = self.settings_loaded_device_id
+            self._clear_settings_form_state(
+                f"Settings de {previous_device} limpos ao trocar device. Leia settings do device atual."
+            )
 
     def _on_device_tree_motion(self, event):
         row_id = self.tree.identify_row(event.y)
@@ -1668,6 +1706,7 @@ class App(ctk.CTk):
         if self.tree.exists(device_id):
             self.tree.selection_set(device_id)
         self.clear_retained_device_var.set(device_id)
+        self._update_settings_selection_status()
         self._refresh_device_details()
         self._refresh_status_panel()
         if hasattr(self, "tabs"):
@@ -1731,6 +1770,12 @@ class App(ctk.CTk):
                     f"Comando expirado sem resposta: {pending.command} para {pending.device_id} cmd_id={cmd_id}",
                     tag="warn",
                 )
+                if (
+                    self.settings_save_in_progress
+                    and pending.command == "set_settings"
+                    and pending.device_id == self.settings_save_device_id
+                ):
+                    self._abort_settings_save("Salvar settings interrompido: comando expirou sem resposta.")
 
     def _has_pending_command(self, device_id: str, command: str) -> bool:
         self._expire_pending_commands()
@@ -1782,10 +1827,10 @@ class App(ctk.CTk):
         command: str,
         extra_params: Optional[Dict[str, Any]] = None,
         log_publish: bool = True,
-    ):
+    ) -> Optional[str]:
         if not device_id:
             self._append_log("Device_id invalido", tag="warn")
-            return
+            return None
 
         now = datetime.now()
         payload = {
@@ -1800,10 +1845,11 @@ class App(ctk.CTk):
         ok, msg = self.mqtt.publish_command(device_id, payload)
         if not ok:
             self._append_log(msg, tag="error")
+            return None
         elif log_publish:
             self._append_log(f"Cmd {command} enviado para {device_id}", tag="info")
-        if ok:
-            self.pending_cmd_by_id[payload["cmd_id"]] = PendingCommand(device_id=device_id, command=command, sent_at=now)
+        self.pending_cmd_by_id[payload["cmd_id"]] = PendingCommand(device_id=device_id, command=command, sent_at=now)
+        return payload["cmd_id"]
 
     def _send_set_heartbeat(self):
         try:
@@ -1869,12 +1915,154 @@ class App(ctk.CTk):
         if not self.selected_device:
             self._append_log("Select a device before saving settings", tag="warn")
             return
+        if self.settings_save_in_progress:
+            self._append_log("Salvar settings ja esta em andamento; aguarde a conclusao.", tag="warn")
+            return
         if not self.settings_loaded:
             self._append_log("Leia os settings primeiro para evitar envio invalido", tag="warn")
             return
+        if self.settings_loaded_device_id != self.selected_device:
+            self._append_log(
+                f"Settings carregados de {self.settings_loaded_device_id}; leia settings de {self.selected_device} antes de salvar.",
+                tag="warn",
+            )
+            if hasattr(self, "settings_status_label"):
+                self.settings_status_label.configure(
+                    text=f"Settings carregados de {self.settings_loaded_device_id}; leia settings de {self.selected_device} ou use MR."
+                )
+            return
 
+        settings_payload = self._build_settings_payload_from_form()
+        if settings_payload is None:
+            return
+
+        acr_control_candidate = settings_payload["acr_control"]
+        trigger_output_candidate = settings_payload["trigger_output"]
+        device_connectivity_candidate = settings_payload["device_connectivity"]
+        acr_cloud = settings_payload["acr_cloud"]
+        changed_sections: Dict[str, Dict[str, Any]] = {}
+        changed_acr = self._diff_section("acr_control", acr_control_candidate)
+        changed_trg = self._diff_section("trigger_output", trigger_output_candidate)
+        changed_con = self._diff_section("device_connectivity", device_connectivity_candidate)
+        changed_cloud = self._diff_section("acr_cloud", acr_cloud)
+
+        if changed_acr:
+            changed_sections["acr_control"] = changed_acr
+        if changed_trg:
+            changed_sections["trigger_output"] = changed_trg
+        if changed_con:
+            # Firmware exige policy+grace juntos quando um deles muda.
+            if "apsta_policy" in changed_con or "apsta_grace_period_s" in changed_con:
+                changed_con["apsta_policy"] = device_connectivity_candidate["apsta_policy"]
+                changed_con["apsta_grace_period_s"] = device_connectivity_candidate["apsta_grace_period_s"]
+            changed_sections["device_connectivity"] = changed_con
+        if changed_cloud:
+            changed_sections["acr_cloud"] = changed_cloud
+
+        if not changed_sections:
+            self._append_log("Nenhuma alteracao detectada para salvar", tag="warn")
+            return
+
+        self.settings_save_queue = self._build_settings_save_chunks(changed_sections)
+        self.settings_save_device_id = self.selected_device
+        self.settings_save_total = len(self.settings_save_queue)
+        self.settings_save_in_progress = True
+        if hasattr(self, "btn_save_settings"):
+            self.btn_save_settings.configure(state="disabled")
+        self._append_log(f"set_settings preparado em {self.settings_save_total} comando(s) sequenciais", tag="info")
+        self._send_next_settings_save_chunk()
+
+    def _build_settings_save_chunks(self, changed_sections: Dict[str, Dict[str, Any]]) -> list[tuple[str, Dict[str, Any]]]:
+        chunks: list[tuple[str, Dict[str, Any]]] = []
+
+        for section_name in ("acr_control", "trigger_output", "device_connectivity", "acr_cloud"):
+            section_payload = changed_sections.get(section_name)
+            if not section_payload:
+                continue
+
+            if section_name == "device_connectivity":
+                apsta_payload: Dict[str, Any] = {}
+                for key, value in section_payload.items():
+                    if key in {"apsta_policy", "apsta_grace_period_s"}:
+                        apsta_payload[key] = value
+                    else:
+                        chunks.append((section_name, {key: value}))
+                if apsta_payload:
+                    chunks.append((section_name, apsta_payload))
+                continue
+
+            for key, value in section_payload.items():
+                chunks.append((section_name, {key: value}))
+
+        return chunks
+
+    def _send_next_settings_save_chunk(self):
+        if not self.settings_save_in_progress or not self.settings_save_device_id:
+            return
+        if not self.settings_save_queue:
+            self._complete_settings_save(None)
+            return
+
+        section_name, section_payload = self.settings_save_queue.pop(0)
+        sent_index = self.settings_save_total - len(self.settings_save_queue)
+        cmd_id = self._send_cmd_to_device(
+            self.settings_save_device_id,
+            "set_settings",
+            {section_name: section_payload},
+        )
+        if not cmd_id:
+            self._abort_settings_save("Salvar settings interrompido: falha ao publicar comando.")
+            return
+        if hasattr(self, "settings_status_label"):
+            self.settings_status_label.configure(
+                text=f"Salvar settings: comando {sent_index}/{self.settings_save_total} enviado ({section_name})"
+            )
+
+    def _handle_settings_save_reply(self, device_id: str, payload_obj: Dict[str, Any]) -> bool:
+        if not self.settings_save_in_progress or device_id != self.settings_save_device_id:
+            return False
+
+        if payload_obj.get("ok") is not True:
+            error = payload_obj.get("error") or "erro desconhecido"
+            self._abort_settings_save(f"Salvar settings interrompido: {error}")
+            return True
+
+        if self.settings_save_queue:
+            self._send_next_settings_save_chunk()
+            return True
+
+        result = payload_obj.get("result")
+        self._complete_settings_save(result if isinstance(result, dict) else None)
+        return True
+
+    def _complete_settings_save(self, result: Optional[Dict[str, Any]]):
+        total = self.settings_save_total
+        completed_device_id = self.settings_save_device_id
+        self.settings_save_queue = []
+        self.settings_save_device_id = None
+        self.settings_save_total = 0
+        self.settings_save_in_progress = False
+        if hasattr(self, "btn_save_settings"):
+            self.btn_save_settings.configure(state="normal" if self.settings_loaded else "disabled")
+        if isinstance(result, dict) and self.selected_device == completed_device_id:
+            self._apply_settings_result(result, device_id=completed_device_id)
+        self._append_log(f"set_settings concluido em {total} comando(s)", tag="info")
+        if hasattr(self, "settings_status_label"):
+            self.settings_status_label.configure(text=f"Salvar settings concluido em {total} comando(s)")
+
+    def _abort_settings_save(self, message: str):
+        self.settings_save_queue = []
+        self.settings_save_device_id = None
+        self.settings_save_total = 0
+        self.settings_save_in_progress = False
+        if hasattr(self, "btn_save_settings"):
+            self.btn_save_settings.configure(state="normal" if self.settings_loaded else "disabled")
+        self._append_log(message, tag="error")
+        if hasattr(self, "settings_status_label"):
+            self.settings_status_label.configure(text=message)
+
+    def _build_settings_payload_from_form(self) -> Optional[Dict[str, Dict[str, Any]]]:
         self._reset_settings_field_styles()
-
         automatic_interval_ms = self._parse_int_field("automatic_interval_ms", self.settings_vars["automatic_interval_ms"], 0, 3600000)
         capture_duration_seconds = self._parse_int_field("capture_duration_seconds", self.settings_vars["capture_duration_seconds"], 1, 30)
         silence_threshold_rms = self._parse_int_field("silence_threshold_rms", self.settings_vars["silence_threshold_rms"], 0, 32767)
@@ -1908,7 +2096,7 @@ class App(ctk.CTk):
             ai_probability_threshold,
         ]
         if any(value is None for value in parsed_values):
-            return
+            return None
 
         acr_control_candidate: Dict[str, Any] = {
             "automatic_enabled": bool(self.settings_vars["automatic_enabled"].get()),
@@ -1946,32 +2134,106 @@ class App(ctk.CTk):
             acr_cloud["upload_prefix"] = self.settings_vars["acr_upload_prefix"].get().strip()
         if self.settings_vars["acr_bearer_token"].get().strip():
             acr_cloud["bearer_token"] = self.settings_vars["acr_bearer_token"].get().strip()
-        changed_sections: Dict[str, Dict[str, Any]] = {}
-        changed_acr = self._diff_section("acr_control", acr_control_candidate)
-        changed_trg = self._diff_section("trigger_output", trigger_output_candidate)
-        changed_con = self._diff_section("device_connectivity", device_connectivity_candidate)
-        changed_cloud = self._diff_section("acr_cloud", acr_cloud)
+        return {
+            "acr_control": acr_control_candidate,
+            "trigger_output": trigger_output_candidate,
+            "device_connectivity": device_connectivity_candidate,
+            "acr_cloud": acr_cloud,
+        }
 
-        if changed_acr:
-            changed_sections["acr_control"] = changed_acr
-        if changed_trg:
-            changed_sections["trigger_output"] = changed_trg
-        if changed_con:
-            # Firmware exige policy+grace juntos quando um deles muda.
-            if "apsta_policy" in changed_con or "apsta_grace_period_s" in changed_con:
-                changed_con["apsta_policy"] = device_connectivity_candidate["apsta_policy"]
-                changed_con["apsta_grace_period_s"] = device_connectivity_candidate["apsta_grace_period_s"]
-            changed_sections["device_connectivity"] = changed_con
-        if changed_cloud:
-            changed_sections["acr_cloud"] = changed_cloud
+    def _store_settings_memory(self):
+        if not self.settings_loaded or not self.settings_loaded_device_id:
+            self._append_log("Leia settings antes de usar MS", tag="warn")
+            return
+        memory_payload = self._build_settings_payload_from_form()
+        if memory_payload is None:
+            return
+        self.settings_memory_snapshot = json.loads(json.dumps(memory_payload))
+        self.settings_memory_device_id = self.settings_loaded_device_id
+        if hasattr(self, "btn_settings_mr"):
+            self.btn_settings_mr.configure(state="normal")
+        self._update_settings_memory_label()
+        if hasattr(self, "settings_status_label"):
+            self.settings_status_label.configure(text="MS: snapshot memorizado. Selecione destino e use MR.")
+        self._append_log(f"MS settings: memoria armazenada de {self.settings_memory_device_id}", tag="info")
 
-        if not changed_sections:
-            self._append_log("Nenhuma alteracao detectada para salvar", tag="warn")
+    def _recall_settings_memory_to_selected(self):
+        if not self.settings_memory_snapshot or not self.settings_memory_device_id:
+            self._append_log("Nenhum snapshot em memoria. Use MS depois de ler settings.", tag="warn")
+            return
+        if not self.selected_device:
+            self._append_log("Selecione um dispositivo destino para MR", tag="warn")
+            return
+        recall_payload = json.loads(json.dumps(self.settings_memory_snapshot))
+        connectivity = recall_payload.get("device_connectivity", {})
+        connectivity.pop("provisioning_ssid", None)
+        acr_cloud = recall_payload.get("acr_cloud", {})
+        acr_cloud.pop("upload_prefix", None)
+
+        if not any(recall_payload.values()):
+            self._append_log("Snapshot em memoria nao tem campos para carregar", tag="warn")
             return
 
-        for section_name, section_payload in changed_sections.items():
-            self._send_cmd("set_settings", {section_name: section_payload})
-        self._append_log(f"set_settings enviado em {len(changed_sections)} bloco(s)", tag="info")
+        source_id = self.settings_memory_device_id
+        target_id = self.selected_device
+        preserved_provisioning_ssid = self.settings_vars["provisioning_ssid"].get().strip()
+        preserved_upload_prefix = self.settings_vars["acr_upload_prefix"].get().strip()
+        self._clear_settings_form_state("MR: carregando memoria no formulario...")
+        self._apply_settings_form_values(recall_payload)
+        self.settings_vars["provisioning_ssid"].set(preserved_provisioning_ssid)
+        self.settings_vars["acr_upload_prefix"].set(preserved_upload_prefix)
+        self.settings_snapshot = {
+            "device_connectivity": {"provisioning_ssid": preserved_provisioning_ssid},
+            "acr_cloud": {"upload_prefix": preserved_upload_prefix},
+        }
+        self.settings_loaded = True
+        self.settings_loaded_device_id = target_id
+        if hasattr(self, "btn_save_settings"):
+            self.btn_save_settings.configure(state="normal")
+        if hasattr(self, "btn_settings_ms"):
+            self.btn_settings_ms.configure(state="normal")
+        self._update_settings_memory_label()
+        self._append_log(f"MR settings: memoria {source_id} carregada no formulario para {target_id}", tag="info")
+        if hasattr(self, "settings_status_label"):
+            self.settings_status_label.configure(
+                text=f"MR: memoria {source_id} carregada no formulario para {target_id}; revise e clique Salvar settings"
+            )
+
+    def _clear_settings_form_state(self, status_text: Optional[str] = None, clear_memory: bool = False):
+        self.settings_snapshot = {}
+        self.settings_loaded = False
+        self.settings_loaded_device_id = None
+        if clear_memory:
+            self.settings_memory_snapshot = {}
+            self.settings_memory_device_id = None
+        for key, variable in self.settings_vars.items():
+            if isinstance(variable, ctk.BooleanVar):
+                variable.set(False)
+            else:
+                variable.set("")
+        if hasattr(self, "hb_interval_var"):
+            self.hb_interval_var.set("60")
+        self._reset_settings_field_styles()
+        if hasattr(self, "btn_save_settings"):
+            self.btn_save_settings.configure(state="disabled")
+        if hasattr(self, "btn_settings_ms"):
+            self.btn_settings_ms.configure(state="disabled")
+        if hasattr(self, "btn_settings_mr"):
+            self.btn_settings_mr.configure(state="normal" if self.settings_memory_snapshot else "disabled")
+        if hasattr(self, "settings_status_label"):
+            self.settings_status_label.configure(
+                text=status_text or "Ultima leitura: - | leia os settings antes de salvar"
+            )
+        self._update_settings_memory_label()
+
+    def _settings_memory_text(self) -> str:
+        if self.settings_memory_device_id:
+            return f"Memoria: {self.settings_memory_device_id} armazenada"
+        return "Memoria: -"
+
+    def _update_settings_memory_label(self):
+        if hasattr(self, "settings_memory_label"):
+            self.settings_memory_label.configure(text=self._settings_memory_text())
 
     def _parse_int_field(self, field_name: str, variable, min_value: int, max_value: int) -> Optional[int]:
         try:
@@ -2046,7 +2308,7 @@ class App(ctk.CTk):
                 diff[key] = value
         return diff
 
-    def _apply_settings_result(self, settings_result: Dict[str, Any]):
+    def _apply_settings_form_values(self, settings_result: Dict[str, Any]):
         acr_control = settings_result.get("acr_control")
         if isinstance(acr_control, dict):
             if "automatic_enabled" in acr_control:
@@ -2093,13 +2355,26 @@ class App(ctk.CTk):
         if isinstance(mqtt_section, dict) and mqtt_section.get("heartbeat_interval_s") is not None:
             self.hb_interval_var.set(str(mqtt_section.get("heartbeat_interval_s")))
 
+    def _apply_settings_result(self, settings_result: Dict[str, Any], device_id: Optional[str] = None):
+        self._apply_settings_form_values(settings_result)
         self.settings_snapshot = json.loads(json.dumps(settings_result))
         self.settings_loaded = True
+        self.settings_loaded_device_id = device_id or self.selected_device
         if hasattr(self, "btn_save_settings"):
             self.btn_save_settings.configure(state="normal")
+        if hasattr(self, "btn_settings_ms"):
+            self.btn_settings_ms.configure(state="normal")
+        if hasattr(self, "btn_settings_mr") and self.settings_memory_snapshot:
+            self.btn_settings_mr.configure(state="normal")
 
         if hasattr(self, "settings_status_label"):
-            self.settings_status_label.configure(text=f"Ultima leitura: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            self.settings_status_label.configure(
+                text=(
+                    f"Ultima leitura: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+                    f"origem: {self.settings_loaded_device_id}"
+                )
+            )
+        self._update_settings_memory_label()
 
     def _set_var_if_present(self, key: str, value: Any):
         if value is None or key not in self.settings_vars:
@@ -2202,6 +2477,11 @@ class App(ctk.CTk):
             if isinstance(cmd_id, str) and cmd_id in self.pending_cmd_by_id:
                 pending = self.pending_cmd_by_id.pop(cmd_id)
                 cmd_result_command = pending.command
+                if pending.command == "set_settings" and self._handle_settings_save_reply(device_id, payload_obj):
+                    if self.selected_device == device_id:
+                        self._refresh_device_details()
+                        self._refresh_status_panel()
+                    return
                 if pending.device_id == device_id and pending.command == "get_state":
                     result = payload_obj.get("result")
                     if isinstance(result, dict) and payload_obj.get("ok") is True:
@@ -2212,6 +2492,13 @@ class App(ctk.CTk):
                     if isinstance(result, dict) and payload_obj.get("ok") is True:
                         device.last_technical_status_result = result
                         device.last_technical_status_at = effective_ts
+            elif (
+                self.settings_save_in_progress
+                and device_id == self.settings_save_device_id
+                and payload_obj.get("ok") is False
+                and payload_obj.get("error")
+            ):
+                self._abort_settings_save(f"Salvar settings interrompido: {payload_obj.get('error')}")
 
         if (
             message_type == "cmd/out"
@@ -2226,7 +2513,7 @@ class App(ctk.CTk):
                 key in result
                 for key in ("acr_control", "trigger_output", "device_connectivity", "acr_cloud", "mqtt")
             ):
-                self._apply_settings_result(result)
+                self._apply_settings_result(result, device_id=device_id)
 
         if self.selected_device == device_id:
             self._refresh_device_details()

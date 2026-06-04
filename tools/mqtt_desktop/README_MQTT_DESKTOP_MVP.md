@@ -61,7 +61,14 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `set_heartbeat_interval`
 - Settings via MQTT:
   - botao `Ler settings` envia `get_settings` e preenche o formulario
-  - botao `Salvar settings` envia `set_settings` apenas com alteracoes e em blocos menores
+  - botao `Salvar settings` envia `set_settings` apenas com alteracoes, em comandos pequenos e sequenciais
+  - `Salvar settings` so permite salvar no mesmo device de origem da ultima leitura
+  - ao trocar de device, campos de Settings sao limpos para evitar salvar valores do device anterior
+  - botoes `MS` e `MR` funcionam como memoria de snapshot de settings
+  - `MS` memoriza o snapshot atual depois de uma leitura
+  - `MR` carrega o snapshot memorizado no formulario do device selecionado, sem publicar MQTT
+  - depois de `MR`, o usuario revisa e clica `Salvar settings` explicitamente para enviar
+  - `MR` preserva os valores atuais de `provisioning_ssid` e `upload_prefix` do formulario destino
   - botao `Salvar heartbeat` envia `set_heartbeat_interval`
   - botao `Apply + reboot` envia `apply_and_reboot`
   - botao `Limpar retained` publica payload vazio retido nos topicos do device para remover ghosts

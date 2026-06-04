@@ -82,6 +82,7 @@
 #define MQTT_JSON_BUF_SIZE 512
 #define MQTT_CMD_ID_SIZE 64
 #define MQTT_CMD_DEDUP_WINDOW 16
+#define MQTT_CMD_IN_PAYLOAD_BUF_SIZE 1024
 #define MQTT_SESSION_ID_SIZE 48
 
 static const char *TAG = "mqtt-presence";
@@ -112,6 +113,7 @@ static char s_topic_state[MQTT_TOPIC_BUF_SIZE];
 static char s_topic_event[MQTT_TOPIC_BUF_SIZE];
 static char s_topic_cmd_in[MQTT_TOPIC_BUF_SIZE];
 static char s_topic_cmd_out[MQTT_TOPIC_BUF_SIZE];
+static char s_cmd_in_payload_buf[MQTT_CMD_IN_PAYLOAD_BUF_SIZE];
 
 static esp_err_t mqtt_presence_start_client_if_needed(void);
 static void mqtt_presence_build_timestamp(char *buffer, size_t buffer_len);
@@ -1312,14 +1314,34 @@ static void mqtt_event_handler(void *handler_args,
         if (event && event->topic && event->data &&
             event->topic_len == (int)strlen(s_topic_cmd_in) &&
             strncmp(event->topic, s_topic_cmd_in, event->topic_len) == 0) {
-            char data_buf[192] = {0};
-            size_t copy_len = (size_t)event->data_len;
-            if (copy_len >= sizeof(data_buf)) {
-                copy_len = sizeof(data_buf) - 1;
+            int total_len = event->total_data_len > 0 ? event->total_data_len : event->data_len;
+            int offset = event->current_data_offset;
+
+            if (total_len <= 0 || offset < 0 || event->data_len < 0) {
+                break;
             }
-            memcpy(data_buf, event->data, copy_len);
-            data_buf[copy_len] = '\0';
-            mqtt_presence_handle_command_payload(data_buf);
+
+            if ((size_t)total_len >= sizeof(s_cmd_in_payload_buf)) {
+                if (offset == 0) {
+                    mqtt_presence_publish_command_reply("unknown", false, "payload_too_large", NULL);
+                }
+                break;
+            }
+
+            if (offset == 0) {
+                memset(s_cmd_in_payload_buf, 0, sizeof(s_cmd_in_payload_buf));
+            }
+
+            if ((size_t)(offset + event->data_len) >= sizeof(s_cmd_in_payload_buf)) {
+                mqtt_presence_publish_command_reply("unknown", false, "payload_too_large", NULL);
+                break;
+            }
+
+            memcpy(s_cmd_in_payload_buf + offset, event->data, (size_t)event->data_len);
+            if (offset + event->data_len >= total_len) {
+                s_cmd_in_payload_buf[total_len] = '\0';
+                mqtt_presence_handle_command_payload(s_cmd_in_payload_buf);
+            }
         }
         break;
 
