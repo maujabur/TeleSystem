@@ -1,0 +1,148 @@
+# acr-cloud-test
+
+Firmware ESP-IDF para ESP32-S3 usado no piloto ACR. O projeto integra captura de audio, envio para ACRCloud, conectividade Wi-Fi com portal de provisionamento, OTA HTTP, presenca MQTT e telemetria tecnica pelo portal embarcado.
+
+## Visao geral
+
+O ponto de entrada fica em `main/main.c`. No boot, o firmware inicializa logs, monitoramento de bateria, power-good, probe do frontend de audio WM8782, NVS, rotas HTTP, OTA, conectividade Wi-Fi, MQTT e a task do orquestrador ACR.
+
+Principais subsistemas:
+
+- `main/app`: fluxo ACR, configuracoes persistentes, parser, cliente cloud, OTA, trigger de saida, monitoramento de bateria e rotas de aplicacao.
+- `main/audio`: captura PCM/WAV e probe do codec/conversor de audio.
+- `main/connectivity`: Wi-Fi, provisionamento, portal em modo AP/captive, MQTT, NTP, LED de status e configuracoes do dispositivo.
+- `main/portal`: servidor HTTP, captive portal, helpers JSON/HTTP e buffer de logs.
+- `firmware_assets/web`: paginas HTML embarcadas no firmware.
+- `docs`: documentacao de arquitetura e operacao.
+
+## Hardware alvo
+
+Configuracao atual documentada para ESP32-S3 QFN56 v0.2:
+
+- ESP32-S3 dual-core a 240 MHz.
+- Flash externa de 8 MB.
+- PSRAM de 8 MB.
+- LED de status em GPIO 48.
+- Botao/trigger em GPIO 5.
+- Audio I2S: MCLK GPIO 1, DIN GPIO 2, WS GPIO 3, BCLK GPIO 4.
+
+Veja detalhes em [HARDWARE_MIGRATION_ESP32S3_8MB.md](HARDWARE_MIGRATION_ESP32S3_8MB.md).
+
+## Dependencias
+
+- ESP-IDF com `idf.py` disponivel no ambiente.
+- Componentes gerenciados:
+  - `espressif/cjson`
+  - `espressif/mqtt`
+
+As dependencias ficam declaradas em `idf_component.yml` e `main/idf_component.yml`.
+
+## Build rapido
+
+Build de desenvolvimento, usando o perfil padrao:
+
+```bash
+idf.py build
+```
+
+Flash e monitor serial:
+
+```bash
+idf.py -p /dev/ttyACM0 flash monitor
+```
+
+A porta serial pode variar conforme o host e a placa.
+
+## Perfis de build
+
+O projeto usa dois perfis principais:
+
+- Dev: logs e informacoes tecnicas habilitados para debug.
+- Release: logs reduzidos, erros genericos e menor exposicao de dados sensiveis.
+
+Build dev explicito:
+
+```bash
+idf.py -B build-dev -D SDKCONFIG=sdkconfig.dev -D SDKCONFIG_DEFAULTS="sdkconfig.defaults" build
+```
+
+Build release:
+
+```bash
+idf.py -B build-release -D SDKCONFIG=sdkconfig.release -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.release.defaults" build
+```
+
+Mais detalhes em [BUILD_PROFILES.md](BUILD_PROFILES.md).
+
+## Configuracao
+
+Configuracoes de build ficam em `main/Kconfig.projbuild` e podem ser editadas com:
+
+```bash
+idf.py menuconfig
+```
+
+Areas principais de configuracao:
+
+- Wi-Fi e provisionamento.
+- Politica APSTA e modem sleep.
+- Portal web e exposicao de logs/status.
+- MQTT presence e heartbeat.
+- LED de status WS28xx.
+- ACRCloud, captura de audio e trigger.
+- Monitoramento de bateria e power-good.
+
+Configuracoes de runtime e credenciais sao persistidas em NVS.
+
+## Portal embarcado
+
+O firmware embarca paginas HTML de `firmware_assets/web` e expoe um portal tecnico para:
+
+- status do dispositivo e da rede;
+- configuracao Wi-Fi;
+- configuracoes ACR/dispositivo;
+- logs recentes, quando habilitados no perfil;
+- OTA via HTTP;
+- reinicio remoto.
+
+O portal tambem atua como captive portal quando o dispositivo entra em modo de provisionamento.
+
+## MQTT
+
+Quando habilitado, o firmware publica presenca, estado e heartbeat em topicos no namespace:
+
+```text
+v1/acr/{device_id}
+```
+
+Tambem existe canal de comando para operacoes como `ping`, leitura de estado/configuracoes e reboot remoto. Veja [docs/manual_mqtt_operacao.md](docs/manual_mqtt_operacao.md).
+
+## Particoes
+
+A tabela atual usa NVS, OTA data, PHY init e dois slots OTA de 2 MB:
+
+- `ota_0`: `0x20000`, 2 MB.
+- `ota_1`: `0x220000`, 2 MB.
+
+Consulte [partitions.csv](partitions.csv) antes de alterar tamanho de firmware ou estrategia OTA.
+
+## Documentacao
+
+Comece por [docs/arquitetura_index.md](docs/arquitetura_index.md). Ele aponta a ordem recomendada de leitura.
+
+Leituras uteis:
+
+- [docs/main_raiz_estrutura_alto_nivel.md](docs/main_raiz_estrutura_alto_nivel.md)
+- [docs/main_app_estrutura_alto_nivel.md](docs/main_app_estrutura_alto_nivel.md)
+- [docs/main_connectivity_estrutura_alto_nivel.md](docs/main_connectivity_estrutura_alto_nivel.md)
+- [docs/main_portal_estrutura_alto_nivel.md](docs/main_portal_estrutura_alto_nivel.md)
+- [docs/main_audio_estrutura_alto_nivel.md](docs/main_audio_estrutura_alto_nivel.md)
+- [docs/wifi_manager_architecture.md](docs/wifi_manager_architecture.md)
+- [docs/status_led_system.md](docs/status_led_system.md)
+
+## Notas de desenvolvimento
+
+- `sdkconfig.defaults` e a base do perfil dev.
+- Use `build-dev` e `build-release` para manter caches separados.
+- Os HTMLs do portal sao embarcados via `EMBED_TXTFILES` em `main/CMakeLists.txt`.
+- O arquivo `tools/mqtt_desktop/README_MQTT_DESKTOP_MVP.md` documenta o MVP desktop MQTT, separado do firmware.
