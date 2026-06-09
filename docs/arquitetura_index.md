@@ -30,6 +30,7 @@ Documentos de apoio que continuam uteis, mas nao precisam ser lidos em todo flux
 Documentos temporarios ou de planejamento pontual:
 
 - [planos/plan.md](planos/plan.md)
+- [plano_reaproveitamento_proximo_projeto_led.md](plano_reaproveitamento_proximo_projeto_led.md)
 
 Regra pratica no piloto: se o documento descreve boot, conectividade, portal, audio ou o ciclo ACR atual, ele continua necessario. Se ele apenas registra uma ideia futura ou uma variacao de UI, ele deve ser tratado como apoio e revisado antes de virar referencia principal.
 
