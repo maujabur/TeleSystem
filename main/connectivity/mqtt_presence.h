@@ -8,8 +8,6 @@ extern "C" {
 #endif
 
 esp_err_t mqtt_presence_start(void);
-esp_err_t mqtt_presence_suspend_for_acr(void);
-esp_err_t mqtt_presence_resume_after_acr(void);
 
 #ifdef __cplusplus
 }

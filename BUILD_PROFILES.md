@@ -69,7 +69,7 @@ idf.py -B build-release -D SDKCONFIG=sdkconfig.release -p /dev/ttyACM0 flash mon
 
 ## Artefatos para OTA
 
-- Binário principal da aplicação: `build-dev/acr-cloud-test.bin`
+- Binário principal da aplicação: `build-dev/TeleCafezinho.bin`
 - Binário de dados OTA inicial: `build-dev/ota_data_initial.bin`
 - Para build release, os artefatos equivalentes ficam em `build-release/`.
 

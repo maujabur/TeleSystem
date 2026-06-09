@@ -1,15 +1,14 @@
-# acr-cloud-test
+# TeleCafezinho
 
-Firmware ESP-IDF para ESP32-S3 usado no piloto ACR. O projeto integra captura de audio, envio para ACRCloud, conectividade Wi-Fi com portal de provisionamento, OTA HTTP, presenca MQTT e telemetria tecnica pelo portal embarcado.
+Firmware ESP-IDF para ESP32-S3 usado como base do produto TeleCafezinho. O projeto integra conectividade Wi-Fi com portal de provisionamento, OTA HTTP, presenca MQTT, telemetria tecnica pelo portal embarcado e base de LED WS28xx.
 
 ## Visao geral
 
-O ponto de entrada fica em `main/main.c`. No boot, o firmware inicializa logs, monitoramento de bateria, power-good, probe do frontend de audio WM8782, NVS, rotas HTTP, OTA, conectividade Wi-Fi, MQTT e a task do orquestrador ACR.
+O ponto de entrada fica em `main/main.c`. No boot, o firmware inicializa logs, monitoramento de bateria, power-good, NVS, rotas HTTP, OTA, conectividade Wi-Fi e MQTT.
 
 Principais subsistemas:
 
-- `main/app`: fluxo ACR, configuracoes persistentes, parser, cliente cloud, OTA, trigger de saida, monitoramento de bateria e rotas de aplicacao.
-- `main/audio`: captura PCM/WAV e probe do codec/conversor de audio.
+- `main/app`: OTA, monitoramento de bateria e controle power-good.
 - `main/connectivity`: Wi-Fi, provisionamento, portal em modo AP/captive, MQTT, NTP, LED de status e configuracoes do dispositivo.
 - `main/portal`: servidor HTTP, captive portal, helpers JSON/HTTP e buffer de logs.
 - `firmware_assets/web`: paginas HTML embarcadas no firmware.
@@ -23,8 +22,7 @@ Configuracao atual documentada para ESP32-S3 QFN56 v0.2:
 - Flash externa de 8 MB.
 - PSRAM de 8 MB.
 - LED de status em GPIO 48.
-- Botao/trigger em GPIO 5.
-- Audio I2S: MCLK GPIO 1, DIN GPIO 2, WS GPIO 3, BCLK GPIO 4.
+- Botao de configuracao Wi-Fi.
 
 Veja detalhes em [HARDWARE_MIGRATION_ESP32S3_8MB.md](HARDWARE_MIGRATION_ESP32S3_8MB.md).
 
@@ -89,7 +87,6 @@ Areas principais de configuracao:
 - Portal web e exposicao de logs/status.
 - MQTT presence e heartbeat.
 - LED de status WS28xx.
-- ACRCloud, captura de audio e trigger.
 - Monitoramento de bateria e power-good.
 
 Configuracoes de runtime e credenciais sao persistidas em NVS.
@@ -100,7 +97,7 @@ O firmware embarca paginas HTML de `firmware_assets/web` e expoe um portal tecni
 
 - status do dispositivo e da rede;
 - configuracao Wi-Fi;
-- configuracoes ACR/dispositivo;
+- configuracoes de conectividade/dispositivo;
 - logs recentes, quando habilitados no perfil;
 - OTA via HTTP;
 - reinicio remoto.
@@ -112,7 +109,7 @@ O portal tambem atua como captive portal quando o dispositivo entra em modo de p
 Quando habilitado, o firmware publica presenca, estado e heartbeat em topicos no namespace:
 
 ```text
-v1/acr/{device_id}
+v1/led/{device_id}
 ```
 
 Tambem existe canal de comando para operacoes como `ping`, leitura de estado/configuracoes e reboot remoto. Veja [docs/manual_mqtt_operacao.md](docs/manual_mqtt_operacao.md).
@@ -133,10 +130,8 @@ Comece por [docs/arquitetura_index.md](docs/arquitetura_index.md). Ele aponta a 
 Leituras uteis:
 
 - [docs/main_raiz_estrutura_alto_nivel.md](docs/main_raiz_estrutura_alto_nivel.md)
-- [docs/main_app_estrutura_alto_nivel.md](docs/main_app_estrutura_alto_nivel.md)
 - [docs/main_connectivity_estrutura_alto_nivel.md](docs/main_connectivity_estrutura_alto_nivel.md)
 - [docs/main_portal_estrutura_alto_nivel.md](docs/main_portal_estrutura_alto_nivel.md)
-- [docs/main_audio_estrutura_alto_nivel.md](docs/main_audio_estrutura_alto_nivel.md)
 - [docs/wifi_manager_architecture.md](docs/wifi_manager_architecture.md)
 - [docs/status_led_system.md](docs/status_led_system.md)
 

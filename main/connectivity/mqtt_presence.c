@@ -20,10 +20,6 @@
 
 #include "firmware_version.h"
 #include "time_sync.h"
-#include "acr_analysis_control.h"
-#include "acr_config_store.h"
-#include "acr_runtime_status.h"
-#include "acr_trigger_output.h"
 #include "device_config_store.h"
 #include "vbat_monitor.h"
 #include "wifi_manager.h"
@@ -45,7 +41,11 @@
 #endif
 
 #ifndef CONFIG_MQTT_TOPIC_NAMESPACE
-#define CONFIG_MQTT_TOPIC_NAMESPACE "v1/acr"
+#define CONFIG_MQTT_TOPIC_NAMESPACE "v1/led"
+#endif
+
+#ifndef CONFIG_MQTT_DEVICE_ID_PREFIX
+#define CONFIG_MQTT_DEVICE_ID_PREFIX "TeleCafezinho"
 #endif
 
 #ifndef CONFIG_MQTT_HEARTBEAT_INTERVAL_S
@@ -90,13 +90,11 @@ static const char *TAG = "mqtt-presence";
 static bool s_started;
 static bool s_client_started;
 static bool s_connected;
-static bool s_suspended_for_acr;
 static esp_mqtt_client_handle_t s_client;
 static TaskHandle_t s_heartbeat_task;
 static bool s_wifi_event_registered;
 static uint32_t s_last_wait_log_ms;
 static uint32_t s_heartbeat_interval_s;
-static bool s_identity_refresh_requested;
 static bool s_restart_requested;
 static uint32_t s_restart_at_ms;
 static char s_recent_mutating_cmd_ids[MQTT_CMD_DEDUP_WINDOW][MQTT_CMD_ID_SIZE];
@@ -119,8 +117,6 @@ static char s_cmd_in_payload_buf[MQTT_CMD_IN_PAYLOAD_BUF_SIZE];
 static esp_err_t mqtt_presence_start_client_if_needed(void);
 static void mqtt_presence_build_timestamp(char *buffer, size_t buffer_len);
 static void mqtt_presence_ensure_session_id(void);
-static void mqtt_presence_request_identity_refresh(void);
-static void mqtt_presence_refresh_identity_if_requested(void);
 static void mqtt_presence_generate_device_id(void);
 static void mqtt_presence_build_topics(void);
 static const char *wifi_state_name(wifi_manager_state_t state);
@@ -283,9 +279,6 @@ static cJSON *mqtt_presence_build_state_result(void)
 static cJSON *mqtt_presence_build_settings_result(void)
 {
     cJSON *result = cJSON_CreateObject();
-    acr_analysis_control_config_t control = {0};
-    acr_trigger_output_status_t trigger = {0};
-    acr_config_public_info_t acr_info = {0};
     char provisioning_ssid[DEVICE_CONFIG_PROVISIONING_SSID_BUFFER_SIZE] = {0};
     uint8_t sta_max_retry = 0;
     device_config_apsta_policy_t apsta_policy = DEVICE_CONFIG_APSTA_AUTO_TIMEOUT;
@@ -294,47 +287,6 @@ static cJSON *mqtt_presence_build_settings_result(void)
 
     if (!result) {
         return NULL;
-    }
-
-    section = cJSON_AddObjectToObject(result, "acr_control");
-    if (section) {
-        if (acr_analysis_control_get_config(&control) == ESP_OK) {
-            cJSON_AddBoolToObject(section, "automatic_enabled", control.automatic_enabled);
-            cJSON_AddNumberToObject(section, "automatic_interval_ms", control.automatic_interval_ms);
-            cJSON_AddNumberToObject(section, "capture_duration_seconds", control.capture_duration_seconds);
-            cJSON_AddNumberToObject(section, "digital_gain", control.digital_gain);
-            cJSON_AddNumberToObject(section, "silence_threshold_rms", control.silence_threshold_rms);
-            cJSON_AddNumberToObject(section, "silence_hysteresis_rms", control.silence_hysteresis_rms);
-            cJSON_AddNumberToObject(section, "min_active_ms", control.min_active_ms);
-            cJSON_AddNumberToObject(section, "trigger_mode", control.trigger_mode);
-            cJSON_AddNumberToObject(section, "ai_probability_threshold", control.ai_probability_threshold);
-        } else {
-            cJSON_AddStringToObject(section, "error", "acr_control_unavailable");
-        }
-    }
-
-    section = cJSON_AddObjectToObject(result, "trigger_output");
-    if (section) {
-        if (acr_trigger_output_get_status(&trigger) == ESP_OK) {
-            cJSON_AddBoolToObject(section, "enabled", trigger.config.enabled);
-            cJSON_AddNumberToObject(section, "gpio", trigger.config.gpio);
-            cJSON_AddNumberToObject(section, "active_level", trigger.config.active_level);
-            cJSON_AddNumberToObject(section, "pulse_ms", trigger.config.pulse_ms);
-        } else {
-            cJSON_AddStringToObject(section, "error", "trigger_output_unavailable");
-        }
-    }
-
-    section = cJSON_AddObjectToObject(result, "acr_cloud");
-    if (section) {
-        if (acr_config_store_get_public_info(&acr_info) == ESP_OK) {
-            cJSON_AddStringToObject(section, "region", acr_info.region);
-            cJSON_AddStringToObject(section, "container_id", acr_info.container_id);
-            cJSON_AddStringToObject(section, "upload_prefix", acr_info.upload_prefix);
-            cJSON_AddBoolToObject(section, "token_configured", acr_info.token_configured);
-        } else {
-            cJSON_AddStringToObject(section, "error", "acr_cloud_unavailable");
-        }
     }
 
     section = cJSON_AddObjectToObject(result, "device_connectivity");
@@ -361,13 +313,9 @@ static cJSON *mqtt_presence_build_settings_result(void)
 
 static cJSON *mqtt_presence_build_technical_status_result(void)
 {
-    acr_runtime_status_t status = {0};
-    acr_analysis_control_config_t control = {0};
-    acr_trigger_output_status_t trigger_status = {0};
     vbat_monitor_status_t vbat_status = {0};
     int64_t now_ms = (int64_t)esp_log_timestamp();
     cJSON *result = cJSON_CreateObject();
-    cJSON *control_json = NULL;
     cJSON *vbat_json = NULL;
     cJSON *power_good_json = NULL;
 
@@ -375,27 +323,10 @@ static cJSON *mqtt_presence_build_technical_status_result(void)
         return NULL;
     }
 
-    acr_runtime_status_get(&status);
-    (void)acr_trigger_output_get_status(&trigger_status);
-
     cJSON_AddNumberToObject(result, "uptime_seconds", (double)(now_ms / 1000));
     cJSON_AddBoolToObject(result, "time_synchronized", time_sync_is_synchronized());
-    control_json = cJSON_AddObjectToObject(result, "acr_control");
-    if (control_json) {
-        if (acr_analysis_control_get_config(&control) == ESP_OK) {
-            cJSON_AddBoolToObject(control_json, "automatic_enabled", control.automatic_enabled);
-            cJSON_AddNumberToObject(control_json, "automatic_interval_ms", control.automatic_interval_ms);
-            cJSON_AddNumberToObject(control_json, "capture_duration_seconds", control.capture_duration_seconds);
-            cJSON_AddNumberToObject(control_json, "digital_gain", control.digital_gain);
-            cJSON_AddNumberToObject(control_json, "silence_threshold_rms", control.silence_threshold_rms);
-            cJSON_AddNumberToObject(control_json, "silence_hysteresis_rms", control.silence_hysteresis_rms);
-            cJSON_AddNumberToObject(control_json, "min_active_ms", control.min_active_ms);
-            cJSON_AddNumberToObject(control_json, "trigger_mode", control.trigger_mode);
-            cJSON_AddNumberToObject(control_json, "ai_probability_threshold", control.ai_probability_threshold);
-        } else {
-            cJSON_AddStringToObject(control_json, "error", "acr_control_unavailable");
-        }
-    }
+    cJSON_AddNumberToObject(result, "heap_free", (double)heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
+    cJSON_AddNumberToObject(result, "heartbeat_interval_s", (double)s_heartbeat_interval_s);
 
     power_good_json = cJSON_AddObjectToObject(result, "power_good");
     if (power_good_json) {
@@ -433,50 +364,6 @@ static cJSON *mqtt_presence_build_technical_status_result(void)
         }
     }
 
-    cJSON_AddBoolToObject(result, "acr_retry_pending", status.retry_pending);
-    cJSON_AddNumberToObject(result, "acr_retry_at_ms", (double)status.retry_at_ms);
-    int64_t retry_remaining_ms = status.retry_at_ms - now_ms;
-    cJSON_AddNumberToObject(result, "acr_retry_remaining_ms",
-                            status.retry_pending && retry_remaining_ms > 0 ?
-                            (double)retry_remaining_ms : 0);
-    cJSON_AddStringToObject(result, "acr_last_error",
-                            status.last_error == ESP_OK ? "" : esp_err_to_name(status.last_error));
-    cJSON_AddNumberToObject(result, "acr_consecutive_errors", status.consecutive_errors);
-    cJSON_AddNumberToObject(result, "acr_submitted_count", status.acr_submitted_count);
-    cJSON_AddNumberToObject(result, "acr_silence_discarded_count", status.silence_discarded_count);
-    cJSON_AddNumberToObject(result, "acr_error_count", status.acr_error_count);
-    cJSON_AddStringToObject(result, "acr_status", status.message);
-    cJSON_AddStringToObject(result, "acr_state", acr_runtime_status_state_name(status.state));
-    cJSON_AddStringToObject(result, "acr_uploaded_name", status.uploaded_name);
-    cJSON_AddNumberToObject(result, "audio_last_capture_size", (double)status.audio_last_capture_size);
-    cJSON_AddNumberToObject(result, "audio_last_active_ms", status.audio_last_active_ms);
-    cJSON_AddNumberToObject(result, "audio_last_rms", status.audio_last_rms);
-    cJSON_AddNumberToObject(result, "audio_last_peak_percent", status.audio_last_peak_percent);
-    cJSON_AddBoolToObject(result, "audio_last_clipped", status.audio_last_clipped);
-    cJSON_AddBoolToObject(result, "audio_last_clipped_detected", status.audio_last_clipped_detected);
-    cJSON_AddBoolToObject(result, "audio_last_silence_discarded", status.audio_last_silence_discarded);
-    cJSON_AddBoolToObject(result, "audio_last_silence_detected", status.audio_last_silence_detected);
-    cJSON_AddBoolToObject(result, "acr_last_trigger", status.last_trigger);
-    cJSON_AddBoolToObject(result, "bt_next_enabled", trigger_status.config.enabled);
-    cJSON_AddNumberToObject(result, "bt_next_gpio", trigger_status.config.gpio);
-    cJSON_AddNumberToObject(result, "bt_next_active_level", trigger_status.config.active_level);
-    cJSON_AddNumberToObject(result, "bt_next_pulse_ms", trigger_status.config.pulse_ms);
-    cJSON_AddNumberToObject(result, "bt_next_last_pulse_at_ms", (double)trigger_status.last_pulse_at_ms);
-    cJSON_AddStringToObject(result, "bt_next_last_error",
-                            trigger_status.last_error == ESP_OK ? "" :
-                            esp_err_to_name(trigger_status.last_error));
-    cJSON_AddNumberToObject(result, "acr_last_ai_probability", status.last_ai_probability);
-    cJSON_AddStringToObject(result, "acr_last_prediction", status.last_prediction);
-    cJSON_AddStringToObject(result, "acr_last_uploaded_name", status.last_uploaded_name);
-    cJSON_AddNumberToObject(result, "acr_last_result_at_ms", (double)status.last_result_at_ms);
-    cJSON_AddNumberToObject(result, "acr_capture_ms", (double)status.capture_ms);
-    cJSON_AddNumberToObject(result, "acr_upload_ms", (double)status.upload_ms);
-    cJSON_AddNumberToObject(result, "acr_upload_connect_ms", (double)status.upload_connect_ms);
-    cJSON_AddNumberToObject(result, "acr_upload_write_ms", (double)status.upload_write_ms);
-    cJSON_AddNumberToObject(result, "acr_upload_response_ms", (double)status.upload_response_ms);
-    cJSON_AddNumberToObject(result, "acr_response_wait_ms", (double)status.response_wait_ms);
-    cJSON_AddNumberToObject(result, "acr_total_cycle_ms", (double)status.total_cycle_ms);
-
     return result;
 }
 
@@ -487,7 +374,6 @@ static void mqtt_presence_handle_command_payload(const char *payload)
     cJSON *name_item = NULL;
     const char *cmd_id = "unknown";
     const char *cmd_name = NULL;
-    bool device_id_change_requested = false;
 
     if (!payload) {
         return;
@@ -598,193 +484,6 @@ static void mqtt_presence_handle_command_payload(const char *payload)
             return;
         }
 
-        cJSON *acr_control = cJSON_GetObjectItemCaseSensitive(args, "acr_control");
-        if (cJSON_IsObject(acr_control)) {
-            acr_analysis_control_config_t config = {0};
-            esp_err_t err = acr_analysis_control_get_config(&config);
-            if (err != ESP_OK) {
-                cJSON_Delete(root);
-                mqtt_presence_publish_command_reply(cmd_id, false, "acr_control_unavailable", NULL);
-                return;
-            }
-
-            cJSON *item = NULL;
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "automatic_enabled");
-            if (cJSON_IsBool(item)) {
-                config.automatic_enabled = cJSON_IsTrue(item);
-            }
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "automatic_interval_ms");
-            if (cJSON_IsNumber(item)) {
-                if (item->valuedouble < 0 || item->valuedouble > 3600000) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "automatic_interval_ms_out_of_range", NULL);
-                    return;
-                }
-                config.automatic_interval_ms = (uint32_t)item->valuedouble;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "capture_duration_seconds");
-            if (cJSON_IsNumber(item)) {
-                if (item->valuedouble < 1 || item->valuedouble > 30) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "capture_duration_seconds_out_of_range", NULL);
-                    return;
-                }
-                config.capture_duration_seconds = (uint32_t)item->valuedouble;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "digital_gain");
-            if (cJSON_IsNumber(item)) {
-                if (item->valuedouble < 0.25 || item->valuedouble > 16.0) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "digital_gain_out_of_range", NULL);
-                    return;
-                }
-                config.digital_gain = item->valuedouble;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "silence_threshold_rms");
-            if (cJSON_IsNumber(item)) {
-                if (item->valuedouble < 0 || item->valuedouble > 32767) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "silence_threshold_rms_out_of_range", NULL);
-                    return;
-                }
-                config.silence_threshold_rms = (uint32_t)item->valuedouble;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "silence_hysteresis_rms");
-            if (cJSON_IsNumber(item)) {
-                if (item->valuedouble < 0 || item->valuedouble > 32767) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "silence_hysteresis_rms_out_of_range", NULL);
-                    return;
-                }
-                config.silence_hysteresis_rms = (uint32_t)item->valuedouble;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "min_active_ms");
-            if (cJSON_IsNumber(item)) {
-                if (item->valuedouble < 0 || item->valuedouble > 30000) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "min_active_ms_out_of_range", NULL);
-                    return;
-                }
-                config.min_active_ms = (uint32_t)item->valuedouble;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "trigger_mode");
-            if (cJSON_IsNumber(item)) {
-                if (item->valueint < 0 || item->valueint > 3) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "trigger_mode_out_of_range", NULL);
-                    return;
-                }
-                config.trigger_mode = (acr_trigger_mode_t)item->valueint;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(acr_control, "ai_probability_threshold");
-            if (cJSON_IsNumber(item)) {
-                if (item->valuedouble < 0 || item->valuedouble > 100) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "ai_probability_threshold_out_of_range", NULL);
-                    return;
-                }
-                config.ai_probability_threshold = item->valuedouble;
-            }
-
-            err = acr_analysis_control_save_config(&config);
-            if (err != ESP_OK) {
-                cJSON_Delete(root);
-                mqtt_presence_publish_command_reply(cmd_id, false, "acr_control_save_failed", NULL);
-                return;
-            }
-            updated = true;
-        }
-
-        cJSON *trigger_output = cJSON_GetObjectItemCaseSensitive(args, "trigger_output");
-        if (cJSON_IsObject(trigger_output)) {
-            acr_trigger_output_status_t status = {0};
-            acr_trigger_output_config_t config = {0};
-            esp_err_t err = acr_trigger_output_get_status(&status);
-            if (err != ESP_OK) {
-                cJSON_Delete(root);
-                mqtt_presence_publish_command_reply(cmd_id, false, "trigger_output_unavailable", NULL);
-                return;
-            }
-
-            config = status.config;
-            cJSON *item = NULL;
-            item = cJSON_GetObjectItemCaseSensitive(trigger_output, "enabled");
-            if (cJSON_IsBool(item)) {
-                config.enabled = cJSON_IsTrue(item);
-            }
-            item = cJSON_GetObjectItemCaseSensitive(trigger_output, "gpio");
-            if (cJSON_IsNumber(item)) {
-                config.gpio = item->valueint;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(trigger_output, "active_level");
-            if (cJSON_IsNumber(item)) {
-                config.active_level = item->valueint;
-            }
-            item = cJSON_GetObjectItemCaseSensitive(trigger_output, "pulse_ms");
-            if (cJSON_IsNumber(item)) {
-                config.pulse_ms = (uint32_t)item->valuedouble;
-            }
-
-            err = acr_trigger_output_save_config(&config);
-            if (err != ESP_OK) {
-                cJSON_Delete(root);
-                mqtt_presence_publish_command_reply(cmd_id, false, "trigger_output_save_failed", NULL);
-                return;
-            }
-            updated = true;
-        }
-
-        cJSON *acr_cloud = cJSON_GetObjectItemCaseSensitive(args, "acr_cloud");
-        if (cJSON_IsObject(acr_cloud)) {
-            cJSON *item = NULL;
-            esp_err_t err = ESP_OK;
-
-            item = cJSON_GetObjectItemCaseSensitive(acr_cloud, "region");
-            if (cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
-                err = acr_config_store_save_region(item->valuestring);
-                if (err != ESP_OK) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "acr_region_save_failed", NULL);
-                    return;
-                }
-                updated = true;
-            }
-
-            item = cJSON_GetObjectItemCaseSensitive(acr_cloud, "container_id");
-            if (cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
-                err = acr_config_store_save_container_id(item->valuestring);
-                if (err != ESP_OK) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "acr_container_id_save_failed", NULL);
-                    return;
-                }
-                updated = true;
-            }
-
-            item = cJSON_GetObjectItemCaseSensitive(acr_cloud, "upload_prefix");
-            if (cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
-                err = acr_config_store_save_upload_prefix(item->valuestring);
-                if (err != ESP_OK) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "acr_upload_prefix_save_failed", NULL);
-                    return;
-                }
-                updated = true;
-                device_id_change_requested = true;
-            }
-
-            item = cJSON_GetObjectItemCaseSensitive(acr_cloud, "bearer_token");
-            if (cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
-                err = acr_config_store_save_bearer_token(item->valuestring);
-                if (err != ESP_OK) {
-                    cJSON_Delete(root);
-                    mqtt_presence_publish_command_reply(cmd_id, false, "acr_bearer_token_save_failed", NULL);
-                    return;
-                }
-                updated = true;
-            }
-        }
-
         cJSON *device_connectivity = cJSON_GetObjectItemCaseSensitive(args, "device_connectivity");
         if (cJSON_IsObject(device_connectivity)) {
             cJSON *item = NULL;
@@ -877,9 +576,6 @@ static void mqtt_presence_handle_command_payload(const char *payload)
         mqtt_presence_cmd_id_remember(cmd_id);
         cJSON *result = mqtt_presence_build_settings_result();
         mqtt_presence_publish_command_reply(cmd_id, true, NULL, result);
-        if (device_id_change_requested) {
-            mqtt_presence_request_identity_refresh();
-        }
         cJSON_Delete(result);
         cJSON_Delete(root);
         return;
@@ -936,7 +632,7 @@ static void mqtt_presence_normalize_id_prefix(char *dst, size_t dst_len, const c
     dst[0] = '\0';
 
     if (!src || src[0] == '\0') {
-        snprintf(dst, dst_len, "ACR");
+        snprintf(dst, dst_len, "TeleCafezinho");
         return;
     }
 
@@ -953,7 +649,7 @@ static void mqtt_presence_normalize_id_prefix(char *dst, size_t dst_len, const c
     }
 
     if (di == 0) {
-        snprintf(dst, dst_len, "ACR");
+        snprintf(dst, dst_len, "TeleCafezinho");
         return;
     }
 
@@ -1073,34 +769,6 @@ static void mqtt_presence_ensure_session_id(void)
              mac_err == ESP_OK ? (unsigned)mac[3] : 0u,
              mac_err == ESP_OK ? (unsigned)mac[4] : 0u,
              mac_err == ESP_OK ? (unsigned)mac[5] : 0u);
-}
-
-static void mqtt_presence_request_identity_refresh(void)
-{
-    s_identity_refresh_requested = true;
-}
-
-static void mqtt_presence_refresh_identity_if_requested(void)
-{
-    if (!s_identity_refresh_requested) {
-        return;
-    }
-
-    s_identity_refresh_requested = false;
-
-    ESP_LOGI(TAG, "Reconfigurando identidade MQTT apos alteracao de upload_prefix");
-
-    if (s_client) {
-        (void)esp_mqtt_client_stop(s_client);
-        esp_mqtt_client_destroy(s_client);
-        s_client = NULL;
-    }
-
-    s_client_started = false;
-    s_connected = false;
-
-    mqtt_presence_generate_device_id();
-    mqtt_presence_build_topics();
 }
 
 static const char *wifi_state_name(wifi_manager_state_t state)
@@ -1273,8 +941,6 @@ static void mqtt_presence_heartbeat_task(void *arg)
             }
         }
 
-        mqtt_presence_refresh_identity_if_requested();
-
         if (!s_client_started) {
             (void)mqtt_presence_start_client_if_needed();
         }
@@ -1369,17 +1035,10 @@ static void mqtt_event_handler(void *handler_args,
 static void mqtt_presence_generate_device_id(void)
 {
     uint8_t mac[6] = {0};
-    char configured_prefix[ACR_UPLOAD_PREFIX_BUFFER_SIZE] = {0};
     char prefix[40] = {0};
     esp_err_t err = esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    const char *id_prefix_source = CONFIG_ACR_UPLOAD_PREFIX;
 
-    if (acr_config_store_load_upload_prefix(configured_prefix, sizeof(configured_prefix)) == ESP_OK &&
-        configured_prefix[0] != '\0') {
-        id_prefix_source = configured_prefix;
-    }
-
-    mqtt_presence_normalize_id_prefix(prefix, sizeof(prefix), id_prefix_source);
+    mqtt_presence_normalize_id_prefix(prefix, sizeof(prefix), CONFIG_MQTT_DEVICE_ID_PREFIX);
 
     if (err == ESP_OK) {
         snprintf(s_device_id,
@@ -1434,10 +1093,6 @@ static esp_err_t mqtt_presence_start_client_if_needed(void)
 {
     esp_mqtt_client_config_t mqtt_cfg = {0};
     wifi_manager_status_t wifi_status = {0};
-
-    if (s_suspended_for_acr) {
-        return ESP_OK;
-    }
 
     if (s_client_started) {
         return ESP_OK;
@@ -1592,51 +1247,5 @@ esp_err_t mqtt_presence_start(void)
              s_broker_host,
              s_broker_port);
     return ESP_OK;
-#endif
-}
-
-esp_err_t mqtt_presence_suspend_for_acr(void)
-{
-#if !CONFIG_MQTT_PRESENCE_ENABLED
-    return ESP_OK;
-#else
-    s_suspended_for_acr = true;
-
-    if (!s_started || !s_client) {
-        return ESP_OK;
-    }
-
-    ESP_LOGI(TAG, "Suspendendo MQTT durante ciclo ACR");
-    if (s_connected) {
-        mqtt_presence_publish_status("offline", "acr_upload");
-        vTaskDelay(pdMS_TO_TICKS(50));
-    }
-
-    esp_err_t err = esp_mqtt_client_stop(s_client);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "Falha ao parar MQTT para ACR: %s", esp_err_to_name(err));
-    }
-
-    esp_mqtt_client_destroy(s_client);
-    s_client = NULL;
-    s_client_started = false;
-    s_connected = false;
-    return ESP_OK;
-#endif
-}
-
-esp_err_t mqtt_presence_resume_after_acr(void)
-{
-#if !CONFIG_MQTT_PRESENCE_ENABLED
-    return ESP_OK;
-#else
-    if (!s_started) {
-        s_suspended_for_acr = false;
-        return ESP_OK;
-    }
-
-    ESP_LOGI(TAG, "Retomando MQTT apos ciclo ACR");
-    s_suspended_for_acr = false;
-    return mqtt_presence_start_client_if_needed();
 #endif
 }

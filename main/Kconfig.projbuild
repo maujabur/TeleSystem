@@ -10,7 +10,7 @@ config ESP_WIFI_PASSWORD
 
 config WIFI_PROVISIONING_SSID
     string "Wi-Fi provisioning AP SSID"
-    default "AiSkipsAi-999"
+    default "TeleCafezinho"
 
 config WIFI_MODEM_SLEEP
     bool "Enable Wi-Fi modem sleep in station mode"
@@ -81,13 +81,6 @@ config APP_LOG_BUFFER_CAPTURE_DEBUG
         Quando desativado, o buffer usado por /api/logs ignora linhas de
         DEBUG/VERBOSE para reduzir ruido e volume.
 
-config APP_ACR_LOG_HEAP_SNAPSHOT
-    bool "Log ACR heap snapshots during upload"
-    default n
-    help
-        Quando ativado, o cliente ACR registra snapshots de heap antes de
-        uploads HTTP e em falhas de abertura de conexao.
-
 config BOOT_WIFI_CONFIG_BUTTON_GPIO
     int "Boot Wi-Fi configuration button GPIO"
     range 0 48
@@ -147,10 +140,17 @@ config MQTT_PASSWORD
 config MQTT_TOPIC_NAMESPACE
     string "MQTT topic namespace"
     depends on MQTT_PRESENCE_ENABLED
-    default "v1/acr"
+    default "v1/led"
     help
         Prefixo de topicos usado pelo dispositivo. O device_id sera
         anexado automaticamente.
+
+config MQTT_DEVICE_ID_PREFIX
+    string "MQTT device ID prefix"
+    depends on MQTT_PRESENCE_ENABLED
+    default "TeleCafezinho"
+    help
+        Prefixo usado para montar o device_id publicado em MQTT.
 
 config MQTT_HEARTBEAT_INTERVAL_S
     int "Heartbeat interval (seconds)"
@@ -474,32 +474,6 @@ config TIME_SYNC_SERVER_2
 
 endmenu
 
-menu "Audio I2S Config"
-
-config AUDIO_I2S_MCLK_GPIO
-    int "Audio I2S MCLK GPIO"
-    range -1 48
-    default 9
-    help
-        GPIO usada para MCLK do I2S de captura. Use -1 para nao rotear MCLK.
-
-config AUDIO_I2S_DIN_GPIO
-    int "Audio I2S DIN GPIO"
-    range 0 48
-    default 8
-
-config AUDIO_I2S_WS_GPIO
-    int "Audio I2S WS/LRCK GPIO"
-    range 0 48
-    default 7
-
-config AUDIO_I2S_BCLK_GPIO
-    int "Audio I2S BCLK GPIO"
-    range 0 48
-    default 44
-
-endmenu
-
 menu "VBAT Monitor Config"
 
 config VBAT_MONITOR_ENABLED
@@ -535,12 +509,12 @@ config VBAT_MONITOR_ON_BEFORE_WIFI_PS_EXIT
     default y
 
 config VBAT_MONITOR_ON_AFTER_ACR_TX
-    bool "Measure after ACR transmission"
+    bool "Measure after product transmission"
     depends on VBAT_MONITOR_ENABLED
     default y
 
 config VBAT_MONITOR_ON_AFTER_AUDIO_CAPTURE
-    bool "Measure after audio capture"
+    bool "Measure after product activity"
     depends on VBAT_MONITOR_ENABLED
     default y
 
@@ -611,7 +585,7 @@ config POWER_GOOD_GPIO_ENABLED
     default y
     help
         Habilita o sinal POWER_GOOD: GPIO de saida que alimenta perifericos
-        externos (ex: placa ADC I2S) via MOSFET. Seta alto ao inicializar
+        externos via MOSFET. Seta alto ao inicializar
         e baixo antes de entrar em deep sleep.
 
 config POWER_GOOD_GPIO
@@ -630,96 +604,5 @@ config POWER_GOOD_ACTIVE_LEVEL
     help
         Nivel logico que representa "perifericos ligados".
         Use 1 para MOSFET ativo em nivel alto.
-
-endmenu
-
-menu "ACRCloud Config"
-
-config ACR_REGION
-    string "ACRCloud region"
-    default "us-west-2"
-
-config ACR_CONTAINER_ID
-    string "ACRCloud container ID"
-    default "30317"
-
-config ACR_BEARER_TOKEN
-    string "ACRCloud bearer token"
-    default ""
-
-config ACR_UPLOAD_PREFIX
-    string "ACRCloud upload filename prefix"
-    default "skips_999"
-    help
-        Prefixo usado no nome dos arquivos enviados ao ACRCloud quando
-        nenhum valor foi provisionado na NVS.
-
-config ACR_POLL_MAX_ATTEMPTS
-    int "Max polling attempts"
-    range 1 120
-    default 10
-    help
-        Numero maximo de consultas ao ACRCloud aguardando o resultado
-        do arquivo enviado.
-
-config ACR_POLL_DELAY_MS
-    int "Polling interval (ms)"
-    range 100 60000
-    default 2000
-    help
-        Intervalo, em milissegundos, entre as consultas ao ACRCloud
-        enquanto o arquivo ainda nao apareceu ou segue em processamento.
-
-config ACR_SUBMIT_RETRY_DELAY_MS
-    int "Submit retry interval after failure (ms)"
-    range 1000 3600000
-    default 60000
-    help
-        Intervalo, em milissegundos, antes de tentar novamente o envio
-        completo para a ACRCloud depois de uma falha.
-
-config ACR_AUTO_ENABLED
-    bool "Enable automatic ACR analysis by default"
-    default n
-    help
-        Habilita o ciclo automatico de captura e analise ACR ao iniciar.
-
-config ACR_AUTO_INTERVAL_MS
-    int "Automatic ACR analysis interval (ms)"
-    range 0 3600000
-    default 60000
-    help
-        Intervalo, em milissegundos, entre ciclos automaticos de captura
-        e analise ACR. Use 0 para iniciar o proximo ciclo imediatamente
-        apos o fim do anterior.
-
-config ACR_CAPTURE_DURATION_SECONDS
-    int "ACR capture duration (seconds)"
-    range 1 30
-    default 8
-    help
-        Duracao da captura de audio usada nos ciclos de analise ACR.
-
-config ACR_TRIGGER_GPIO
-    int "ACR trigger output GPIO"
-    range -1 48
-    default 2
-    help
-        GPIO acionada quando a politica ACR gera trigger. Use -1 para
-        desabilitar a saida fisica.
-
-config ACR_TRIGGER_ACTIVE_LEVEL
-    int "ACR trigger active level"
-    range 0 1
-    default 1
-    help
-        Nivel logico ativo da GPIO de trigger.
-
-config ACR_TRIGGER_PULSE_MS
-    int "ACR trigger pulse duration (ms)"
-    range 10 60000
-    default 2200
-    help
-        Duracao do pulso da GPIO de trigger quando o resultado ACR dispara.
 
 endmenu

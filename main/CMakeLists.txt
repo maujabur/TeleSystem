@@ -1,19 +1,8 @@
 set(MAIN_SRCS
     "main.c"
-    "app/acr_analysis_control.c"
-    "app/acr_client.c"
-    "app/acr_config_store.c"
-    "app/acr_orchestrator.c"
-    "app/acr_parser.c"
-    "app/acr_routes.c"
-    "app/acr_runtime_status.c"
-    "app/acr_trigger_output.c"
     "app/firmware_ota.c"
     "app/power_good.c"
     "app/vbat_monitor.c"
-    "audio/audio_capture.c"
-    "audio/wav_writer.c"
-    "audio/wm8782_probe.c"
     "connectivity/boot_config_button.c"
     "connectivity/connectivity_controller.c"
     "connectivity/device_config_routes.c"
@@ -38,12 +27,12 @@ endif()
 
 idf_component_register(
     SRCS ${MAIN_SRCS}
-    INCLUDE_DIRS "." "app" "audio" "connectivity" "portal"
+    INCLUDE_DIRS "." "app" "connectivity" "portal"
     EMBED_TXTFILES
         "../firmware_assets/web/index.html"
         "../firmware_assets/web/status.html"
         "../firmware_assets/web/settings.html"
         "../firmware_assets/web/networks.html"
         "../firmware_assets/web/logs.html"
-    REQUIRES esp_wifi esp_event nvs_flash esp_netif esp_driver_gpio esp_driver_i2s esp_driver_rmt esp_http_client esp_http_server esp_https_ota bootloader_support app_update lwip mbedtls esp_psram esp_adc mqtt espressif__cjson
+    REQUIRES esp_wifi esp_event nvs_flash esp_netif esp_driver_gpio esp_driver_rmt esp_http_client esp_http_server esp_https_ota bootloader_support app_update lwip mbedtls esp_psram esp_adc mqtt espressif__cjson
 )
