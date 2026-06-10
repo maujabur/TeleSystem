@@ -90,27 +90,18 @@ Conectividade:
   botao de boot e NTP
 - `main/connectivity/connectivity_controller.*`
 - `main/connectivity/device_config_routes.*`
-- `main/connectivity/mqtt_presence.*`, apos refatoracao
 - `components/status_led`, driver WS28xx extraido como componente
 - `components/tele_mqtt`, cliente MQTT reutilizavel
+- `components/tele_presence`, adaptador de presenca MQTT
 
 Portal:
 
-- `main/portal/web_portal.*`
-- `main/portal/captive_portal.*`
-- `main/portal/dns_server.*`
-- `main/portal/http_helpers.*`
-- `main/portal/app_log_buffer.*`
-- `main/portal/ota_portal.*`, se OTA continuar
+- `components/tele_portal`, com web portal, captive portal, DNS, helpers HTTP,
+  logs e portal OTA
 
 Sistema/app de apoio:
 
-- `main/app/firmware_version.h`
-- `main/app/firmware_ota.*`, se OTA continuar
-- `main/app/storage.*`, se ainda houver arquivos persistidos ou assets locais
-- `main/app/vbat_monitor.*`, somente se o novo hardware usar bateria/ADC
-- `main/app/power_good.*`, somente se o novo hardware controlar alimentacao de
-  perifericos
+- `components/tele_system`, com firmware version, OTA, VBAT e POWER_GOOD
 
 Assets web:
 

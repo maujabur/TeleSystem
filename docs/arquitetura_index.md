@@ -24,16 +24,18 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 ## Relacao entre subsistemas atuais
 
 - `main/main.c` inicializa NVS, VBAT, OTA, portal, conectividade e MQTT.
-- `main/connectivity` orquestra conectividade, rotas de configuracao e MQTT de
-  presenca.
+- `main/connectivity` orquestra conectividade e rotas de configuracao.
 - `components/tele_wifi` contem Wi-Fi, provisionamento, credenciais, botao de
   boot e NTP como base reutilizavel.
 - `components/tele_mqtt` contem o cliente MQTT reutilizavel, sem depender do
   dominio TeleCafezinho.
+- `components/tele_presence` adapta a presenca MQTT para os dados atuais do
+  firmware.
 - `components/status_led` contem o driver/stub de LED de status reutilizavel.
-- `main/portal` serve as paginas embarcadas e APIs base de status,
+- `components/tele_portal` serve as paginas embarcadas e APIs base de status,
   conectividade, logs, Wi-Fi, OTA e restart.
-- `main/app` mantem utilitarios gerais de firmware, bateria, power-good e OTA.
+- `components/tele_system` contem versao de firmware, OTA, bateria e
+  power-good.
 
 ## Regra de manutencao
 

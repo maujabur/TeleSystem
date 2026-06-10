@@ -1,8 +1,8 @@
-# Estrutura de main/portal em alto nivel
+# Estrutura de components/tele_portal em alto nivel
 
 ## Objetivo
 
-`main/portal` implementa a interface HTTP do firmware:
+`components/tele_portal` implementa a interface HTTP do firmware:
 
 - paginas embarcadas em `firmware_assets/web`;
 - APIs base de status, logs, restart e Wi-Fi;
@@ -17,6 +17,7 @@
 - `dns_server.c/.h`: DNS local usado no modo captive.
 - `http_helpers.c/.h`: helpers para JSON/body/arquivo.
 - `app_log_buffer.c/.h`: captura e snapshot de logs recentes.
+- `ota_portal.c/.h`: pagina e APIs de upload OTA.
 
 ## Rotas base
 
@@ -44,12 +45,12 @@ APIs:
 
 `GET /api/status` agrega dados de:
 
-- firmware (`APP_VERSION_STRING`);
+- firmware (`APP_VERSION_STRING`, de `components/tele_system`);
 - uptime;
-- Wi-Fi e APSTA;
-- NTP;
-- power-good;
-- VBAT.
+- Wi-Fi e APSTA (`components/tele_wifi`);
+- NTP (`components/tele_wifi`);
+- power-good (`components/tele_system`);
+- VBAT (`components/tele_system`).
 
 Estado de dominio futuro deve entrar em endpoint proprio, registrado via
 `web_portal_register_app_routes`, para manter o portal base sem conhecer regras
@@ -57,7 +58,7 @@ do produto.
 
 ## Fluxo de inicializacao
 
-1. `main` inicializa `app_log_buffer`.
+1. `main` inicializa `app_log_buffer` de `components/tele_portal`.
 2. `connectivity_controller` decide se o portal sobe em modo captive ou normal.
 3. `web_portal_start` registra rotas base.
 4. `captive_portal_register_handlers` adiciona rotas de deteccao.

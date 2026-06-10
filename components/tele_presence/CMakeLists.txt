@@ -1,0 +1,5 @@
+idf_component_register(
+    SRCS "mqtt_presence.c"
+    INCLUDE_DIRS "include"
+    REQUIRES esp_event esp_system heap tele_mqtt tele_system tele_wifi espressif__cjson
+)

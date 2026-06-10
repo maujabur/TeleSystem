@@ -4,7 +4,7 @@
 
 O firmware publica presenca, estado e telemetria via MQTT e aceita comandos
 remotos simples. A implementacao reutilizavel vive em `components/tele_mqtt`; o
-arquivo `main/connectivity/mqtt_presence.c` injeta os dados especificos do
+adaptador `components/tele_presence/mqtt_presence.c` injeta os dados atuais do
 TeleCafezinho.
 
 ## Identificacao do dispositivo
@@ -235,7 +235,7 @@ Agenda reboot curto depois do ACK.
 ## Extensao por produto
 
 Novos comandos de dominio devem ser adicionados no adaptador
-`mqtt_presence.c`, usando os callbacks:
+`components/tele_presence/mqtt_presence.c`, usando os callbacks:
 
 - `is_mutating_command`, para declarar comandos que alteram estado antes da
   execucao;

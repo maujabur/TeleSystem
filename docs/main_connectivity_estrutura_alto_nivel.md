@@ -228,7 +228,7 @@ Observacao:
 
 ## Interfaces externas usadas por main/connectivity (sem internals)
 
-### main/portal
+### components/tele_portal
 
 - web_portal_start(...)
   - Inicia portal em modo captive (AP) ou normal (STA conectado).
@@ -240,11 +240,6 @@ Observacao:
 - http_helpers_send_json(...)
 - http_helpers_recv_body(...)
   - Utilitarios HTTP usados pelos handlers de rotas.
-
-### main/app
-
-- storage_file_exists(...)
-  - Verifica existencia do HTML de configuracao no storage local.
 
 ### ESP-IDF / FreeRTOS
 

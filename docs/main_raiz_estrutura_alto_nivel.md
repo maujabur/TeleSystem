@@ -22,25 +22,22 @@ posterior.
 
 ## Composicao por pastas
 
-### `main/app`
-
-Utilitarios gerais:
-
-- `firmware_ota`;
-- `firmware_version`;
-- `power_good`;
-- `storage`;
-- `vbat_monitor`.
-
 ### `main/connectivity`
 
 Orquestracao de conectividade especifica da aplicacao:
 
 - controlador de conectividade;
 - rotas de configuracao do dispositivo;
-- MQTT de presenca;
-- integracao com portal, `components/tele_wifi`, `components/tele_mqtt` e
-  `components/status_led`.
+- integracao com portal, `components/tele_wifi` e `components/status_led`.
+
+### `components/tele_system`
+
+Componente reutilizavel para apoio de sistema:
+
+- versao de firmware;
+- OTA;
+- VBAT;
+- POWER_GOOD.
 
 ### `components/tele_wifi`
 
@@ -52,7 +49,7 @@ Componente reutilizavel para base de rede:
 - botao de configuracao no boot;
 - sincronizacao NTP.
 
-### `main/portal`
+### `components/tele_portal`
 
 Interface web e APIs base:
 
@@ -62,7 +59,8 @@ Interface web e APIs base:
 - status;
 - restart;
 - Wi-Fi;
-- OTA via registrador externo.
+- OTA via registrador externo;
+- Kconfig proprio.
 
 ### `components/tele_mqtt`
 
@@ -74,6 +72,15 @@ Componente reutilizavel para MQTT:
 - heartbeat;
 - comandos e respostas;
 - deduplicacao de comandos mutaveis.
+
+### `components/tele_presence`
+
+Adaptador de presenca MQTT:
+
+- configura `components/tele_mqtt`;
+- injeta estado de Wi-Fi, NTP, VBAT, POWER_GOOD e versao;
+- aplica configuracoes remotas de conectividade;
+- reserva os callbacks de comando para o dominio TeleCafezinho.
 
 ### `components/status_led`
 
