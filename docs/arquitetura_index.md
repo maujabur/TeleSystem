@@ -14,11 +14,10 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 4. [manual_mqtt_operacao.md](manual_mqtt_operacao.md)
 5. [status_led_system.md](status_led_system.md)
 6. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
+7. [roadmap_atual.md](roadmap_atual.md)
 
-## Planejamento e historico
+## Guias complementares
 
-- [plano_reaproveitamento_proximo_projeto_led.md](plano_reaproveitamento_proximo_projeto_led.md)
-- [plano_mqtt_dispositivos_distribuidos.md](plano_mqtt_dispositivos_distribuidos.md)
 - [home_page_branding_manual.md](home_page_branding_manual.md)
 
 ## Relacao entre subsistemas atuais
@@ -39,6 +38,6 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 
 ## Regra de manutencao
 
-Quando uma nova feature de dominio entrar, documente primeiro a interface publica
-do modulo e depois atualize este indice. Evite documentar planos longos como se
-fossem arquitetura atual.
+Quando uma nova feature de dominio entrar, documente primeiro a interface
+publica do modulo e depois atualize este indice. Planos longos devem ficar no
+roadmap ou em documento explicitamente marcado como futuro.

@@ -12,8 +12,6 @@ Este documento descreve, em alto nivel, o subsistema de conectividade em
 - interfaces usadas fora de main/connectivity, sem detalhar internals dessas outras pastas;
 - mecanismos de comunicacao, disparo e sincronizacao.
 
-**Nota:** Este documento detalha a implementacao concreta. Para entender os padroes e regras arquiteturais de conectividade, consulte [wifi_manager_architecture.md](wifi_manager_architecture.md).
-
 ## Visao geral
 
 A pasta `main/connectivity` orquestra o ciclo de conectividade do dispositivo,

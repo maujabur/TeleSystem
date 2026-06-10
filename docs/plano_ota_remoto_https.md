@@ -75,7 +75,7 @@ O firmware baixa o manifesto, valida o JSON, compara a versao, verifica restrico
 A string humana atual de firmware e util para debug, mas ruim para automacao:
 
 ```text
-0.6.9 acr uses CA bundle, clear embedded certs
+0.1.0 TeleCafezinho base cleanup
 ```
 
 Para OTA remoto, o ideal e separar:

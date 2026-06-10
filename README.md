@@ -8,9 +8,15 @@ O ponto de entrada fica em `main/main.c`. No boot, o firmware inicializa logs, m
 
 Principais subsistemas:
 
-- `main/app`: OTA, monitoramento de bateria e controle power-good.
-- `main/connectivity`: Wi-Fi, provisionamento, portal em modo AP/captive, MQTT, NTP, LED de status e configuracoes do dispositivo.
-- `main/portal`: servidor HTTP, captive portal, helpers JSON/HTTP e buffer de logs.
+- `main`: boot e cola da aplicacao.
+- `main/connectivity`: controller de conectividade e rotas de configuracao.
+- `components/tele_wifi`: Wi-Fi, provisionamento, credenciais, APSTA e NTP.
+- `components/tele_portal`: servidor HTTP, captive portal, helpers JSON/HTTP,
+  buffer de logs e portal OTA.
+- `components/tele_mqtt`: cliente MQTT reutilizavel.
+- `components/tele_presence`: adaptador de presenca MQTT do firmware.
+- `components/tele_system`: OTA, versao, VBAT e POWER_GOOD.
+- `components/status_led`: driver/stub de LED WS28xx.
 - `firmware_assets/web`: paginas HTML embarcadas no firmware.
 - `docs`: documentacao de arquitetura e operacao.
 
@@ -24,7 +30,7 @@ Configuracao atual documentada para ESP32-S3 QFN56 v0.2:
 - LED de status em GPIO 48.
 - Botao de configuracao Wi-Fi.
 
-Veja detalhes em [HARDWARE_MIGRATION_ESP32S3_8MB.md](HARDWARE_MIGRATION_ESP32S3_8MB.md).
+Atualize esta secao quando o hardware final do TeleCafezinho for fechado.
 
 ## Dependencias
 
@@ -74,7 +80,8 @@ Mais detalhes em [BUILD_PROFILES.md](BUILD_PROFILES.md).
 
 ## Configuracao
 
-Configuracoes de build ficam em `main/Kconfig.projbuild` e podem ser editadas com:
+Configuracoes de build ficam nos `Kconfig` dos componentes e podem ser editadas
+com:
 
 ```bash
 idf.py menuconfig
@@ -132,12 +139,14 @@ Leituras uteis:
 - [docs/main_raiz_estrutura_alto_nivel.md](docs/main_raiz_estrutura_alto_nivel.md)
 - [docs/main_connectivity_estrutura_alto_nivel.md](docs/main_connectivity_estrutura_alto_nivel.md)
 - [docs/main_portal_estrutura_alto_nivel.md](docs/main_portal_estrutura_alto_nivel.md)
-- [docs/wifi_manager_architecture.md](docs/wifi_manager_architecture.md)
 - [docs/status_led_system.md](docs/status_led_system.md)
+- [docs/roadmap_atual.md](docs/roadmap_atual.md)
 
 ## Notas de desenvolvimento
 
 - `sdkconfig.defaults` e a base do perfil dev.
 - Use `build-dev` e `build-release` para manter caches separados.
-- Os HTMLs do portal sao embarcados via `EMBED_TXTFILES` em `main/CMakeLists.txt`.
-- O arquivo `tools/mqtt_desktop/README_MQTT_DESKTOP_MVP.md` documenta o MVP desktop MQTT, separado do firmware.
+- Os HTMLs do portal sao embarcados via `EMBED_TXTFILES` em
+  `components/tele_portal/CMakeLists.txt`.
+- `tools/mqtt_desktop` ainda carrega heranca do projeto ACR anterior; consulte
+  o roadmap antes de usar ou evoluir essa ferramenta.
