@@ -1,16 +1,11 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "esp_log.h"
-#include "nvs.h"
 
 #include "device_config_store.h"
-
-#define DEVICE_CONFIG_NVS_NAMESPACE "provisioning"
-#define DEVICE_CONFIG_NVS_SSID_KEY "ssid"
-#define DEVICE_CONFIG_NVS_STA_RETRY_KEY "sta_retry"
-#define DEVICE_CONFIG_NVS_APSTA_POLICY_KEY "apsta_policy"
-#define DEVICE_CONFIG_NVS_APSTA_GRACE_KEY "apsta_grace"
+#include "tele_config.h"
 
 #ifndef CONFIG_WIFI_PROVISIONING_SSID
 #define CONFIG_WIFI_PROVISIONING_SSID "AiSkipsAi-999"
@@ -28,7 +23,53 @@
 #define CONFIG_WIFI_APSTA_GRACE_PERIOD_S 600
 #endif
 
+#define DEVICE_CONFIG_ID_PROVISIONING_SSID "wifi.provisioning_ssid"
+#define DEVICE_CONFIG_ID_STA_MAX_RETRY "wifi.sta_max_retry"
+#define DEVICE_CONFIG_ID_APSTA_POLICY "wifi.apsta_policy"
+#define DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S "wifi.apsta_grace_period_s"
+
 static const char *TAG = "device-config";
+
+static const tele_config_field_t s_device_config_fields[] = {
+    {
+        .id = DEVICE_CONFIG_ID_PROVISIONING_SSID,
+        .nvs_key = "w_pssid",
+        .type = TELE_CONFIG_TYPE_STRING,
+        .default_value.string = CONFIG_WIFI_PROVISIONING_SSID,
+        .min_len = 1,
+        .max_len = DEVICE_CONFIG_PROVISIONING_SSID_BUFFER_SIZE - 1,
+        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+    },
+    {
+        .id = DEVICE_CONFIG_ID_STA_MAX_RETRY,
+        .nvs_key = "w_retry",
+        .type = TELE_CONFIG_TYPE_U32,
+        .default_value.u32 = CONFIG_WIFI_STA_MAX_RETRY,
+        .min.u32 = DEVICE_CONFIG_STA_MAX_RETRY_MIN,
+        .max.u32 = DEVICE_CONFIG_STA_MAX_RETRY_MAX,
+        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+    },
+    {
+        .id = DEVICE_CONFIG_ID_APSTA_POLICY,
+        .nvs_key = "w_apsta",
+        .type = TELE_CONFIG_TYPE_ENUM,
+        .default_value.i32 = CONFIG_WIFI_APSTA_POLICY,
+        .min.i32 = DEVICE_CONFIG_APSTA_ALWAYS_ON,
+        .max.i32 = DEVICE_CONFIG_APSTA_STA_ONLY,
+        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_REBOOT_REQUIRED,
+    },
+    {
+        .id = DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S,
+        .nvs_key = "w_apgrace",
+        .type = TELE_CONFIG_TYPE_U32,
+        .default_value.u32 = CONFIG_WIFI_APSTA_GRACE_PERIOD_S,
+        .min.u32 = DEVICE_CONFIG_APSTA_GRACE_PERIOD_S_MIN,
+        .max.u32 = DEVICE_CONFIG_APSTA_GRACE_PERIOD_S_MAX,
+        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_REBOOT_REQUIRED,
+    },
+};
+
+static bool s_fields_registered;
 
 static bool apsta_policy_valid(device_config_apsta_policy_t policy)
 {
@@ -37,10 +78,22 @@ static bool apsta_policy_valid(device_config_apsta_policy_t policy)
            policy == DEVICE_CONFIG_APSTA_STA_ONLY;
 }
 
-static bool apsta_grace_valid(uint32_t grace_period_s)
+static esp_err_t ensure_fields_registered(void)
 {
-    return grace_period_s >= DEVICE_CONFIG_APSTA_GRACE_PERIOD_S_MIN &&
-           grace_period_s <= DEVICE_CONFIG_APSTA_GRACE_PERIOD_S_MAX;
+    if (s_fields_registered) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = tele_config_register_fields(s_device_config_fields,
+                                                sizeof(s_device_config_fields) /
+                                                    sizeof(s_device_config_fields[0]));
+    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+        s_fields_registered = true;
+        return ESP_OK;
+    }
+
+    ESP_LOGE(TAG, "Falha ao registrar campos de configuracao: %s", esp_err_to_name(err));
+    return err;
 }
 
 static void trim_trailing_whitespace(char *text)
@@ -82,8 +135,8 @@ static esp_err_t copy_valid_ssid(char *out, size_t out_size, const char *ssid)
 
 esp_err_t device_config_store_load_provisioning_ssid(char *out, size_t out_size)
 {
-    nvs_handle_t handle = 0;
-    size_t required_size = out_size;
+    tele_config_value_t value = {0};
+    bool from_nvs = false;
     esp_err_t err = ESP_OK;
 
     if (!out || out_size == 0) {
@@ -92,239 +145,176 @@ esp_err_t device_config_store_load_provisioning_ssid(char *out, size_t out_size)
 
     memset(out, 0, out_size);
 
-    err = nvs_open(DEVICE_CONFIG_NVS_NAMESPACE, NVS_READONLY, &handle);
-    if (err == ESP_OK) {
-        err = nvs_get_str(handle, DEVICE_CONFIG_NVS_SSID_KEY, out, &required_size);
-        nvs_close(handle);
-
-        if (err == ESP_OK) {
-            trim_trailing_whitespace(out);
-            if (out[0] != '\0') {
-                ESP_LOGI(TAG, "SSID de provisionamento carregado da NVS");
-                return ESP_OK;
-            }
-            ESP_LOGW(TAG, "SSID de provisionamento na NVS esta vazio");
-        } else if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGW(TAG, "Falha ao ler SSID de provisionamento da NVS: %s", esp_err_to_name(err));
-            return err;
-        }
-    } else if (err != ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGW(TAG, "Falha ao abrir namespace de provisionamento na NVS: %s", esp_err_to_name(err));
+    err = ensure_fields_registered();
+    if (err != ESP_OK) {
         return err;
     }
 
-    err = copy_valid_ssid(out, out_size, CONFIG_WIFI_PROVISIONING_SSID);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "SSID de provisionamento carregado do menuconfig");
-        esp_err_t save_err = device_config_store_save_provisioning_ssid(out);
-        if (save_err != ESP_OK) {
-            ESP_LOGW(TAG, "Nao foi possivel persistir SSID de provisionamento na NVS: %s",
-                     esp_err_to_name(save_err));
-        }
+    err = tele_config_get_effective(DEVICE_CONFIG_ID_PROVISIONING_SSID,
+                                   &value,
+                                   out,
+                                   out_size,
+                                   &from_nvs);
+    if (err != ESP_OK) {
+        return err;
     }
-    return err;
+
+    trim_trailing_whitespace(out);
+    if (out[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG,
+             "SSID de provisionamento carregado de %s",
+             from_nvs ? "override NVS" : "menuconfig");
+    return ESP_OK;
 }
 
 esp_err_t device_config_store_save_provisioning_ssid(const char *ssid)
 {
     char sanitized[DEVICE_CONFIG_PROVISIONING_SSID_BUFFER_SIZE] = {0};
-    nvs_handle_t handle = 0;
+    tele_config_value_t value = {0};
     esp_err_t err = copy_valid_ssid(sanitized, sizeof(sanitized), ssid);
 
     if (err != ESP_OK) {
         return err;
     }
 
-    err = nvs_open(DEVICE_CONFIG_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    err = ensure_fields_registered();
     if (err != ESP_OK) {
         return err;
     }
 
-    err = nvs_set_str(handle, DEVICE_CONFIG_NVS_SSID_KEY, sanitized);
+    value.string = sanitized;
+    err = tele_config_set_override(DEVICE_CONFIG_ID_PROVISIONING_SSID, &value);
     if (err == ESP_OK) {
-        err = nvs_commit(handle);
+        ESP_LOGI(TAG, "SSID de provisionamento salvo como override NVS");
     }
-    nvs_close(handle);
-
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "SSID de provisionamento salvo na NVS");
-    }
-
     return err;
 }
 
 esp_err_t device_config_store_load_sta_max_retry(uint8_t *out_retry)
 {
-    nvs_handle_t handle = 0;
-    uint8_t retry = 0;
+    tele_config_value_t value = {0};
+    bool from_nvs = false;
     esp_err_t err = ESP_OK;
 
     if (!out_retry) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    err = nvs_open(DEVICE_CONFIG_NVS_NAMESPACE, NVS_READONLY, &handle);
-    if (err == ESP_OK) {
-        err = nvs_get_u8(handle, DEVICE_CONFIG_NVS_STA_RETRY_KEY, &retry);
-        nvs_close(handle);
-
-        if (err == ESP_OK) {
-            if (retry < DEVICE_CONFIG_STA_MAX_RETRY_MIN || retry > DEVICE_CONFIG_STA_MAX_RETRY_MAX) {
-                ESP_LOGW(TAG,
-                         "Retry STA invalido na NVS (%u), usando menuconfig",
-                         (unsigned)retry);
-                err = ESP_ERR_INVALID_SIZE;
-            } else {
-                *out_retry = retry;
-                ESP_LOGI(TAG, "Retry STA carregado da NVS: %u", (unsigned)retry);
-                return ESP_OK;
-            }
-        } else if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGW(TAG, "Falha ao ler retry STA da NVS: %s", esp_err_to_name(err));
-            return err;
-        }
-    } else if (err != ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGW(TAG, "Falha ao abrir namespace de provisionamento na NVS: %s", esp_err_to_name(err));
+    err = ensure_fields_registered();
+    if (err != ESP_OK) {
         return err;
     }
 
-    retry = (uint8_t)CONFIG_WIFI_STA_MAX_RETRY;
-    if (retry < DEVICE_CONFIG_STA_MAX_RETRY_MIN || retry > DEVICE_CONFIG_STA_MAX_RETRY_MAX) {
-        retry = 3;
+    err = tele_config_get_effective(DEVICE_CONFIG_ID_STA_MAX_RETRY,
+                                   &value,
+                                   NULL,
+                                   0,
+                                   &from_nvs);
+    if (err != ESP_OK) {
+        return err;
     }
 
-    *out_retry = retry;
-    ESP_LOGI(TAG, "Retry STA carregado do menuconfig: %u", (unsigned)retry);
-    err = device_config_store_save_sta_max_retry(retry);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Nao foi possivel persistir retry STA na NVS: %s", esp_err_to_name(err));
-    }
+    *out_retry = (uint8_t)value.u32;
+    ESP_LOGI(TAG,
+             "Retry STA carregado de %s: %u",
+             from_nvs ? "override NVS" : "menuconfig",
+             (unsigned)*out_retry);
     return ESP_OK;
 }
 
 esp_err_t device_config_store_save_sta_max_retry(uint8_t retry)
 {
-    nvs_handle_t handle = 0;
-    esp_err_t err = ESP_OK;
+    tele_config_value_t value = {.u32 = retry};
+    esp_err_t err = ensure_fields_registered();
 
-    if (retry < DEVICE_CONFIG_STA_MAX_RETRY_MIN || retry > DEVICE_CONFIG_STA_MAX_RETRY_MAX) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    err = nvs_open(DEVICE_CONFIG_NVS_NAMESPACE, NVS_READWRITE, &handle);
     if (err != ESP_OK) {
         return err;
     }
 
-    err = nvs_set_u8(handle, DEVICE_CONFIG_NVS_STA_RETRY_KEY, retry);
+    err = tele_config_set_override(DEVICE_CONFIG_ID_STA_MAX_RETRY, &value);
     if (err == ESP_OK) {
-        err = nvs_commit(handle);
+        ESP_LOGI(TAG, "Retry STA salvo como override NVS: %u", (unsigned)retry);
     }
-    nvs_close(handle);
-
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "Retry STA salvo na NVS: %u", (unsigned)retry);
-    }
-
     return err;
 }
 
 esp_err_t device_config_store_load_apsta_policy(device_config_apsta_policy_t *out_policy,
                                                 uint32_t *out_grace_period_s)
 {
-    nvs_handle_t handle = 0;
-    uint8_t policy = (uint8_t)DEVICE_CONFIG_APSTA_AUTO_TIMEOUT;
-    uint32_t grace_period_s = CONFIG_WIFI_APSTA_GRACE_PERIOD_S;
+    tele_config_value_t policy_value = {0};
+    tele_config_value_t grace_value = {0};
+    bool policy_from_nvs = false;
+    bool grace_from_nvs = false;
     esp_err_t err = ESP_OK;
 
     if (!out_policy || !out_grace_period_s) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    err = nvs_open(DEVICE_CONFIG_NVS_NAMESPACE, NVS_READONLY, &handle);
-    if (err == ESP_OK) {
-        err = nvs_get_u8(handle, DEVICE_CONFIG_NVS_APSTA_POLICY_KEY, &policy);
-        if (err == ESP_OK) {
-            err = nvs_get_u32(handle, DEVICE_CONFIG_NVS_APSTA_GRACE_KEY, &grace_period_s);
-        }
-        nvs_close(handle);
-
-        if (err == ESP_OK) {
-            if (!apsta_policy_valid((device_config_apsta_policy_t)policy) ||
-                !apsta_grace_valid(grace_period_s)) {
-                ESP_LOGW(TAG,
-                         "Politica APSTA invalida na NVS (policy=%u grace=%lu), usando defaults",
-                         (unsigned)policy,
-                         (unsigned long)grace_period_s);
-                err = ESP_ERR_INVALID_SIZE;
-            } else {
-                *out_policy = (device_config_apsta_policy_t)policy;
-                *out_grace_period_s = grace_period_s;
-                ESP_LOGI(TAG,
-                         "Politica APSTA carregada da NVS: policy=%u grace=%lu",
-                         (unsigned)policy,
-                         (unsigned long)grace_period_s);
-                return ESP_OK;
-            }
-        } else if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGW(TAG, "Falha ao ler politica APSTA da NVS: %s", esp_err_to_name(err));
-            return err;
-        }
-    } else if (err != ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGW(TAG, "Falha ao abrir namespace de provisionamento na NVS: %s", esp_err_to_name(err));
+    err = ensure_fields_registered();
+    if (err != ESP_OK) {
         return err;
     }
 
-    policy = (uint8_t)CONFIG_WIFI_APSTA_POLICY;
-    grace_period_s = CONFIG_WIFI_APSTA_GRACE_PERIOD_S;
-    if (!apsta_policy_valid((device_config_apsta_policy_t)policy)) {
-        policy = (uint8_t)DEVICE_CONFIG_APSTA_AUTO_TIMEOUT;
-    }
-    if (!apsta_grace_valid(grace_period_s)) {
-        grace_period_s = 600;
-    }
-
-    *out_policy = (device_config_apsta_policy_t)policy;
-    *out_grace_period_s = grace_period_s;
-
-    err = device_config_store_save_apsta_policy(*out_policy, *out_grace_period_s);
+    err = tele_config_get_effective(DEVICE_CONFIG_ID_APSTA_POLICY,
+                                   &policy_value,
+                                   NULL,
+                                   0,
+                                   &policy_from_nvs);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Nao foi possivel persistir politica APSTA na NVS: %s", esp_err_to_name(err));
+        return err;
     }
 
+    err = tele_config_get_effective(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S,
+                                   &grace_value,
+                                   NULL,
+                                   0,
+                                   &grace_from_nvs);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    *out_policy = (device_config_apsta_policy_t)policy_value.i32;
+    *out_grace_period_s = grace_value.u32;
+    ESP_LOGI(TAG,
+             "Politica APSTA carregada de %s/%s: policy=%u grace=%lu",
+             policy_from_nvs ? "override NVS" : "menuconfig",
+             grace_from_nvs ? "override NVS" : "menuconfig",
+             (unsigned)*out_policy,
+             (unsigned long)*out_grace_period_s);
     return ESP_OK;
 }
 
 esp_err_t device_config_store_save_apsta_policy(device_config_apsta_policy_t policy,
                                                 uint32_t grace_period_s)
 {
-    nvs_handle_t handle = 0;
+    tele_config_value_t policy_value = {.i32 = policy};
+    tele_config_value_t grace_value = {.u32 = grace_period_s};
     esp_err_t err = ESP_OK;
 
-    if (!apsta_policy_valid(policy) || !apsta_grace_valid(grace_period_s)) {
+    if (!apsta_policy_valid(policy)) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    err = nvs_open(DEVICE_CONFIG_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    err = ensure_fields_registered();
     if (err != ESP_OK) {
         return err;
     }
 
-    err = nvs_set_u8(handle, DEVICE_CONFIG_NVS_APSTA_POLICY_KEY, (uint8_t)policy);
-    if (err == ESP_OK) {
-        err = nvs_set_u32(handle, DEVICE_CONFIG_NVS_APSTA_GRACE_KEY, grace_period_s);
+    err = tele_config_set_override(DEVICE_CONFIG_ID_APSTA_POLICY, &policy_value);
+    if (err != ESP_OK) {
+        return err;
     }
-    if (err == ESP_OK) {
-        err = nvs_commit(handle);
-    }
-    nvs_close(handle);
 
+    err = tele_config_set_override(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S, &grace_value);
     if (err == ESP_OK) {
         ESP_LOGI(TAG,
-                 "Politica APSTA salva na NVS: policy=%u grace=%lu",
+                 "Politica APSTA salva como override NVS: policy=%u grace=%lu",
                  (unsigned)policy,
                  (unsigned long)grace_period_s);
     }
-
     return err;
 }

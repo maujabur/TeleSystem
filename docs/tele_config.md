@@ -1,0 +1,53 @@
+# tele_config
+
+## Objetivo
+
+`components/tele_config` centraliza campos de configuracao reutilizaveis entre
+projetos ESP-IDF. A regra principal e:
+
+- o valor default vem do menuconfig/codigo;
+- a NVS guarda apenas override explicito;
+- se nao existir override na NVS, o valor efetivo e o default;
+- ler um valor nunca persiste automaticamente o default na NVS.
+
+Isso evita transformar uma configuracao de fabrica em estado gravado e permite
+alterar defaults em firmware novo sem que dispositivos limpos fiquem presos a
+um valor antigo.
+
+## Modelo de campo
+
+Cada campo registrado tem:
+
+- `id`: nome estavel e legivel para web, MQTT, logs e documentacao;
+- `nvs_key`: chave curta para NVS, com no maximo 15 caracteres;
+- tipo: `bool`, `i32`, `u32`, `string` ou `enum`;
+- default;
+- limites numericos ou tamanho minimo/maximo de string;
+- flags de exposicao, como `WEB`, `MQTT`, `SECRET`, `REBOOT_REQUIRED` e
+  `READ_ONLY`.
+
+O `id` nao precisa respeitar o limite da NVS. Por isso `wifi.sta_max_retry`
+pode existir como API publica, enquanto a persistencia usa `w_retry`.
+
+## Uso atual
+
+`components/tele_wifi/device_config_store.c` ja usa `tele_config` para:
+
+- `wifi.provisioning_ssid`;
+- `wifi.sta_max_retry`;
+- `wifi.apsta_policy`;
+- `wifi.apsta_grace_period_s`.
+
+As funcoes antigas `device_config_store_*` continuam existindo para manter
+compatibilidade com o portal e com a presenca MQTT, mas agora elas chamam
+`tele_config` internamente.
+
+## Decisoes abertas
+
+- Criar adaptadores genericos para publicar campos por MQTT sem codigo manual
+  por campo.
+- Criar adaptadores web genericos para formularios simples, mantendo paginas
+  especificas quando a experiencia precisar ser melhor.
+- Decidir politica de migracao dos namespaces NVS antigos. Como a versao
+  anterior persistia defaults automaticamente, uma migracao cega poderia
+  transformar default antigo em override permanente.

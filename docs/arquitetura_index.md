@@ -12,9 +12,10 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 2. [main_connectivity_estrutura_alto_nivel.md](main_connectivity_estrutura_alto_nivel.md)
 3. [main_portal_estrutura_alto_nivel.md](main_portal_estrutura_alto_nivel.md)
 4. [manual_mqtt_operacao.md](manual_mqtt_operacao.md)
-5. [status_led_system.md](status_led_system.md)
-6. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
-7. [roadmap_atual.md](roadmap_atual.md)
+5. [tele_config.md](tele_config.md)
+6. [status_led_system.md](status_led_system.md)
+7. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
+8. [roadmap_atual.md](roadmap_atual.md)
 
 ## Guias complementares
 
@@ -28,6 +29,8 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
   boot e NTP como base reutilizavel.
 - `components/tele_mqtt` contem o cliente MQTT reutilizavel, sem depender do
   dominio TeleCafezinho.
+- `components/tele_config` contem o registro de campos configuraveis, validacao
+  e persistencia de overrides em NVS.
 - `components/tele_presence` adapta a presenca MQTT para os dados atuais do
   firmware.
 - `components/status_led` contem o driver/stub de LED de status reutilizavel.
