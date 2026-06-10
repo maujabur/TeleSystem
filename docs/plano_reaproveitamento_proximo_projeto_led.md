@@ -34,7 +34,7 @@ Estrutura sugerida:
 
 ```text
 /workspaces/acr-cloud-test        projeto atual, referencia intacta
-/workspaces/led-cloud-test        novo projeto derivado
+/workspaces/telecafezinho        novo projeto derivado
 ```
 
 ## Antes de duplicar
@@ -49,7 +49,7 @@ Estrutura sugerida:
 Exemplo conceitual:
 
 ```sh
-cp -a /workspaces/acr-cloud-test /workspaces/led-cloud-test
+cp -a /workspaces/acr-cloud-test /workspaces/telecafezinho
 ```
 
 Depois de duplicar, abrir a nova pasta como workspace e fazer todas as

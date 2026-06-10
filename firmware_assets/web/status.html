@@ -2,219 +2,169 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Status Tecnico</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TeleCafezinho - Status</title>
     <style>
       :root {
-        color-scheme: light;
-        --bg: #f7eee9;
-        --panel: #fffaf7;
-        --text: #35231d;
-        --muted: #7b6258;
-        --line: #e1c8bb;
-        --primary: #b84e2f;
-        --primary-dark: #84331f;
-        --soft: #fff4ee;
-        --ok-bg: #edf7e8;
-        --ok-text: #456b1b;
-        --error-bg: #fdecea;
-        --error-text: #8b2d2d;
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --card: #1f2937;
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #22c55e;
+        --border: rgba(148, 163, 184, 0.25);
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
-        min-height: 100vh;
         margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: var(--bg);
         color: var(--text);
-        font-family: Arial, Helvetica, sans-serif;
       }
 
       .shell {
-        width: min(1000px, calc(100% - 32px));
+        width: min(100% - 32px, 1040px);
         margin: 0 auto;
         padding: 24px 0;
       }
 
       .tech-nav,
-      header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
+      header,
+      .grid,
+      .metrics {
+        display: grid;
+        gap: 16px;
       }
 
       .tech-nav {
-        margin-bottom: 18px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid var(--line);
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        margin-bottom: 24px;
       }
 
-      .tech-nav a {
-        color: var(--primary-dark);
-        font-weight: 700;
-        text-decoration: none;
-      }
-
-      .tech-nav .links {
+      .links {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        justify-content: flex-end;
+        gap: 8px;
       }
 
+      a,
+      button {
+        color: var(--text);
+      }
+
+      a {
+        text-decoration: none;
+        color: var(--muted);
+      }
+
+      a:hover { color: var(--text); }
+
       header {
-        margin-bottom: 18px;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        margin-bottom: 16px;
       }
 
       h1,
-      h2 {
+      h2,
+      p {
         margin: 0;
       }
 
-      h1 {
-        font-size: 28px;
-      }
+      h1 { font-size: 1.6rem; }
 
       h2 {
-        font-size: 18px;
+        font-size: 1rem;
+        margin-bottom: 12px;
       }
 
       .subtle {
-        margin: 6px 0 0;
         color: var(--muted);
-        font-size: 14px;
-        line-height: 1.45;
+        margin-top: 6px;
+      }
+
+      button {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 14px;
+        background: var(--accent);
+        color: #052e16;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: transparent;
+        color: var(--text);
       }
 
       .panel {
-        margin-top: 14px;
-        padding: 20px;
-        border: 1px solid var(--line);
+        border: 1px solid var(--border);
         border-radius: 8px;
         background: var(--panel);
-        box-shadow: 0 10px 28px rgba(98, 47, 28, 0.1);
+        padding: 16px;
+        margin-bottom: 16px;
       }
 
       .grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
-      .card {
-        border: 1px solid var(--line);
+      .card,
+      .metric {
+        border: 1px solid var(--border);
         border-radius: 8px;
-        background: var(--soft);
-      }
-
-      .card {
-        min-height: 82px;
-        padding: 12px;
+        background: var(--card);
+        padding: 14px;
+        min-height: 86px;
       }
 
       .card span,
       .metric span {
         display: block;
-        margin-bottom: 5px;
         color: var(--muted);
-        font-size: 12px;
+        font-size: 0.86rem;
       }
 
-      .card strong {
+      .card strong,
+      .metric strong {
+        display: block;
+        margin-top: 8px;
         overflow-wrap: anywhere;
       }
 
       .metrics {
-        display: grid;
-        grid-template-columns: repeat(7, minmax(0, 1fr));
-        gap: 12px;
-      }
-
-      .metric {
-        min-width: 0;
-      }
-
-      button,
-      a.button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 42px;
-        padding: 0 16px;
-        border: 0;
-        border-radius: 8px;
-        background: var(--primary);
-        color: #fff;
-        font: inherit;
-        font-weight: 700;
-        text-decoration: none;
-      }
-
-      button:hover,
-      a.button:hover {
-        background: var(--primary-dark);
-      }
-
-      .secondary {
-        border: 1px solid var(--line);
-        background: var(--soft);
-        color: var(--primary-dark);
-      }
-
-      .secondary:hover {
-        background: #f8e5da;
-      }
-
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
       .banner {
         display: none;
-        margin-top: 14px;
-        padding: 12px 14px;
         border-radius: 8px;
-        font-size: 14px;
+        padding: 12px;
+        margin-top: 16px;
       }
 
       .banner.show {
         display: block;
-      }
-
-      .ok {
-        background: var(--ok-bg);
-        color: var(--ok-text);
-      }
-
-      .error {
-        background: var(--error-bg);
-        color: var(--error-text);
-      }
-
-      .muted {
-        color: var(--muted);
+        border: 1px solid var(--border);
+        background: rgba(34, 197, 94, 0.12);
       }
 
       @media (max-width: 860px) {
-        .shell {
-          width: min(100% - 24px, 1000px);
-          padding: 16px 0;
-        }
-
+        .shell { width: min(100% - 24px, 1040px); }
+        .tech-nav,
         header,
-        .tech-nav {
-          display: grid;
-        }
-
         .grid,
         .metrics {
           grid-template-columns: 1fr;
         }
+        .links { justify-content: flex-start; }
       }
     </style>
   </head>
@@ -237,96 +187,30 @@
           <p class="subtle" id="statusText">Carregando estado...</p>
           <p class="subtle" id="timeText">Ultima atualizacao: --</p>
         </div>
-        <div class="actions">
-          <button type="button" onclick="runAcr()">Force cycle</button>
-          <button class="secondary" type="button" onclick="refreshStatus()">Atualizar</button>
-        </div>
+        <button class="secondary" type="button" onclick="refreshStatus()">Atualizar</button>
       </header>
 
       <section class="panel">
         <div class="grid">
-          <div class="card">
-            <span>Loop</span>
-            <strong id="acrState">--</strong>
-          </div>
-          <div class="card">
-            <span>Firmware</span>
-            <strong id="firmwareVersion">--</strong>
-          </div>
-          <div class="card">
-            <span>Automatico</span>
-            <strong id="autoMode">--</strong>
-          </div>
-          <div class="card">
-            <span>Ultimo resultado</span>
-            <strong id="lastResult">--</strong>
-          </div>
-          <div class="card">
-            <span>Prediction</span>
-            <strong id="lastPrediction">--</strong>
-          </div>
-          <div class="card">
-            <span>Audio ativo</span>
-            <strong id="audioActivity">--</strong>
-          </div>
-          <div class="card">
-            <span>RMS / pico</span>
-            <strong id="audioLevel">--</strong>
-          </div>
-          <div class="card">
-            <span>BT_NEXT</span>
-            <strong id="btNext">--</strong>
-          </div>
-          <div class="card">
-            <span>Erros / retry</span>
-            <strong id="errorsRetry">--</strong>
-          </div>
-          <div class="card">
-            <span>Contadores</span>
-            <strong id="cycleCounters">--</strong>
-          </div>
-          <div class="card">
-            <span>VBAT</span>
-            <strong id="vbatStatus">--</strong>
-          </div>
-          <div class="card">
-            <span>Power Good / Shutdown</span>
-            <strong id="powerGoodStatus">--</strong>
-          </div>
+          <div class="card"><span>Firmware</span><strong id="firmwareVersion">--</strong></div>
+          <div class="card"><span>Wi-Fi</span><strong id="wifiStatus">--</strong></div>
+          <div class="card"><span>IP</span><strong id="ipStatus">--</strong></div>
+          <div class="card"><span>Provisionamento</span><strong id="provisioningStatus">--</strong></div>
+          <div class="card"><span>Horario</span><strong id="clockStatus">--</strong></div>
+          <div class="card"><span>Uptime</span><strong id="uptimeStatus">--</strong></div>
+          <div class="card"><span>VBAT</span><strong id="vbatStatus">--</strong></div>
+          <div class="card"><span>Power Good</span><strong id="powerGoodStatus">--</strong></div>
+          <div class="card"><span>Ultimo erro</span><strong id="errorStatus">--</strong></div>
         </div>
       </section>
 
       <section class="panel">
-        <h2>Tempos</h2>
+        <h2>Conectividade</h2>
         <div class="metrics">
-          <div class="metric">
-            <span>Captura</span>
-            <strong id="captureTime">--</strong>
-          </div>
-          <div class="metric">
-            <span>Upload</span>
-            <strong id="uploadTime">--</strong>
-          </div>
-          <div class="metric">
-            <span>TLS</span>
-            <strong id="uploadConnectTime">--</strong>
-          </div>
-          <div class="metric">
-            <span>Envio</span>
-            <strong id="uploadWriteTime">--</strong>
-          </div>
-          <div class="metric">
-            <span>POST</span>
-            <strong id="uploadResponseTime">--</strong>
-          </div>
-          <div class="metric">
-            <span>ACR</span>
-            <strong id="responseWaitTime">--</strong>
-          </div>
-          <div class="metric">
-            <span>Total</span>
-            <strong id="totalCycleTime">--</strong>
-          </div>
+          <div class="metric"><span>RSSI</span><strong id="rssiMetric">--</strong></div>
+          <div class="metric"><span>Retry STA</span><strong id="retryMetric">--</strong></div>
+          <div class="metric"><span>Reconexoes</span><strong id="reconnectMetric">--</strong></div>
+          <div class="metric"><span>APSTA</span><strong id="apstaMetric">--</strong></div>
         </div>
       </section>
 
@@ -334,170 +218,83 @@
     </main>
 
     <script>
-      function showBanner(kind, text) {
-        const el = document.getElementById("banner");
-        el.className = "banner show " + kind;
-        el.textContent = text;
-      }
-
-      function formatMs(value) {
-        if (!value || value < 0) return "--";
-        if (value < 1000) return Math.round(value) + " ms";
-        return (value / 1000).toFixed(2) + " s";
-      }
-
-      function formatState(value) {
-        const states = {
-          idle: "Idle",
-          capturing: "Capturando",
-          silence_discarded: "Silencio descartado",
-          uploading: "Enviando",
-          waiting_acr: "Aguardando ACR",
-          result_human: "Humano",
-          result_ai: "IA",
-          error: "Erro",
-          retry_wait: "Retry",
-        };
-        return states[value] || value || "--";
-      }
-
       function formatUptime(seconds) {
         if (!Number.isFinite(seconds) || seconds < 0) return "--";
-
         const total = Math.floor(seconds);
         const days = Math.floor(total / 86400);
         const hours = Math.floor((total % 86400) / 3600);
         const minutes = Math.floor((total % 3600) / 60);
         const secs = total % 60;
-
         const h = String(hours).padStart(2, "0");
         const m = String(minutes).padStart(2, "0");
         const s = String(secs).padStart(2, "0");
+        return days > 0 ? String(days) + "d " + h + ":" + m + ":" + s : h + ":" + m + ":" + s;
+      }
 
-        if (days > 0) {
-          return String(days) + "d " + h + ":" + m + ":" + s;
-        }
-
-        return h + ":" + m + ":" + s;
+      function wifiStateName(value) {
+        const states = {
+          init: "Inicializando",
+          sta_connecting: "Conectando",
+          sta_connected: "Conectado",
+          provisioning_ap: "Provisionamento",
+        };
+        return states[value] || value || "--";
       }
 
       async function refreshStatus() {
         try {
-          const [statusResp, acrStatusResp, controlResp] = await Promise.all([
-            fetch("/api/status", { cache: "no-store" }),
-            fetch("/api/acr/status", { cache: "no-store" }),
-            fetch("/api/acr/control", { cache: "no-store" }),
-          ]);
-          const statusData = await statusResp.json();
-          const acrStatusData = await acrStatusResp.json();
-          const control = await controlResp.json();
-          const status = { ...statusData, ...acrStatusData };
-          const retryText = status.acr_retry_pending
-            ? "retry em " + formatMs(status.acr_retry_remaining_ms || 0)
-            : "sem retry";
+          const resp = await fetch("/api/status", { cache: "no-store" });
+          if (!resp.ok) throw new Error("status");
+          const status = await resp.json();
 
           document.getElementById("statusText").textContent =
-            (status.acr_status || formatState(status.acr_state)) + " | " + retryText;
-
+            wifiStateName(status.state) + (status.wifi_ready ? " | pronto" : "");
           document.getElementById("timeText").textContent =
             "Ultima atualizacao: " + new Date().toLocaleTimeString();
+          document.getElementById("firmwareVersion").textContent = status.firmware_version || "--";
+          document.getElementById("wifiStatus").textContent =
+            (status.wifi_ready ? "Pronto" : wifiStateName(status.state)) +
+            (status.ssid ? " | " + status.ssid : "");
+          document.getElementById("ipStatus").textContent = status.ip || "--";
+          document.getElementById("provisioningStatus").textContent =
+            status.provisioning_active ? "Ativo" : "Inativo";
+          document.getElementById("clockStatus").textContent =
+            status.time_synchronized
+              ? (status.local_time_iso8601 || status.utc_time_iso8601 || "Sincronizado")
+              : "Aguardando NTP";
+          document.getElementById("uptimeStatus").textContent =
+            formatUptime(Number(status.uptime_seconds || 0));
+          document.getElementById("errorStatus").textContent = status.last_error || "--";
 
-          document.getElementById("acrState").textContent = formatState(status.acr_state);
-          document.getElementById("firmwareVersion").textContent =
-            status.firmware_version || "--";
-          document.getElementById("autoMode").textContent =
-            (control.automatic_enabled ? "Ligado" : "Desligado") +
-            " | intervalo " + formatMs(control.automatic_interval_ms || 0) +
-            " | captura " + (control.capture_duration_seconds || "--") + "s" +
-            " | ganho " + Number(control.digital_gain !== undefined ? control.digital_gain : 4).toFixed(2) + "x" +
-            " | hyst " + Number(control.silence_hysteresis_rms !== undefined ? control.silence_hysteresis_rms : 64);
-          document.getElementById("lastResult").textContent =
-            status.audio_last_silence_discarded
-              ? "Silencio descartado"
-              : status.acr_last_result_at_ms
-              ? ((status.acr_last_trigger ? "IA / trigger" : "Humano") +
-                " | " + Number(status.acr_last_ai_probability || 0).toFixed(1) + "%")
-              : "--";
-          document.getElementById("lastPrediction").textContent =
-            status.acr_last_prediction || "--";
-          document.getElementById("audioActivity").textContent =
-            formatMs(status.audio_last_active_ms || 0) +
-            (status.audio_last_silence_discarded ? " | descartado" : "");
-          document.getElementById("audioLevel").textContent =
-            "RMS " + Number(status.audio_last_rms || 0).toFixed(0) +
-            " | pico " + Number(status.audio_last_peak_percent || 0).toFixed(1) + "%" +
-            " | silencio " + (status.audio_last_silence_detected ? "sim" : "nao") +
-            " | clipped " + (status.audio_last_clipped_detected ? "sim" : "nao");
-          document.getElementById("btNext").textContent =
-            (status.bt_next_enabled ? "Habilitado" : "Desabilitado") +
-            " | GPIO " + (status.bt_next_gpio !== undefined ? status.bt_next_gpio : "--") +
-            " | " + formatMs(status.bt_next_pulse_ms || 0) +
-            (status.bt_next_last_error ? " | " + status.bt_next_last_error : "");
-          document.getElementById("errorsRetry").textContent =
-            String(status.acr_consecutive_errors || 0) + " erros | " + retryText;
-          document.getElementById("cycleCounters").textContent =
-            "envios " + String(status.acr_submitted_count || 0) +
-            " | silencio " + String(status.acr_silence_discarded_count || 0) +
-            " | erros ACR " + String(status.acr_error_count || 0) +
-            " | uptime " + formatUptime(Number(status.uptime_seconds || 0));
           if (!status.vbat || !status.vbat.enabled) {
             document.getElementById("vbatStatus").textContent = "Desabilitado";
           } else if (!status.vbat.initialized) {
             document.getElementById("vbatStatus").textContent = "Nao inicializado";
           } else if (!status.vbat.measurement_count) {
-            document.getElementById("vbatStatus").textContent =
-              "Sem amostra | GPIO " + String(status.vbat.gpio);
+            document.getElementById("vbatStatus").textContent = "Sem amostra";
           } else {
             document.getElementById("vbatStatus").textContent =
               Number((status.vbat.vbat_mv || 0) / 1000).toFixed(3) + " V" +
-              " | GPIO " + String(status.vbat.gpio) +
-              " | " + (status.vbat.last_moment || "-") +
-              " | " + String(status.vbat.last_measurement_ms || 0) + " ms";
+              " | " + (status.vbat.last_moment || "--");
           }
 
-          const powerGoodEnabled = !!(status.power_good && status.power_good.enabled);
-          const powerGoodGpio = status.power_good && status.power_good.gpio !== undefined
-            ? status.power_good.gpio
-            : "--";
-          const shutdownEnabled = !!(status.vbat && status.vbat.shutdown_enabled);
-          const thresholdMv = status.vbat && status.vbat.shutdown_threshold_mv !== undefined
-            ? status.vbat.shutdown_threshold_mv
-            : "--";
-          const countdownActive = !!(status.vbat && status.vbat.shutdown_countdown_active);
-          const countdownElapsed = status.vbat
-            ? formatMs(status.vbat.shutdown_countdown_elapsed_ms || 0)
-            : "--";
-
+          const powerGood = status.power_good || {};
           document.getElementById("powerGoodStatus").textContent =
-            "PG " + (powerGoodEnabled ? "on" : "off") +
-            " | GPIO " + String(powerGoodGpio) +
-            " | threshold " + String(thresholdMv) + " mV" +
-            " | countdown " + (shutdownEnabled
-              ? (countdownActive ? ("ativo (" + countdownElapsed + ")") : "inativo")
-              : "desabilitado");
-
-          document.getElementById("captureTime").textContent = formatMs(status.acr_capture_ms || 0);
-          document.getElementById("uploadTime").textContent = formatMs(status.acr_upload_ms || 0);
-          document.getElementById("uploadConnectTime").textContent = formatMs(status.acr_upload_connect_ms || 0);
-          document.getElementById("uploadWriteTime").textContent = formatMs(status.acr_upload_write_ms || 0);
-          document.getElementById("uploadResponseTime").textContent = formatMs(status.acr_upload_response_ms || 0);
-          document.getElementById("responseWaitTime").textContent = formatMs(status.acr_response_wait_ms || 0);
-          document.getElementById("totalCycleTime").textContent = formatMs(status.acr_total_cycle_ms || 0);
+            (powerGood.enabled ? "Ativo" : "Inativo") +
+            " | GPIO " + (powerGood.gpio !== undefined ? powerGood.gpio : "--");
+          document.getElementById("rssiMetric").textContent =
+            status.wifi_rssi !== undefined ? String(status.wifi_rssi) + " dBm" : "--";
+          document.getElementById("retryMetric").textContent =
+            status.wifi_sta_max_retry !== undefined ? String(status.wifi_sta_max_retry) : "--";
+          document.getElementById("reconnectMetric").textContent =
+            String(status.wifi_reconnect_attempts || 0);
+          document.getElementById("apstaMetric").textContent =
+            "Politica " + String(status.wifi_apsta_policy ?? "--") +
+            " | " + String(status.wifi_apsta_grace_period_s ?? "--") + " s" +
+            (status.wifi_apsta_auto_drop_pending ? " | drop pendente" : "");
         } catch (err) {
           document.getElementById("statusText").textContent = "Estado indisponivel";
           document.getElementById("timeText").textContent = "Ultima atualizacao: indisponivel";
-        }
-      }
-
-      async function runAcr() {
-        showBanner("ok", "force_cycle solicitado.");
-        try {
-          const resp = await fetch("/api/acr/run", { method: "POST" });
-          const text = await resp.text();
-          showBanner(resp.ok ? "ok" : "error", text);
-          refreshStatus();
-        } catch (err) {
-          showBanner("error", "Falha ao solicitar force_cycle.");
         }
       }
 

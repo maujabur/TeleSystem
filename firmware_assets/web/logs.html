@@ -219,7 +219,7 @@
       <div class="badges">
         <span class="badge" id="firmwareBadge">Firmware: --</span>
         <span class="badge" id="wifiBadge">Wi-Fi: --</span>
-        <span class="badge" id="acrBadge">ACR: --</span>
+        <span class="badge" id="systemBadge">Sistema: --</span>
       </div>
 
       <div id="logOutput" class="log-output">Carregando logs...</div>
@@ -275,32 +275,20 @@
 
       async function loadStatus() {
         try {
-          const [statusResp, acrStatusResp] = await Promise.all([
-            fetch("/api/status", { cache: "no-store" }),
-            fetch("/api/acr/status", { cache: "no-store" }),
-          ]);
+          const statusResp = await fetch("/api/status", { cache: "no-store" });
           const statusData = await statusResp.json();
-          const acrStatusData = await acrStatusResp.json();
-          const status = { ...statusData, ...acrStatusData };
+          const status = statusData || {};
           document.getElementById("firmwareBadge").textContent =
             "Firmware: " + (status.firmware_version || "--");
           document.getElementById("wifiBadge").textContent =
             "Wi-Fi: " + (status.wifi_ready ? status.ssid || "conectado" : status.state || "--");
-
-          if (status.acr_retry_pending) {
-            const remainingSec = Math.ceil(Math.max(0, status.acr_retry_remaining_ms || 0) / 1000);
-            document.getElementById("acrBadge").textContent =
-              "ACR: retry em " + remainingSec + "s";
-          } else {
-            document.getElementById("acrBadge").textContent =
-              "ACR: " + (status.acr_status || "--") +
-              (status.acr_uploaded_name ? " | " + status.acr_uploaded_name : "");
-          }
+          document.getElementById("systemBadge").textContent =
+            "Sistema: uptime " + Math.floor(Number(status.uptime_seconds || 0)) + "s";
 
         } catch (err) {
           document.getElementById("firmwareBadge").textContent = "Firmware: indisponivel";
           document.getElementById("wifiBadge").textContent = "Wi-Fi: indisponivel";
-          document.getElementById("acrBadge").textContent = "ACR: indisponivel";
+          document.getElementById("systemBadge").textContent = "Sistema: indisponivel";
         }
       }
 

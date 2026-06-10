@@ -33,12 +33,12 @@ static const char *TAG = "vbat-monitor";
 #define CONFIG_VBAT_MONITOR_ON_BEFORE_WIFI_PS_EXIT 1
 #endif
 
-#ifndef CONFIG_VBAT_MONITOR_ON_AFTER_ACR_TX
-#define CONFIG_VBAT_MONITOR_ON_AFTER_ACR_TX 1
+#ifndef CONFIG_VBAT_MONITOR_ON_AFTER_PRODUCT_TX
+#define CONFIG_VBAT_MONITOR_ON_AFTER_PRODUCT_TX 1
 #endif
 
-#ifndef CONFIG_VBAT_MONITOR_ON_AFTER_AUDIO_CAPTURE
-#define CONFIG_VBAT_MONITOR_ON_AFTER_AUDIO_CAPTURE 1
+#ifndef CONFIG_VBAT_MONITOR_ON_AFTER_PRODUCT_ACTIVITY
+#define CONFIG_VBAT_MONITOR_ON_AFTER_PRODUCT_ACTIVITY 1
 #endif
 
 #ifndef CONFIG_VBAT_MONITOR_ON_MAX_INTERVAL
@@ -137,10 +137,10 @@ const char *vbat_monitor_moment_name(vbat_monitor_moment_t moment)
         return "boot";
     case VBAT_MONITOR_MOMENT_BEFORE_WIFI_PS_EXIT:
         return "before_wifi_ps_exit";
-    case VBAT_MONITOR_MOMENT_AFTER_ACR_TX:
-        return "after_acr_tx";
-    case VBAT_MONITOR_MOMENT_AFTER_AUDIO_CAPTURE:
-        return "after_audio_capture";
+    case VBAT_MONITOR_MOMENT_AFTER_PRODUCT_TX:
+        return "after_product_tx";
+    case VBAT_MONITOR_MOMENT_AFTER_PRODUCT_ACTIVITY:
+        return "after_product_activity";
     case VBAT_MONITOR_MOMENT_MAX_INTERVAL:
         return "max_interval";
     default:
@@ -228,10 +228,10 @@ static bool moment_enabled(vbat_monitor_moment_t moment)
         return CONFIG_VBAT_MONITOR_ON_BOOT;
     case VBAT_MONITOR_MOMENT_BEFORE_WIFI_PS_EXIT:
         return CONFIG_VBAT_MONITOR_ON_BEFORE_WIFI_PS_EXIT;
-    case VBAT_MONITOR_MOMENT_AFTER_ACR_TX:
-        return CONFIG_VBAT_MONITOR_ON_AFTER_ACR_TX;
-    case VBAT_MONITOR_MOMENT_AFTER_AUDIO_CAPTURE:
-        return CONFIG_VBAT_MONITOR_ON_AFTER_AUDIO_CAPTURE;
+    case VBAT_MONITOR_MOMENT_AFTER_PRODUCT_TX:
+        return CONFIG_VBAT_MONITOR_ON_AFTER_PRODUCT_TX;
+    case VBAT_MONITOR_MOMENT_AFTER_PRODUCT_ACTIVITY:
+        return CONFIG_VBAT_MONITOR_ON_AFTER_PRODUCT_ACTIVITY;
     case VBAT_MONITOR_MOMENT_MAX_INTERVAL:
         return CONFIG_VBAT_MONITOR_ON_MAX_INTERVAL;
     default:

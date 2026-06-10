@@ -259,7 +259,7 @@ Observacao:
 ## Integracao com o restante do sistema
 
 - Em main/main.c, connectivity_controller_start inicializa o subsistema de conectividade.
-- Outros modulos (como o orquestrador ACR) consomem wifi_manager_wait_until_ready e wifi_manager_get_status para condicionar operacoes de rede.
+- Modulos de produto consomem wifi_manager_wait_until_ready e wifi_manager_get_status para condicionar operacoes de rede.
 - O portal web central agrega as rotas de conectividade e de aplicacao, mantendo uma interface unica para configuracao.
 
 ## Resumo

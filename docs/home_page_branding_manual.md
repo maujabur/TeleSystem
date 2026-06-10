@@ -91,7 +91,7 @@ Campos usados pela pagina:
 - `last_error`.
 
 Esse endpoint retorna mais campos tecnicos, mas a pagina `/` nao deve exibir
-ACR, firmware, logs, BT_NEXT ou metricas de captura.
+firmware, logs, metricas internas ou controles tecnicos.
 
 ### `GET /api/wifi/networks`
 
@@ -143,7 +143,7 @@ Ao customizar a aparencia para o cliente:
 - mantenha a pagina focada em Wi-Fi/provisionamento;
 - nao adicione botoes para `/status`, `/settings`, `/logs` ou rotas tecnicas;
 - nao exiba versao de firmware na pagina `/`;
-- nao exiba ACR, IA/humano, BT_NEXT, logs ou metricas de audio;
+- nao exiba logs, metricas internas ou controles tecnicos;
 - mantenha os campos de SSID e senha claros;
 - mantenha feedback de sucesso e erro visivel;
 - garanta que os textos caibam em telas pequenas;
@@ -170,7 +170,7 @@ manutencao, mas a experiencia do usuario final deve permanecer centrada em `/`.
 - Mensagens de erro e sucesso aparecem em `wifiBanner`.
 - SSID atual e IP atual aparecem nos campos inferiores.
 - Nao ha link ou botao visivel para paginas tecnicas.
-- Nao ha informacao de ACR, firmware, logs, audio ou BT_NEXT.
+- Nao ha informacao de firmware, logs, metricas internas ou controles tecnicos.
 - O layout funciona em celular e desktop.
 - Depois de alterar `firmware_assets/web/index.html`, o build regenerou os assets
   embutidos.

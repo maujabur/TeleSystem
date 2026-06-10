@@ -2,224 +2,175 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Ajustes Tecnicos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TeleCafezinho - Ajustes</title>
     <style>
       :root {
-        color-scheme: light;
-        --bg: #f7eee9;
-        --panel: #fffaf7;
-        --text: #35231d;
-        --muted: #7b6258;
-        --line: #e1c8bb;
-        --primary: #b84e2f;
-        --primary-dark: #84331f;
-        --soft: #fff4ee;
-        --ok-bg: #edf7e8;
-        --ok-text: #456b1b;
-        --error-bg: #fdecea;
-        --error-text: #8b2d2d;
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --field: #1f2937;
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #22c55e;
+        --danger: #ef4444;
+        --border: rgba(148, 163, 184, 0.25);
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
-        min-height: 100vh;
         margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: var(--bg);
         color: var(--text);
-        font-family: Arial, Helvetica, sans-serif;
       }
 
       .shell {
-        width: min(920px, calc(100% - 32px));
+        width: min(100% - 32px, 980px);
         margin: 0 auto;
         padding: 24px 0;
       }
 
       .tech-nav,
-      header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
+      header,
+      .grid {
+        display: grid;
+        gap: 16px;
       }
 
       .tech-nav {
-        margin-bottom: 18px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid var(--line);
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        margin-bottom: 24px;
       }
 
-      .tech-nav a {
-        color: var(--primary-dark);
-        font-weight: 700;
-        text-decoration: none;
-      }
-
-      .tech-nav .links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-
-      header {
-        margin-bottom: 18px;
-      }
-
+      .links,
       .actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 8px;
         justify-content: flex-end;
       }
 
-      h1 {
-        margin: 0;
-        font-size: 28px;
+      a {
+        color: var(--muted);
+        text-decoration: none;
       }
 
-      .subtle {
-        margin: 6px 0 0;
-        color: var(--muted);
-        font-size: 14px;
-        line-height: 1.45;
+      a:hover { color: var(--text); }
+
+      header {
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        margin-bottom: 16px;
       }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      h1 { font-size: 1.6rem; }
+
+      .subtle,
+      label {
+        color: var(--muted);
+      }
+
+      .subtle { margin-top: 6px; }
 
       details {
-        margin-top: 12px;
-        border: 1px solid var(--line);
+        border: 1px solid var(--border);
         border-radius: 8px;
         background: var(--panel);
-        box-shadow: 0 10px 28px rgba(98, 47, 28, 0.1);
+        margin-bottom: 14px;
       }
 
       summary {
         cursor: pointer;
-        padding: 16px 18px;
+        padding: 14px 16px;
         font-weight: 700;
       }
 
       .content {
-        padding: 0 18px 18px;
+        border-top: 1px solid var(--border);
+        padding: 16px;
       }
 
       .grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         align-items: end;
       }
 
       label {
         display: block;
         margin-bottom: 6px;
-        font-weight: 700;
+        font-size: 0.9rem;
       }
 
       input,
       select {
         width: 100%;
-        min-height: 44px;
-        padding: 10px 12px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fffdfb;
-        color: var(--text);
-        font: inherit;
-      }
-
-      .check {
-        display: inline-flex;
-        gap: 8px;
-        align-items: center;
-        min-height: 44px;
-        font-weight: 700;
-      }
-
-      .check input {
-        width: 18px;
-        min-height: 18px;
-      }
-
-      button,
-      a.button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
         min-height: 42px;
-        padding: 0 16px;
-        border: 0;
-        border-radius: 8px;
-        background: var(--primary);
-        color: #fff;
-        font: inherit;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 9px 10px;
+        background: var(--field);
+        color: var(--text);
+      }
+
+      button {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 14px;
+        min-height: 42px;
+        background: var(--accent);
+        color: #052e16;
         font-weight: 700;
-        text-decoration: none;
+        cursor: pointer;
       }
 
-      button:hover,
-      a.button:hover {
-        background: var(--primary-dark);
+      button.secondary {
+        background: transparent;
+        color: var(--text);
       }
 
-      .secondary {
-        border: 1px solid var(--line);
-        background: var(--soft);
-        color: var(--primary-dark);
-      }
-
-      .secondary:hover {
-        background: #f8e5da;
+      button.danger {
+        background: var(--danger);
+        color: #fff;
       }
 
       .readout {
-        margin-top: 12px;
-        padding: 12px;
-        border: 1px solid var(--line);
+        margin-top: 14px;
+        border: 1px solid var(--border);
         border-radius: 8px;
-        background: var(--soft);
+        padding: 12px;
+        background: var(--field);
         color: var(--muted);
-        font-size: 14px;
+        overflow-wrap: anywhere;
       }
 
       .banner {
         display: none;
-        margin-top: 14px;
-        padding: 12px 14px;
         border-radius: 8px;
-        font-size: 14px;
+        padding: 12px;
+        margin-top: 16px;
       }
 
-      .banner.show {
-        display: block;
-      }
-
-      .ok {
-        background: var(--ok-bg);
-        color: var(--ok-text);
-      }
-
-      .error {
-        background: var(--error-bg);
-        color: var(--error-text);
-      }
+      .banner.show { display: block; }
+      .banner.ok { background: rgba(34, 197, 94, 0.14); }
+      .banner.error { background: rgba(239, 68, 68, 0.16); }
 
       @media (max-width: 760px) {
-        .shell {
-          width: min(100% - 24px, 920px);
-          padding: 16px 0;
-        }
-
-        header,
+        .shell { width: min(100% - 24px, 980px); }
         .tech-nav,
+        header,
         .grid {
-          display: grid;
           grid-template-columns: 1fr;
         }
-
+        .links,
         .actions {
           justify-content: flex-start;
         }
@@ -246,80 +197,11 @@
         </div>
         <div class="actions">
           <button class="secondary" type="button" onclick="loadAll()">Atualizar</button>
-          <button class="secondary" type="button" onclick="exportSettings()">Exportar configuracoes</button>
+          <button class="secondary" type="button" onclick="exportSettings()">Exportar</button>
         </div>
       </header>
 
       <details open>
-        <summary>Loop automatico</summary>
-        <div class="content">
-          <div class="grid">
-            <label class="check" for="autoMode">
-              <input id="autoMode" type="checkbox">
-              Automatico
-            </label>
-            <div>
-              <label for="autoInterval">Intervalo (s)</label>
-              <input id="autoInterval" type="number" min="0" max="3600" value="60">
-            </div>
-            <button type="button" onclick="saveAcrControl('Loop automatico salvo.')">Salvar loop</button>
-          </div>
-        </div>
-      </details>
-
-      <details>
-        <summary>Audio e silencio</summary>
-        <div class="content">
-          <div class="grid">
-            <div>
-              <label for="captureDuration">Captura (s)</label>
-              <input id="captureDuration" type="number" min="1" max="30" value="8">
-            </div>
-            <div>
-              <label for="digitalGain">Ganho digital (x)</label>
-              <input id="digitalGain" type="number" min="0.25" max="16" step="0.05" value="4.00">
-            </div>
-            <div>
-              <label for="silenceThreshold">Silencio RMS</label>
-              <input id="silenceThreshold" type="number" min="0" max="32767" step="1" value="512">
-            </div>
-            <div>
-              <label for="silenceHysteresis">Histerese RMS</label>
-              <input id="silenceHysteresis" type="number" min="0" max="32767" step="1" value="64">
-            </div>
-            <div>
-              <label for="minActiveMs">Min. ativo (ms)</label>
-              <input id="minActiveMs" type="number" min="0" max="30000" step="100" value="1000">
-            </div>
-          </div>
-          <div class="readout" id="audioReadout">Ultima medicao: --</div>
-          <button type="button" onclick="saveAcrControl('Ajustes de audio salvos.')">Salvar audio</button>
-        </div>
-      </details>
-
-      <details>
-        <summary>Politica IA</summary>
-        <div class="content">
-          <div class="grid">
-            <div>
-              <label for="triggerMode">Criterio IA</label>
-              <select id="triggerMode">
-                <option value="0">Prediction</option>
-                <option value="1">Probabilidade</option>
-                <option value="2">Prediction OU probabilidade</option>
-                <option value="3">Prediction E probabilidade</option>
-              </select>
-            </div>
-            <div>
-              <label for="aiThreshold">Limiar IA (%)</label>
-              <input id="aiThreshold" type="number" min="0" max="100" step="0.1" value="80">
-            </div>
-            <button type="button" onclick="saveAcrControl('Politica IA salva.')">Salvar politica</button>
-          </div>
-        </div>
-      </details>
-
-      <details>
         <summary>Conectividade</summary>
         <div class="content">
           <div class="grid">
@@ -350,66 +232,10 @@
       </details>
 
       <details>
-        <summary>Saida BT_NEXT</summary>
-        <div class="content">
-          <div class="grid">
-            <label class="check" for="btNextEnabled">
-              <input id="btNextEnabled" type="checkbox">
-              Saida fisica
-            </label>
-            <div>
-              <label for="btNextGpio">GPIO</label>
-              <input id="btNextGpio" type="number" min="-1" max="48" value="5">
-            </div>
-            <div>
-              <label for="btNextActiveLevel">Nivel ativo</label>
-              <select id="btNextActiveLevel">
-                <option value="1">Alto</option>
-                <option value="0">Baixo</option>
-              </select>
-            </div>
-            <div>
-              <label for="btNextPulseMs">Pulso (ms)</label>
-              <input id="btNextPulseMs" type="number" min="10" max="60000" step="10" value="2200">
-            </div>
-            <button type="button" onclick="saveTriggerOutput()">Salvar saida</button>
-            <button class="secondary" type="button" onclick="testTriggerOutput()">Testar pulso</button>
-          </div>
-          <div class="readout" id="btNextReadout">BT_NEXT: --</div>
-        </div>
-      </details>
-
-      <details>
-        <summary>ACRCloud</summary>
-        <div class="content">
-          <div class="grid">
-            <div>
-              <label for="acrRegion">ACR region</label>
-              <input id="acrRegion" maxlength="63" autocomplete="off">
-            </div>
-            <div>
-              <label for="acrContainerId">Container ID</label>
-              <input id="acrContainerId" maxlength="63" autocomplete="off">
-            </div>
-            <div>
-              <label for="acrUploadPrefix">Prefixo de upload</label>
-              <input id="acrUploadPrefix" maxlength="31" autocomplete="off">
-            </div>
-            <div>
-              <label for="acrBearerToken">Bearer token</label>
-              <input id="acrBearerToken" type="password" autocomplete="off">
-            </div>
-            <button type="button" onclick="saveAcrCloud()">Salvar ACRCloud</button>
-          </div>
-          <div class="readout" id="acrReadout">ACRCloud: --</div>
-        </div>
-      </details>
-
-      <details>
         <summary>Sistema</summary>
         <div class="content">
           <div class="readout" id="systemReadout">Sistema: --</div>
-          <button class="secondary" type="button" onclick="restartDevice()">Restart</button>
+          <button class="danger" type="button" onclick="restartDevice()">Restart</button>
         </div>
       </details>
 
@@ -417,84 +243,26 @@
     </main>
 
     <script>
-      let control = {};
-
       function showBanner(kind, text) {
         const el = document.getElementById("banner");
         el.className = "banner show " + kind;
         el.textContent = text;
       }
 
-      function formatMs(value) {
-        if (!value || value < 0) return "--";
-        if (value < 1000) return Math.round(value) + " ms";
-        return (value / 1000).toFixed(2) + " s";
-      }
-
-      function applyControl(data) {
-        control = data || {};
-        document.getElementById("autoMode").checked = !!control.automatic_enabled;
-        document.getElementById("autoInterval").value =
-          Math.round((control.automatic_interval_ms !== undefined ? control.automatic_interval_ms : 60000) / 1000);
-        document.getElementById("captureDuration").value = control.capture_duration_seconds || 8;
-        document.getElementById("digitalGain").value =
-          Number(control.digital_gain !== undefined ? control.digital_gain : 4).toFixed(2);
-        document.getElementById("silenceThreshold").value =
-          control.silence_threshold_rms !== undefined ? control.silence_threshold_rms : 512;
-        document.getElementById("silenceHysteresis").value =
-          control.silence_hysteresis_rms !== undefined ? control.silence_hysteresis_rms : 64;
-        document.getElementById("minActiveMs").value =
-          control.min_active_ms !== undefined ? control.min_active_ms : 1000;
-        document.getElementById("triggerMode").value = String(control.trigger_mode || 0);
-        document.getElementById("aiThreshold").value =
-          Number(control.ai_probability_threshold !== undefined ? control.ai_probability_threshold : 70).toFixed(1);
-      }
-
-      function readControlPayload() {
-        return {
-          automatic_enabled: document.getElementById("autoMode").checked,
-          automatic_interval_ms: Math.max(0, Number(document.getElementById("autoInterval").value || 0)) * 1000,
-          capture_duration_seconds: Math.max(1, Math.min(30, Number(document.getElementById("captureDuration").value || 8))),
-          digital_gain: Math.max(0.25, Math.min(16, Number(document.getElementById("digitalGain").value || 4))),
-          silence_threshold_rms: Math.max(0, Math.min(32767, Number(document.getElementById("silenceThreshold").value || 0))),
-          silence_hysteresis_rms: Math.max(0, Math.min(32767, Number(document.getElementById("silenceHysteresis").value || 0))),
-          min_active_ms: Math.max(0, Math.min(30000, Number(document.getElementById("minActiveMs").value || 0))),
-          trigger_mode: Number(document.getElementById("triggerMode").value || 0),
-          ai_probability_threshold: Math.max(0, Math.min(100, Number(document.getElementById("aiThreshold").value || 70))),
-        };
-      }
-
       function sdkconfigString(value) {
         return JSON.stringify(String(value || ""));
       }
 
-      function buildMenuconfigDefaults(controlData, triggerData, acrData, deviceData) {
+      function buildMenuconfigDefaults(deviceData) {
         const lines = [
           "# Exportado por /settings",
-          "CONFIG_ACR_AUTO_ENABLED=" + (controlData.automatic_enabled ? "y" : "n"),
-          "CONFIG_ACR_AUTO_INTERVAL_MS=" + Math.round(Number(controlData.automatic_interval_ms || 0)),
-          "CONFIG_ACR_CAPTURE_DURATION_SECONDS=" + Math.round(Number(controlData.capture_duration_seconds || 0)),
-          "CONFIG_ACR_DIGITAL_GAIN_X100=" + Math.round(Number(controlData.digital_gain || 0) * 100),
-          "CONFIG_ACR_SILENCE_THRESHOLD_RMS=" + Math.round(Number(controlData.silence_threshold_rms || 0)),
-          "CONFIG_ACR_SILENCE_HYSTERESIS_RMS=" + Math.round(Number(controlData.silence_hysteresis_rms || 0)),
-          "CONFIG_ACR_MIN_ACTIVE_MS=" + Math.round(Number(controlData.min_active_ms || 0)),
-          "CONFIG_ACR_TRIGGER_DEFAULT_MODE=" + Math.round(Number(controlData.trigger_mode || 0)),
-          "CONFIG_ACR_TRIGGER_DEFAULT_AI_PROBABILITY_THRESHOLD_X100=" +
-            Math.round(Number(controlData.ai_probability_threshold || 0) * 100),
-          "CONFIG_ACR_TRIGGER_GPIO=" + Math.round(Number(triggerData.gpio || 0)),
-          "CONFIG_ACR_TRIGGER_ACTIVE_LEVEL=" + (Number(triggerData.active_level || 0) ? 1 : 0),
-          "CONFIG_ACR_TRIGGER_PULSE_MS=" + Math.round(Number(triggerData.pulse_ms || 0)),
-          "CONFIG_ACR_REGION=" + sdkconfigString(acrData.region),
-          "CONFIG_ACR_CONTAINER_ID=" + sdkconfigString(acrData.container_id),
-          "CONFIG_ACR_UPLOAD_PREFIX=" + sdkconfigString(acrData.upload_prefix),
-          "# CONFIG_ACR_BEARER_TOKEN nao e exportado por seguranca",
           "CONFIG_WIFI_STA_MAX_RETRY=" + Math.round(Number(deviceData.sta_max_retry || 0)),
           "CONFIG_WIFI_APSTA_POLICY=" + Math.round(Number(deviceData.apsta_policy || 0)),
           "CONFIG_WIFI_APSTA_GRACE_PERIOD_S=" + Math.round(Number(deviceData.apsta_grace_period_s || 0)),
         ];
 
         if (deviceData.provisioning_ssid_hidden) {
-          lines.push("# CONFIG_WIFI_PROVISIONING_SSID oculto por politica de build (WEB_PORTAL_EXPOSE_NETWORK_IDENTIFIERS)");
+          lines.push("# CONFIG_WIFI_PROVISIONING_SSID oculto por politica de build");
         } else if (deviceData.provisioning_ssid) {
           lines.push("CONFIG_WIFI_PROVISIONING_SSID=" + sdkconfigString(deviceData.provisioning_ssid));
         }
@@ -519,49 +287,31 @@
 
       async function exportSettings() {
         try {
-          const [controlResp, triggerResp, acrResp, deviceResp, statusResp] = await Promise.all([
-            fetch("/api/acr/control", { cache: "no-store" }),
-            fetch("/api/trigger-output", { cache: "no-store" }),
-            fetch("/api/config", { cache: "no-store" }),
+          const [deviceResp, statusResp] = await Promise.all([
             fetch("/api/device/config", { cache: "no-store" }),
             fetch("/api/status", { cache: "no-store" }),
           ]);
 
-          if (!controlResp.ok || !triggerResp.ok || !acrResp.ok || !deviceResp.ok || !statusResp.ok) {
-            throw new Error("Falha ao coletar dados para exportacao");
+          if (!deviceResp.ok || !statusResp.ok) {
+            throw new Error("export");
           }
 
-          const controlData = await controlResp.json();
-          const triggerData = await triggerResp.json();
-          const acrData = await acrResp.json();
           const deviceData = await deviceResp.json();
           const statusData = await statusResp.json();
-          const menuconfig = buildMenuconfigDefaults(controlData, triggerData, acrData, deviceData);
+          const menuconfig = buildMenuconfigDefaults(deviceData);
           const timestamp = new Date().toISOString();
           const safeTimestamp = timestamp.replace(/[:.]/g, "-");
           const exportPayload = {
             exported_at: timestamp,
             source: "/settings",
             firmware_version: statusData.firmware_version || "--",
-            acr_control: controlData,
-            bt_next: triggerData,
-            acr_cloud_public: {
-              region: acrData.region || "",
-              container_id: acrData.container_id || "",
-              upload_prefix: acrData.upload_prefix || "",
-              token_configured: !!acrData.token_configured,
-            },
             device_connectivity: deviceData,
             menuconfig_defaults_preview: menuconfig.lines,
             menuconfig_defaults_text: menuconfig.text,
-            notes: [
-              "Use o campo menuconfig_defaults_text como base para atualizar sdkconfig.defaults.",
-              "CONFIG_ACR_BEARER_TOKEN nao e exportado pela UI por seguranca.",
-            ],
           };
 
           downloadTextFile("settings-export-" + safeTimestamp + ".json", JSON.stringify(exportPayload, null, 2));
-          showBanner("ok", "Configuracoes exportadas com sucesso.");
+          showBanner("ok", "Configuracoes exportadas.");
         } catch (err) {
           showBanner("error", "Falha ao exportar configuracoes.");
         }
@@ -569,52 +319,20 @@
 
       async function loadAll() {
         try {
-          const [controlResp, triggerResp, statusResp, acrStatusResp, acrResp, deviceResp] = await Promise.all([
-            fetch("/api/acr/control", { cache: "no-store" }),
-            fetch("/api/trigger-output", { cache: "no-store" }),
-            fetch("/api/status", { cache: "no-store" }),
-            fetch("/api/acr/status", { cache: "no-store" }),
-            fetch("/api/config", { cache: "no-store" }),
+          const [deviceResp, statusResp] = await Promise.all([
             fetch("/api/device/config", { cache: "no-store" }),
+            fetch("/api/status", { cache: "no-store" }),
           ]);
-          const controlData = await controlResp.json();
-          const trigger = await triggerResp.json();
-          const statusData = await statusResp.json();
-          const acrStatusData = await acrStatusResp.json();
-          const status = { ...statusData, ...acrStatusData };
-          const acr = await acrResp.json();
-          const device = await deviceResp.json();
 
-          applyControl(controlData);
-          document.getElementById("btNextEnabled").checked = !!trigger.enabled;
-          document.getElementById("btNextGpio").value = trigger.gpio !== undefined ? trigger.gpio : 5;
-          document.getElementById("btNextActiveLevel").value =
-            String(trigger.active_level !== undefined ? trigger.active_level : 1);
-          document.getElementById("btNextPulseMs").value = trigger.pulse_ms || 2200;
+          if (!deviceResp.ok || !statusResp.ok) {
+            throw new Error("load");
+          }
+
+          const device = await deviceResp.json();
+          const status = await statusResp.json();
 
           document.getElementById("settingsStatus").textContent =
             "Ultima atualizacao: " + new Date().toLocaleTimeString();
-          document.getElementById("audioReadout").textContent =
-            "Ganho " + Number(controlData.digital_gain !== undefined ? controlData.digital_gain : 4).toFixed(2) + "x" +
-            " | hysteresis " + Number(controlData.silence_hysteresis_rms !== undefined ? controlData.silence_hysteresis_rms : 64) +
-            " | ultima medicao: ativo " + formatMs(status.audio_last_active_ms || 0) +
-            " | RMS " + Number(status.audio_last_rms || 0).toFixed(0) +
-            " | pico " + Number(status.audio_last_peak_percent || 0).toFixed(1) + "%" +
-            (status.audio_last_silence_discarded ? " | silencio descartado" : "");
-          document.getElementById("btNextReadout").textContent =
-            (trigger.enabled ? "Habilitado" : "Desabilitado") +
-            " | GPIO " + (trigger.gpio !== undefined ? trigger.gpio : "--") +
-            " | ativo " + (trigger.active_level ? "alto" : "baixo") +
-            " | pulso " + formatMs(trigger.pulse_ms || 0) +
-            (trigger.last_error ? " | erro " + trigger.last_error : "");
-          document.getElementById("acrReadout").textContent =
-            "Regiao " + (acr.region || "--") +
-            " | container " + (acr.container_id || "--") +
-            " | prefixo " + (acr.upload_prefix || "--") +
-            " | token " + (acr.token_configured ? "configurado" : "ausente");
-          document.getElementById("acrRegion").value = acr.region || "";
-          document.getElementById("acrContainerId").value = acr.container_id || "";
-          document.getElementById("acrUploadPrefix").value = acr.upload_prefix || "";
           document.getElementById("wifiProvisioningSsid").value = device.provisioning_ssid || "";
           document.getElementById("wifiProvisioningSsid").disabled = !!device.provisioning_ssid_hidden;
           document.getElementById("wifiProvisioningSsid").placeholder =
@@ -625,53 +343,15 @@
           document.getElementById("wifiApstaGrace").value = Number(device.apsta_grace_period_s || 600);
           document.getElementById("wifiReadout").textContent =
             "Provisioning SSID " + (device.provisioning_ssid_hidden ? "oculto" : (device.provisioning_ssid || "--")) +
-            " | " +
-            "Retry " + Number(status.wifi_sta_max_retry || 0) +
+            " | retry " + Number(status.wifi_sta_max_retry || 0) +
             " | politica APSTA " + Number(status.wifi_apsta_policy || 0) +
-            " | grace " + Number(status.wifi_apsta_grace_period_s || 0) + " s" +
-            (status.wifi_apsta_auto_drop_pending ? " | auto-drop pendente" : "");
+            " | grace " + Number(status.wifi_apsta_grace_period_s || 0) + " s";
           document.getElementById("systemReadout").textContent =
             "Firmware " + (status.firmware_version || "--") +
             " | IP " + (status.ip || "--") +
             " | Wi-Fi " + (status.wifi_ready ? "pronto" : status.state || "--");
         } catch (err) {
           document.getElementById("settingsStatus").textContent = "Ultima atualizacao: indisponivel";
-        }
-      }
-
-      async function saveAcrControl(successMessage) {
-        try {
-          const resp = await fetch("/api/acr/control", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(readControlPayload()),
-          });
-          const text = await resp.text();
-          showBanner(resp.ok ? "ok" : "error", resp.ok ? successMessage : text);
-          loadAll();
-        } catch (err) {
-          showBanner("error", "Falha ao salvar ajustes.");
-        }
-      }
-
-      async function saveTriggerOutput() {
-        const payload = {
-          enabled: document.getElementById("btNextEnabled").checked,
-          gpio: Math.max(-1, Math.min(48, Number(document.getElementById("btNextGpio").value || 5))),
-          active_level: Number(document.getElementById("btNextActiveLevel").value || 1) ? 1 : 0,
-          pulse_ms: Math.max(10, Math.min(60000, Number(document.getElementById("btNextPulseMs").value || 2200))),
-        };
-        try {
-          const resp = await fetch("/api/trigger-output", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const text = await resp.text();
-          showBanner(resp.ok ? "ok" : "error", resp.ok ? "Saida BT_NEXT salva." : text);
-          loadAll();
-        } catch (err) {
-          showBanner("error", "Falha ao salvar BT_NEXT.");
         }
       }
 
@@ -700,39 +380,6 @@
           loadAll();
         } catch (err) {
           showBanner("error", "Falha ao salvar conectividade.");
-        }
-      }
-
-      async function saveAcrCloud() {
-        const payload = {
-          region: document.getElementById("acrRegion").value,
-          container_id: document.getElementById("acrContainerId").value,
-          upload_prefix: document.getElementById("acrUploadPrefix").value,
-          bearer_token: document.getElementById("acrBearerToken").value,
-        };
-        try {
-          const resp = await fetch("/api/acr", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const text = await resp.text();
-          document.getElementById("acrBearerToken").value = "";
-          showBanner(resp.ok ? "ok" : "error", resp.ok ? "ACRCloud salvo." : text);
-          loadAll();
-        } catch (err) {
-          showBanner("error", "Falha ao salvar ACRCloud.");
-        }
-      }
-
-      async function testTriggerOutput() {
-        try {
-          const resp = await fetch("/api/trigger-output/test", { method: "POST" });
-          const text = await resp.text();
-          showBanner(resp.ok ? "ok" : "error", resp.ok ? "Pulso BT_NEXT enviado." : text);
-          loadAll();
-        } catch (err) {
-          showBanner("error", "Falha ao testar BT_NEXT.");
         }
       }
 

@@ -276,28 +276,28 @@ config STATUS_LED_ERROR_COLOR
     depends on STATUS_LED_ENABLED
     default 0xFF0000
 
-config STATUS_LED_ACR_UPLOADING_COLOR
-    hex "ACR uploading color RGB"
+config STATUS_LED_PRODUCT_TRANSMITTING_COLOR
+    hex "Product transmitting color RGB"
     depends on STATUS_LED_ENABLED
     default 0x8000FF
 
-config STATUS_LED_ACR_WAITING_RESULT_COLOR
-    hex "ACR waiting result color RGB"
+config STATUS_LED_PRODUCT_WAITING_COLOR
+    hex "Product waiting color RGB"
     depends on STATUS_LED_ENABLED
     default 0x00C8FF
 
-config STATUS_LED_ACR_RESULT_HUMAN_COLOR
-    hex "ACR human result color RGB"
+config STATUS_LED_PRODUCT_RESULT_OK_COLOR
+    hex "Product result OK color RGB"
     depends on STATUS_LED_ENABLED
     default 0x00FF00
 
-config STATUS_LED_ACR_RESULT_AI_COLOR
-    hex "ACR AI result color RGB"
+config STATUS_LED_PRODUCT_RESULT_ALERT_COLOR
+    hex "Product result alert color RGB"
     depends on STATUS_LED_ENABLED
     default 0xFF00A0
 
-config STATUS_LED_BT_NEXT_ACTIVE_COLOR
-    hex "BT_NEXT active color RGB"
+config STATUS_LED_OUTPUT_ACTIVE_COLOR
+    hex "Output active color RGB"
     depends on STATUS_LED_ENABLED
     default 0xFFFFFF
 
@@ -354,26 +354,26 @@ config STATUS_LED_ERROR_OFF_MS
     range 10 60000
     default 100
 
-config STATUS_LED_ACR_UPLOADING_ON_MS
-    int "ACR uploading blink on time (ms)"
+config STATUS_LED_PRODUCT_TRANSMITTING_ON_MS
+    int "Product transmitting blink on time (ms)"
     depends on STATUS_LED_ENABLED
     range 10 60000
     default 120
 
-config STATUS_LED_ACR_UPLOADING_OFF_MS
-    int "ACR uploading blink off time (ms)"
+config STATUS_LED_PRODUCT_TRANSMITTING_OFF_MS
+    int "Product transmitting blink off time (ms)"
     depends on STATUS_LED_ENABLED
     range 10 60000
     default 120
 
-config STATUS_LED_ACR_WAITING_RESULT_ON_MS
-    int "ACR waiting result blink on time (ms)"
+config STATUS_LED_PRODUCT_WAITING_ON_MS
+    int "Product waiting blink on time (ms)"
     depends on STATUS_LED_ENABLED
     range 10 60000
     default 250
 
-config STATUS_LED_ACR_WAITING_RESULT_OFF_MS
-    int "ACR waiting result blink off time (ms)"
+config STATUS_LED_PRODUCT_WAITING_OFF_MS
+    int "Product waiting blink off time (ms)"
     depends on STATUS_LED_ENABLED
     range 10 60000
     default 750
@@ -508,12 +508,12 @@ config VBAT_MONITOR_ON_BEFORE_WIFI_PS_EXIT
     depends on VBAT_MONITOR_ENABLED
     default y
 
-config VBAT_MONITOR_ON_AFTER_ACR_TX
+config VBAT_MONITOR_ON_AFTER_PRODUCT_TX
     bool "Measure after product transmission"
     depends on VBAT_MONITOR_ENABLED
     default y
 
-config VBAT_MONITOR_ON_AFTER_AUDIO_CAPTURE
+config VBAT_MONITOR_ON_AFTER_PRODUCT_ACTIVITY
     bool "Measure after product activity"
     depends on VBAT_MONITOR_ENABLED
     default y

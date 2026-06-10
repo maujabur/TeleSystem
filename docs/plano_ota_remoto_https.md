@@ -19,12 +19,14 @@ esp_http_client_config_t http_config = {
 
 Esse mecanismo usa o conjunto de autoridades certificadoras embutido pelo ESP-IDF/mbedTLS, em vez de um PEM fixo mantido pelo projeto. A validacao TLS continua existindo: o dispositivo verifica a cadeia apresentada pelo servidor, valida datas, assinatura, hostname/SNI e ancora de confianca dentro do bundle. A diferenca e que a ancora de confianca nao e mais um certificado especifico do servico, e sim uma CA publica reconhecida pelo bundle.
 
-Essa mudanca resolveu um problema concreto no ACRCloud: o firmware tinha um PEM antigo da Sectigo embutido, mas o endpoint `api-us-west-2.acrcloud.com` passou a apresentar uma cadeia Amazon:
+Essa mudanca evita acoplamento a um PEM fixo de provedor. Se um servico HTTPS
+valido trocar a cadeia intermediaria, o firmware continua validando pelo bundle
+publico do ESP-IDF:
 
 ```text
-*.acrcloud.com
--> Amazon RSA 2048 M04
--> Amazon Root CA 1
+service.example.com
+-> CA intermediaria publica
+-> CA raiz publica
 ```
 
 Com o PEM fixo, o handshake TLS falhava quando a cadeia do provedor mudava. Com `esp_crt_bundle_attach`, o firmware passa a aceitar cadeias publicas validas presentes no bundle, como Amazon Trust Services, Let's Encrypt, Google Trust Services, DigiCert e outras CAs comuns incluidas na configuracao do ESP-IDF.
@@ -57,7 +59,7 @@ Exemplo:
   "channel": "pilot",
   "version": "0.6.10",
   "build_id": "2026-06-04T23:10:00Z-0.6.10",
-  "url": "https://updates.example.com/acr-cloud-test/0.6.10/acr-cloud-test.bin",
+  "url": "https://updates.example.com/telecafezinho/0.1.1/TeleCafezinho.bin",
   "sha256": "hexadecimal_sha256_do_binario",
   "size": 1286144,
   "min_version": "0.6.8",
@@ -79,7 +81,7 @@ A string humana atual de firmware e util para debug, mas ruim para automacao:
 Para OTA remoto, o ideal e separar:
 
 - `APP_VERSION_SEMVER`: exemplo `0.6.9`;
-- `APP_VERSION_LABEL`: exemplo `acr cert cleanup`;
+- `APP_VERSION_LABEL`: exemplo `base cleanup`;
 - `APP_BUILD_ID`: timestamp, hash curto ou numero de build.
 
 O manifesto deve comparar uma versao normalizada, nao texto livre. A UI pode continuar exibindo uma string amigavel composta.
@@ -104,7 +106,7 @@ O manifesto deve comparar uma versao normalizada, nao texto livre. A UI pode con
    - campo `sha256` presente.
 5. Checa condicoes locais:
    - Wi-Fi conectado e estavel;
-   - ACR idle ou fora de ciclo critico;
+   - nenhum fluxo critico de produto em andamento;
    - bateria/power-good OK;
    - heap suficiente;
    - nenhuma OTA em andamento;
@@ -125,7 +127,7 @@ Adicionar comando remoto:
 {
   "cmd": "ota_check",
   "args": {
-    "manifest_url": "https://updates.example.com/acr-cloud-test/pilot/manifest.json"
+    "manifest_url": "https://updates.example.com/telecafezinho/pilot/manifest.json"
   }
 }
 ```
@@ -152,14 +154,14 @@ Adicionar comando:
 {
   "cmd": "ota_apply",
   "args": {
-    "manifest_url": "https://updates.example.com/acr-cloud-test/pilot/manifest.json"
+    "manifest_url": "https://updates.example.com/telecafezinho/pilot/manifest.json"
   }
 }
 ```
 
 O dispositivo deve recusar se:
 
-- esta em ciclo ACR;
+- existe fluxo critico de produto em andamento;
 - Wi-Fi esta instavel;
 - bateria esta baixa;
 - versao alvo nao e maior;
@@ -232,18 +234,21 @@ Preferencias:
 - cache control conservador para o manifesto;
 - checksums publicados junto dos artefatos.
 
-## Interacao com ACR e MQTT
+## Interacao com produto e MQTT
 
-OTA nao deve competir com o ciclo ACR. O update remoto deve:
+OTA nao deve competir com fluxos criticos de produto. O update remoto deve:
 
-- consultar o estado do orquestrador;
-- nao iniciar durante captura/upload/poll;
+- consultar o estado do modulo de produto, quando existir;
+- nao iniciar durante atuacao ou comunicacao critica;
 - pausar o loop automatico ou marcar estado de manutencao;
 - publicar evento MQTT antes de iniciar;
 - publicar falha/sucesso quando possivel;
 - reiniciar apenas apos gravacao bem sucedida.
 
-Durante OTA, e aceitavel suspender MQTT/portal de forma parecida com o guard usado no ACR, mas a decisao deve ser explicita. Se o update for acionado via MQTT, e normal perder a conexao durante download/restart; a resposta final pode ficar para o boot seguinte via `status`/`event`.
+Durante OTA, e aceitavel suspender MQTT/portal de forma controlada, mas a
+decisao deve ser explicita. Se o update for acionado via MQTT, e normal perder a
+conexao durante download/restart; a resposta final pode ficar para o boot
+seguinte via `status`/`event`.
 
 ## API/Comandos futuros
 
@@ -279,7 +284,7 @@ Eventos MQTT sugeridos:
   "ota_remote": {
     "enabled": true,
     "auto_apply_enabled": false,
-    "manifest_url": "https://updates.example.com/acr-cloud-test/pilot/manifest.json",
+    "manifest_url": "https://updates.example.com/telecafezinho/pilot/manifest.json",
     "last_check_ms": 123456,
     "last_result": "update_available",
     "current_version": "0.6.9",
@@ -323,4 +328,3 @@ Implementar primeiro, quando necessario:
 6. logs/eventos claros.
 
 Depois de validado, adicionar auto-check periodico. Auto-apply deve ficar para quando houver confianca no fluxo de rollback/saude pos-boot e na infraestrutura de publicacao.
-

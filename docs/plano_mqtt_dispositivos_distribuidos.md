@@ -17,7 +17,7 @@ Objetivo deste plano:
 - Presenca operacional implementada com `status`, `state`, `heartbeat` e `event`.
 - Canal de comando operacional implementado com `cmd/in` e `cmd/out`.
 - Comandos validados em bancada: `ping`, `get_state`, `get_settings`, `set_heartbeat_interval`, `set_settings` e `apply_and_reboot`.
-- Identificacao do dispositivo ajustada para formato amigavel: `{upload_prefix}-{ultimos_3_bytes_do_mac}`.
+- Identificacao do dispositivo ajustada para formato amigavel: `{prefixo_do_dispositivo}-{ultimos_3_bytes_do_mac}`.
 - Deduplicacao em RAM por `cmd_id` implementada para comandos mutaveis.
 - Manual operacional publicado em `docs/manual_mqtt_operacao.md`.
 
@@ -51,19 +51,19 @@ Fora do escopo da Fase 1:
 
 ## Convencao de identificacao
 
-- implementado no firmware: `{ACR_UPLOAD_PREFIX}-{ultimos_3_bytes_do_mac}`
-- exemplo atual: `skips_999-5112D0`
+- implementado no firmware: `{CONFIG_MQTT_DEVICE_ID_PREFIX}-{ultimos_3_bytes_do_mac}`
+- exemplo atual: `TeleCafezinho-5112D0`
 - tenant_id opcional continua possivel no backend, mas nao esta no payload atual
 - `session_id` agora e gerado uma vez por boot, preferencialmente como `{timestamp_utc_basico}-{mac_tail}`
 
 ## Estrutura de topicos (v1)
 
-- v1/acr/{device_id}/status
-- v1/acr/{device_id}/heartbeat
-- v1/acr/{device_id}/state
-- v1/acr/{device_id}/event
-- v1/acr/{device_id}/cmd/in
-- v1/acr/{device_id}/cmd/out
+- v1/led/{device_id}/status
+- v1/led/{device_id}/heartbeat
+- v1/led/{device_id}/state
+- v1/led/{device_id}/event
+- v1/led/{device_id}/cmd/in
+- v1/led/{device_id}/cmd/out
 
 Observacao:
 
