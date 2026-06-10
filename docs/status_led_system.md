@@ -8,11 +8,11 @@ portal ou produto.
 
 ## Arquivos
 
-- `main/connectivity/status_led.c`
-- `main/connectivity/status_led.h`
-- `main/connectivity/status_led_stub.c`
+- `components/status_led/status_led.c`
+- `components/status_led/include/status_led.h`
+- `components/status_led/status_led_stub.c`
+- `components/status_led/Kconfig`
 - `main/connectivity/connectivity_controller.c`
-- `main/Kconfig.projbuild`
 
 ## API publica
 

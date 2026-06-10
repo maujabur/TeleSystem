@@ -1,0 +1,230 @@
+menu "Status LED Config"
+
+config STATUS_LED_ENABLED
+    bool "Enable WS28xx status LED"
+    default y
+
+config STATUS_LED_GPIO
+    int "Status LED GPIO"
+    depends on STATUS_LED_ENABLED
+    range 0 48
+    default 48
+
+config STATUS_LED_COUNT
+    int "Status LED count"
+    depends on STATUS_LED_ENABLED
+    range 1 32
+    default 1
+
+config STATUS_LED_BRIGHTNESS
+    int "Status LED brightness"
+    depends on STATUS_LED_ENABLED
+    range 0 255
+    default 48
+    help
+        Global brightness scaler. 255 keeps the configured colors unchanged.
+
+choice STATUS_LED_COLOR_ORDER
+    prompt "Status LED color order"
+    depends on STATUS_LED_ENABLED
+    default STATUS_LED_COLOR_ORDER_GRB
+    help
+        Ordem fisica dos canais no LED WS28xx. As cores configuradas
+        continuam em RGB no formato 0xRRGGBB; esta opcao define a ordem
+        enviada no fio.
+
+config STATUS_LED_COLOR_ORDER_RGB
+    bool "RGB"
+
+config STATUS_LED_COLOR_ORDER_RBG
+    bool "RBG"
+
+config STATUS_LED_COLOR_ORDER_GRB
+    bool "GRB"
+
+config STATUS_LED_COLOR_ORDER_GBR
+    bool "GBR"
+
+config STATUS_LED_COLOR_ORDER_BRG
+    bool "BRG"
+
+config STATUS_LED_COLOR_ORDER_BGR
+    bool "BGR"
+
+endchoice
+
+config STATUS_LED_RMT_RESOLUTION_HZ
+    int "Status LED RMT resolution (Hz)"
+    depends on STATUS_LED_ENABLED
+    range 1000000 40000000
+    default 10000000
+
+config STATUS_LED_TASK_STACK_SIZE
+    int "Status LED task stack size"
+    depends on STATUS_LED_ENABLED
+    range 2048 8192
+    default 3072
+
+config STATUS_LED_TASK_PRIORITY
+    int "Status LED task priority"
+    depends on STATUS_LED_ENABLED
+    range 1 10
+    default 3
+
+config STATUS_LED_BOOT_COLOR
+    hex "Boot color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x202020
+
+config STATUS_LED_WIFI_CONNECTING_COLOR
+    hex "Wi-Fi connecting color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x0040FF
+
+config STATUS_LED_WIFI_PROVISIONING_COLOR
+    hex "Wi-Fi provisioning color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFF9000
+
+config STATUS_LED_WIFI_CONNECTED_COLOR
+    hex "Wi-Fi connected color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x00B050
+
+config STATUS_LED_ERROR_COLOR
+    hex "Error color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFF0000
+
+config STATUS_LED_PRODUCT_TRANSMITTING_COLOR
+    hex "Product transmitting color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x8000FF
+
+config STATUS_LED_PRODUCT_WAITING_COLOR
+    hex "Product waiting color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x00C8FF
+
+config STATUS_LED_PRODUCT_RESULT_OK_COLOR
+    hex "Product result OK color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0x00FF00
+
+config STATUS_LED_PRODUCT_RESULT_ALERT_COLOR
+    hex "Product result alert color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFF00A0
+
+config STATUS_LED_OUTPUT_ACTIVE_COLOR
+    hex "Output active color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFFFFFF
+
+config STATUS_LED_CAPTURE_OVERLAY_COLOR
+    hex "Capture overlay pulse color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFFFFFF
+
+config STATUS_LED_BOOT_ON_MS
+    int "Boot blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 100
+
+config STATUS_LED_BOOT_OFF_MS
+    int "Boot blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 900
+
+config STATUS_LED_WIFI_CONNECTING_ON_MS
+    int "Wi-Fi connecting blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 150
+
+config STATUS_LED_WIFI_CONNECTING_OFF_MS
+    int "Wi-Fi connecting blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 150
+
+config STATUS_LED_WIFI_PROVISIONING_ON_MS
+    int "Wi-Fi provisioning blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 700
+
+config STATUS_LED_WIFI_PROVISIONING_OFF_MS
+    int "Wi-Fi provisioning blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 700
+
+config STATUS_LED_ERROR_ON_MS
+    int "Error blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 100
+
+config STATUS_LED_ERROR_OFF_MS
+    int "Error blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 100
+
+config STATUS_LED_PRODUCT_TRANSMITTING_ON_MS
+    int "Product transmitting blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 120
+
+config STATUS_LED_PRODUCT_TRANSMITTING_OFF_MS
+    int "Product transmitting blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 120
+
+config STATUS_LED_PRODUCT_WAITING_ON_MS
+    int "Product waiting blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 250
+
+config STATUS_LED_PRODUCT_WAITING_OFF_MS
+    int "Product waiting blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 750
+
+config STATUS_LED_CAPTURE_OVERLAY_ON_MS
+    int "Capture overlay pulse on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 1 1000
+    default 40
+
+config STATUS_LED_CAPTURE_OVERLAY_OFF_MS
+    int "Capture overlay pulse off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 1 60000
+    default 760
+
+config STATUS_LED_LOW_BATTERY_COLOR
+    hex "Low battery color RGB"
+    depends on STATUS_LED_ENABLED
+    default 0xFF2000
+
+config STATUS_LED_LOW_BATTERY_ON_MS
+    int "Low battery blink on time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 200
+
+config STATUS_LED_LOW_BATTERY_OFF_MS
+    int "Low battery blink off time (ms)"
+    depends on STATUS_LED_ENABLED
+    range 10 60000
+    default 800
+
+endmenu

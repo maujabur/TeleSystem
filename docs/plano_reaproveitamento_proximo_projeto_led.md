@@ -94,7 +94,7 @@ Conectividade:
 - `main/connectivity/boot_config_button.*`
 - `main/connectivity/time_sync.*`
 - `main/connectivity/mqtt_presence.*`, apos refatoracao
-- `main/connectivity/status_led.*`, como fonte para extrair o driver WS28xx
+- `components/status_led`, driver WS28xx extraido como componente
 
 Portal:
 

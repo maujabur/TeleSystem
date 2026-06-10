@@ -586,7 +586,7 @@ status_led_state_t status_led_get_state(void)
 esp_err_t status_led_set_state(status_led_state_t state)
 {
 #if CONFIG_STATUS_LED_ENABLED
-    if (state > STATUS_LED_STATE_ERROR) {
+    if (state > STATUS_LED_STATE_LOW_BATTERY) {
         return ESP_ERR_INVALID_ARG;
     }
 

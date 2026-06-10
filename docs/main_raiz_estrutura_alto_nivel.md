@@ -42,7 +42,7 @@ Conectividade e configuracao:
 - NTP;
 - rotas de configuracao do dispositivo;
 - MQTT de presenca;
-- LED de status.
+- LED de status via `components/status_led`.
 
 ### `main/portal`
 
@@ -66,6 +66,14 @@ Componente reutilizavel para MQTT:
 - heartbeat;
 - comandos e respostas;
 - deduplicacao de comandos mutaveis.
+
+### `components/status_led`
+
+Componente reutilizavel para LED WS28xx:
+
+- API de estados;
+- Kconfig proprio;
+- driver RMT real ou stub quando desabilitado.
 
 ## Direcao de evolucao
 

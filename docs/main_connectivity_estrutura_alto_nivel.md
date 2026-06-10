@@ -86,9 +86,10 @@ Funcao publica:
 
 - device_config_routes_register_with_portal
 
-### status_led.c / status_led.h
+### components/status_led
 
-Controle do LED de status (WS2812B via RMT).
+Controle do LED de status (WS2812B via RMT), consumido pela conectividade como
+componente independente.
 
 - Inicializa canal RMT e encoder para protocolo WS28xx.
 - Roda task FreeRTOS dedicada para animacoes/padroes.
@@ -99,7 +100,7 @@ Funcoes publicas:
 - status_led_start
 - status_led_get_state
 - status_led_set_state
-- status_led_set_capture_overlay (controle de overlay de pulso durante captura de audio)
+- status_led_set_capture_overlay
 
 Observacao de build:
 
