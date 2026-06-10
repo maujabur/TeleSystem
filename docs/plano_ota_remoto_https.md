@@ -56,6 +56,7 @@ Exemplo:
 ```json
 {
   "schema": 1,
+  "artifact_type": "firmware",
   "channel": "pilot",
   "version": "0.6.10",
   "build_id": "2026-06-04T23:10:00Z-0.6.10",
@@ -69,6 +70,68 @@ Exemplo:
 ```
 
 O firmware baixa o manifesto, valida o JSON, compara a versao, verifica restricoes, baixa o `.bin`, calcula/verifica SHA-256 e so entao chama o fluxo OTA.
+
+## Avaliacao de componentes externos
+
+O repositorio `maujabur/mozilla_ca_spiffs_updater` contem componentes ESP-IDF
+publicos que podem servir de base ou referencia:
+
+- `manifest_file_updater`: componente generico que baixa um manifesto HTTPS,
+  valida `schema`, `artifact_type`, `channel`, `version`, `url`, `sha256` e
+  `size`, baixa o artefato, confere tamanho/SHA-256 e chama um callback
+  `apply()` com o arquivo verificado.
+- `ca_manager`: componente especifico para armazenar, validar e ativar bundle
+  de CAs do ESP-IDF em SPIFFS.
+- `ca_manifest_updater`: adaptador especifico que combina
+  `manifest_file_updater` + `ca_manager` para atualizar `artifact_type =
+  "ca_bundle"`.
+
+Para o TeleCafezinho, a parte mais reaproveitavel hoje e o contrato de
+manifesto e a validacao generica de metadados. O componente
+`manifest_file_updater` e uma boa referencia, mas no desenho atual ele baixa o
+artefato inteiro para um arquivo temporario antes de aplicar.
+
+Isso e adequado para artefatos pequenos/medios, como `bundle_ca.bin`, mas nao e
+ideal para firmware OTA: o `partitions.csv` atual nao tem SPIFFS/FAT grande o
+suficiente para armazenar um `.bin` inteiro alem dos dois slots OTA. Criar essa
+area temporaria consumiria espaco que hoje pertence ao firmware.
+
+Direcao recomendada para firmware:
+
+1. Manter o formato de manifesto compativel com `manifest_file_updater`,
+   usando `artifact_type = "firmware"`.
+2. Implementar em `components/tele_system` um fluxo streaming, por exemplo
+   `firmware_ota_start_manifest(url)`.
+3. Baixar o manifesto pequeno em RAM.
+4. Baixar o `.bin` por HTTPS em blocos, escrevendo diretamente na particao OTA
+   com `esp_ota_write`.
+5. Calcular SHA-256 durante o download.
+6. Chamar `esp_ota_set_boot_partition()` somente se tamanho e SHA-256 baterem.
+
+Direcao recomendada para evoluir o outro repositorio:
+
+- adicionar ao `manifest_file_updater` uma API de streaming, sem arquivo
+  temporario obrigatorio;
+- manter a API atual baseada em arquivo para CA bundle e outros artefatos;
+- expor callback incremental, por exemplo `begin/write/finish/abort`, ou um
+  callback que receba blocos verificados parcialmente enquanto o componente
+  calcula SHA-256 global;
+- permitir que consumidores como OTA escrevam direto no destino final
+  transacional, sem exigir filesystem intermediario.
+
+Exemplo de dependencia se o componente generico for usado diretamente no futuro:
+
+```yaml
+dependencies:
+  manifest_file_updater:
+    git: https://github.com/maujabur/mozilla_ca_spiffs_updater.git
+    path: components/manifest_file_updater
+    version: lib-v0.1.0
+```
+
+Enquanto o componente nao tiver modo streaming, a recomendacao e nao adiciona-lo
+ao firmware apenas para OTA de firmware. Use-o como referencia de contrato e
+validacao, ou evolua o componente no repositorio de origem antes de integrar.
 
 ## Comparacao de versao
 

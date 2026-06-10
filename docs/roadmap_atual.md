@@ -34,6 +34,8 @@ componentes.
   de piloto maior.
 - Definir autenticacao/autorizacao de comandos MQTT alem do isolamento por
   topico/broker.
+- Avaliar evolucao do componente externo `manifest_file_updater` para modo
+  streaming antes de usa-lo no OTA remoto de firmware.
 - Decidir se `tools/mqtt_desktop` sera removido ou refeito para TeleCafezinho;
   ele ainda carrega conceitos visuais e campos do projeto ACR anterior.
 
