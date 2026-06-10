@@ -86,15 +86,13 @@ Dependencias a revisar no `main/CMakeLists.txt`:
 
 Conectividade:
 
-- `main/connectivity/wifi_manager.*`
-- `main/connectivity/wifi_config.*`
+- `components/tele_wifi`, com Wi-Fi, credenciais, SSID de provisionamento,
+  botao de boot e NTP
 - `main/connectivity/connectivity_controller.*`
-- `main/connectivity/device_config_store.*`
 - `main/connectivity/device_config_routes.*`
-- `main/connectivity/boot_config_button.*`
-- `main/connectivity/time_sync.*`
 - `main/connectivity/mqtt_presence.*`, apos refatoracao
 - `components/status_led`, driver WS28xx extraido como componente
+- `components/tele_mqtt`, cliente MQTT reutilizavel
 
 Portal:
 

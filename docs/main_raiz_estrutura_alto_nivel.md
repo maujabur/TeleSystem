@@ -34,15 +34,23 @@ Utilitarios gerais:
 
 ### `main/connectivity`
 
-Conectividade e configuracao:
+Orquestracao de conectividade especifica da aplicacao:
 
-- Wi-Fi;
-- APSTA;
-- botao de configuracao;
-- NTP;
+- controlador de conectividade;
 - rotas de configuracao do dispositivo;
 - MQTT de presenca;
-- LED de status via `components/status_led`.
+- integracao com portal, `components/tele_wifi`, `components/tele_mqtt` e
+  `components/status_led`.
+
+### `components/tele_wifi`
+
+Componente reutilizavel para base de rede:
+
+- Wi-Fi STA/AP/APSTA;
+- persistencia de credenciais;
+- SSID de provisionamento e politicas APSTA;
+- botao de configuracao no boot;
+- sincronizacao NTP.
 
 ### `main/portal`
 

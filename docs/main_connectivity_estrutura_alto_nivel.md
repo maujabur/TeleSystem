@@ -2,7 +2,9 @@
 
 ## Objetivo
 
-Este documento descreve, em alto nivel, o subsistema de conectividade em main/connectivity:
+Este documento descreve, em alto nivel, o subsistema de conectividade em
+`main/connectivity` e sua integracao com o componente reutilizavel
+`components/tele_wifi`:
 
 - papel de cada arquivo;
 - funcoes publicas e responsabilidade de cada modulo;
@@ -14,17 +16,18 @@ Este documento descreve, em alto nivel, o subsistema de conectividade em main/co
 
 ## Visao geral
 
-A pasta main/connectivity implementa o ciclo completo de conectividade do dispositivo:
+A pasta `main/connectivity` orquestra o ciclo de conectividade do dispositivo,
+consumindo a base de rede de `components/tele_wifi`:
 
 1. Inicializa infraestrutura de eventos e LED de status.
-2. Decide entre modo STA (com credenciais salvas) ou AP de provisionamento.
-3. Mantem estado Wi-Fi e publica eventos de mudanca.
+2. Decide se deve forcar provisionamento no boot.
+3. Inicia `wifi_manager` com a configuracao efetiva.
 4. Sincroniza portal web e LED conforme estado de conectividade.
 5. Expoe rotas HTTP para configurar SSID de provisionamento.
 
 ## Papel de cada arquivo
 
-### boot_config_button.c / boot_config_button.h
+### components/tele_wifi/boot_config_button.c / boot_config_button.h
 
 Detecta se o botao de configuracao foi pressionado no boot para forcar provisionamento Wi-Fi.
 
@@ -51,7 +54,7 @@ Funcao publica:
 
 - connectivity_controller_start
 
-### device_config_store.c / device_config_store.h
+### components/tele_wifi/device_config_store.c / device_config_store.h
 
 Persistencia da configuracao de SSID de provisionamento (NVS + fallback menuconfig).
 
@@ -106,7 +109,7 @@ Observacao de build:
 
 - quando STATUS_LED_ENABLED estiver desativado, o componente usa implementacao stub (sem backend RMT), mantendo a mesma API publica para facilitar isolamento/remocao na fase final.
 
-### wifi_config.c / wifi_config.h
+### components/tele_wifi/wifi_config.c / wifi_config.h
 
 Persistencia de credenciais STA em NVS.
 
@@ -121,7 +124,7 @@ Funcoes publicas:
 - wifi_config_save
 - wifi_config_clear
 
-### wifi_manager.c / wifi_manager.h
+### components/tele_wifi/wifi_manager.c / wifi_manager.h
 
 Nucleo de conectividade Wi-Fi (estado, transicoes, eventos, scan, reconnect).
 

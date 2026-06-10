@@ -1,0 +1,149 @@
+menu "WiFi Config"
+
+config ESP_WIFI_SSID
+    string "WiFi SSID"
+    default "Mau"
+
+config ESP_WIFI_PASSWORD
+    string "WiFi Password"
+    default "123456789d"
+
+config WIFI_PROVISIONING_SSID
+    string "Wi-Fi provisioning AP SSID"
+    default "TeleCafezinho"
+
+config WIFI_MODEM_SLEEP
+    bool "Enable Wi-Fi modem sleep in station mode"
+    default y
+    help
+        Habilita WIFI_PS_MIN_MODEM quando o dispositivo estiver conectado
+        apenas como station. O AP de provisionamento continua com power save
+        desativado para manter o portal responsivo.
+
+config WIFI_MULTI_NETWORK_CREDENTIALS
+    bool "Enable multi-network credentials storage (experimental)"
+    default n
+    help
+        Mantem suporte legado por padrao e habilita armazenamento de ate
+        8 redes com prioridade quando ativado. O formato antigo (ssid/password)
+        e migrado automaticamente para o formato novo na primeira leitura.
+
+config WIFI_STA_MAX_RETRY
+    int "Max STA reconnect retries before provisioning fallback"
+    range 1 20
+    default 3
+    help
+        Numero maximo de tentativas de reconexao STA antes de entrar
+        automaticamente no AP de provisionamento.
+
+config WIFI_APSTA_POLICY
+    int "APSTA policy after STA connect"
+    range 0 2
+    default 1
+    help
+        0 = always_on (mantem APSTA),
+        1 = auto_timeout (mantem APSTA por janela e depois muda para STA),
+        2 = sta_only (desativa AP imediatamente apos conectar STA).
+
+config WIFI_APSTA_GRACE_PERIOD_S
+    int "APSTA auto-timeout grace period (seconds)"
+    range 30 3600
+    default 600
+    help
+        Janela de permanencia em APSTA quando a politica estiver em
+        auto_timeout.
+
+config BOOT_WIFI_CONFIG_BUTTON_GPIO
+    int "Boot Wi-Fi configuration button GPIO"
+    range 0 48
+    default 3
+
+config BOOT_WIFI_CONFIG_BUTTON_ACTIVE_LEVEL
+    int "Boot Wi-Fi configuration button active level"
+    range 0 1
+    default 1
+    help
+        Use 0 para botao ativo em nivel baixo, normalmente ligado ao GND
+        com pull-up interno. Use 1 para botao ativo em nivel alto.
+
+config BOOT_WIFI_CONFIG_BUTTON_SETTLE_MS
+    int "Boot Wi-Fi configuration button settle time (ms)"
+    range 0 1000
+    default 20
+
+config BOOT_WIFI_CONFIG_BUTTON_SAMPLE_COUNT
+    int "Boot Wi-Fi configuration button sample count"
+    range 1 20
+    default 5
+
+config BOOT_WIFI_CONFIG_BUTTON_SAMPLE_INTERVAL_MS
+    int "Boot Wi-Fi configuration button sample interval (ms)"
+    range 0 1000
+    default 10
+
+endmenu
+
+menu "Time Sync Config"
+
+config TIME_SYNC_ENABLED
+    bool "Enable NTP time synchronization"
+    default y
+    help
+        Habilita sincronizacao de data/hora via NTP apos conexao de rede.
+
+config TIME_SYNC_TIMEZONE
+    string "Default timezone (POSIX TZ string)"
+    depends on TIME_SYNC_ENABLED
+    default "<-03>3"
+    help
+        Fuso horario padrao usado para formatar horario local.
+        O valor padrao corresponde a Sao Paulo (UTC-3, sem horario de verao).
+
+config TIME_SYNC_MIN_VALID_YEAR
+    int "Minimum valid synchronized year"
+    depends on TIME_SYNC_ENABLED
+    range 2024 2100
+    default 2024
+    help
+        Ano minimo aceito para considerar o relogio sincronizado.
+
+config TIME_SYNC_RETRY_ATTEMPTS
+    int "NTP attempts per sync cycle"
+    depends on TIME_SYNC_ENABLED
+    range 1 10
+    default 3
+
+config TIME_SYNC_WAIT_PER_ATTEMPT_MS
+    int "Wait per NTP attempt (ms)"
+    depends on TIME_SYNC_ENABLED
+    range 1000 60000
+    default 5000
+
+config TIME_SYNC_RETRY_DELAY_MS
+    int "Delay before next sync cycle (ms)"
+    depends on TIME_SYNC_ENABLED
+    range 1000 86400000
+    default 60000
+
+config TIME_SYNC_IDLE_DELAY_MS
+    int "Idle delay when already synchronized/offline (ms)"
+    depends on TIME_SYNC_ENABLED
+    range 1000 60000
+    default 10000
+
+config TIME_SYNC_SERVER_0
+    string "Primary NTP server"
+    depends on TIME_SYNC_ENABLED
+    default "pool.ntp.org"
+
+config TIME_SYNC_SERVER_1
+    string "Secondary NTP server"
+    depends on TIME_SYNC_ENABLED
+    default "time.google.com"
+
+config TIME_SYNC_SERVER_2
+    string "Tertiary NTP server"
+    depends on TIME_SYNC_ENABLED
+    default "time.cloudflare.com"
+
+endmenu

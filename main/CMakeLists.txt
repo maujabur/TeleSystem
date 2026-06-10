@@ -3,14 +3,9 @@ set(MAIN_SRCS
     "app/firmware_ota.c"
     "app/power_good.c"
     "app/vbat_monitor.c"
-    "connectivity/boot_config_button.c"
     "connectivity/connectivity_controller.c"
     "connectivity/device_config_routes.c"
-    "connectivity/device_config_store.c"
     "connectivity/mqtt_presence.c"
-    "connectivity/time_sync.c"
-    "connectivity/wifi_config.c"
-    "connectivity/wifi_manager.c"
     "portal/app_log_buffer.c"
     "portal/captive_portal.c"
     "portal/dns_server.c"
@@ -28,5 +23,5 @@ idf_component_register(
         "../firmware_assets/web/settings.html"
         "../firmware_assets/web/networks.html"
         "../firmware_assets/web/logs.html"
-    REQUIRES esp_wifi esp_event nvs_flash esp_netif esp_driver_gpio esp_http_client esp_http_server esp_https_ota bootloader_support app_update lwip mbedtls esp_psram esp_adc status_led tele_mqtt espressif__cjson
+    REQUIRES esp_wifi esp_event nvs_flash esp_netif esp_driver_gpio esp_http_client esp_http_server esp_https_ota bootloader_support app_update lwip mbedtls esp_psram esp_adc status_led tele_mqtt tele_wifi espressif__cjson
 )
