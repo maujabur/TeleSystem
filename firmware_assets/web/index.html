@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>AI Skips AI Setup</title>
+    <title>Portal Config</title>
     <style>
       :root {
         color-scheme: light;
@@ -139,6 +139,21 @@
         align-items: end;
       }
 
+      .password-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: stretch;
+      }
+
+      .icon-button {
+        width: 46px;
+        min-height: 44px;
+        padding: 0;
+        font-size: 18px;
+        line-height: 1;
+      }
+
       .actions {
         display: grid;
         gap: 10px;
@@ -220,7 +235,7 @@
     <main class="shell">
       <header>
         <div>
-          <h1>AI Skips AI Setup</h1>
+          <h1>Portal Config</h1>
           <p class="status" id="statusText">Ultima atualizacao: --</p>
         </div>
         <span class="badge" id="provisioningBadge">Provisionamento: --</span>
@@ -241,7 +256,18 @@
         <input id="ssid" maxlength="32" autocomplete="off">
 
         <label for="password">Senha</label>
-        <input id="password" type="password" maxlength="64" autocomplete="current-password">
+        <div class="password-row">
+          <input id="password" type="password" maxlength="64" autocomplete="current-password">
+          <button
+            class="secondary icon-button"
+            id="togglePasswordButton"
+            type="button"
+            aria-label="Mostrar senha digitada"
+            aria-pressed="false"
+            title="Mostrar senha digitada"
+            onclick="togglePasswordVisibility()"
+          ><span id="togglePasswordIcon" aria-hidden="true">&#128065;</span></button>
+        </div>
 
         <div class="actions">
           <button type="button" onclick="saveWifi()">Conectar</button>
@@ -285,6 +311,20 @@
         if (sel.value) {
           document.getElementById("ssid").value = sel.value;
         }
+      }
+
+      function togglePasswordVisibility() {
+        const input = document.getElementById("password");
+        const button = document.getElementById("togglePasswordButton");
+        const showing = input.type === "text";
+
+        input.type = showing ? "password" : "text";
+        button.setAttribute("aria-pressed", showing ? "false" : "true");
+        button.setAttribute(
+          "aria-label",
+          showing ? "Mostrar senha digitada" : "Ocultar senha digitada"
+        );
+        button.title = showing ? "Mostrar senha digitada" : "Ocultar senha digitada";
       }
 
       function signalLabel(rssi) {
