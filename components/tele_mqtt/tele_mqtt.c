@@ -49,6 +49,7 @@ static char s_topic_seen[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_heartbeat[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_state[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_event[TELE_MQTT_TOPIC_BUF_SIZE];
+static char s_topic_meta_config[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_meta_status[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_cmd_in[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_cmd_out[TELE_MQTT_TOPIC_BUF_SIZE];
@@ -271,6 +272,7 @@ static void build_topics(void)
     snprintf(s_topic_heartbeat, sizeof(s_topic_heartbeat), "%s/%s/heartbeat", topic_namespace(), s_device_id);
     snprintf(s_topic_state, sizeof(s_topic_state), "%s/%s/state", topic_namespace(), s_device_id);
     snprintf(s_topic_event, sizeof(s_topic_event), "%s/%s/event", topic_namespace(), s_device_id);
+    snprintf(s_topic_meta_config, sizeof(s_topic_meta_config), "%s/%s/meta/config", topic_namespace(), s_device_id);
     snprintf(s_topic_meta_status, sizeof(s_topic_meta_status), "%s/%s/meta/status", topic_namespace(), s_device_id);
     snprintf(s_topic_cmd_in, sizeof(s_topic_cmd_in), "%s/%s/cmd/in", topic_namespace(), s_device_id);
     snprintf(s_topic_cmd_out, sizeof(s_topic_cmd_out), "%s/%s/cmd/out", topic_namespace(), s_device_id);
@@ -674,6 +676,17 @@ static void publish_status_manifest(void)
     cJSON_Delete(payload);
 }
 
+static void publish_config_manifest(void)
+{
+    cJSON *payload = s_config.build_config_manifest ? s_config.build_config_manifest(s_config.ctx) : NULL;
+    if (!payload) {
+        return;
+    }
+
+    publish_json_with_common(s_topic_meta_config, payload, qos_critical(), 1);
+    cJSON_Delete(payload);
+}
+
 static void publish_seen(const char *reason)
 {
     char ts[TELE_MQTT_TS_BUF_SIZE] = {0};
@@ -761,6 +774,7 @@ static void mqtt_event_handler(void *handler_args,
         ESP_LOGI(TAG, "MQTT conectado | broker=%s", str_or_empty(s_config.broker_uri));
         esp_mqtt_client_subscribe(s_client, s_topic_cmd_in, qos_critical());
         publish_availability("online", "mqtt_connected");
+        publish_config_manifest();
         publish_status_manifest();
         publish_state_snapshot();
         publish_heartbeat();

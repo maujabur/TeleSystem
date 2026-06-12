@@ -36,6 +36,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `{base_topic}/+/seen`
   - `{base_topic}/+/heartbeat`
   - `{base_topic}/+/state`
+  - `{base_topic}/+/meta/config`
   - `{base_topic}/+/meta/status`
   - `{base_topic}/+/event`
   - `{base_topic}/+/cmd/out`
@@ -84,6 +85,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - com auto-probe ligado, o app envia `get_state` para devices conhecidos sem live recente
 - Aba Status:
   - mostra cards genericos de conectividade, runtime, heartbeat, energia, memoria, manifesto e erros
+  - reconhece `meta/config` como manifesto read-only dos campos configuraveis publicados pelo device
   - renderiza `meta/status` como manifesto read-only dos campos de status publicados pelo device
   - mantem tabela de campos brutos do payload de `state`, do resultado de `get_state` e do status tecnico
   - botoes `get_state` e `status_tecnico` para atualizacao ativa
@@ -114,7 +116,7 @@ cd tools/mqtt_desktop
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python esp32_mqtt_desktop.py
+python mqtt_control_center.py
 ```
 
 Se ocorrer `ModuleNotFoundError: No module named 'tkinter'`, instale `python3-tk` e execute novamente.

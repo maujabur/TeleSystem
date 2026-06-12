@@ -91,7 +91,7 @@ Set the firmware string to the current feature version.
 Run:
 
 ```bash
-python3 -m py_compile tools/mqtt_desktop/esp32_mqtt_desktop.py
+python3 -m py_compile tools/mqtt_desktop/mqtt_control_center.py
 gcc -DTELE_STATUS_HOST_TEST -Icomponents/tele_status/include components/tele_status/test/tele_status_registry_test.c components/tele_status/tele_status.c -o /tmp/tele_status_registry_test && /tmp/tele_status_registry_test
 CCACHE_DIR=/tmp/ccache idf.py build
 ```

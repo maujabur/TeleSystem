@@ -23,11 +23,6 @@
 #define CONFIG_WIFI_APSTA_GRACE_PERIOD_S 600
 #endif
 
-#define DEVICE_CONFIG_ID_PROVISIONING_SSID "wifi.provisioning_ssid"
-#define DEVICE_CONFIG_ID_STA_MAX_RETRY "wifi.sta_max_retry"
-#define DEVICE_CONFIG_ID_APSTA_POLICY "wifi.apsta_policy"
-#define DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S "wifi.apsta_grace_period_s"
-
 static const char *TAG = "device-config";
 
 static const tele_config_field_t s_device_config_fields[] = {
@@ -94,6 +89,11 @@ static esp_err_t ensure_fields_registered(void)
 
     ESP_LOGE(TAG, "Falha ao registrar campos de configuracao: %s", esp_err_to_name(err));
     return err;
+}
+
+esp_err_t device_config_store_register_fields(void)
+{
+    return ensure_fields_registered();
 }
 
 static void trim_trailing_whitespace(char *text)

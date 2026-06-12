@@ -46,6 +46,7 @@ v1/telecafezinho/{device_id}/seen
 v1/telecafezinho/{device_id}/state
 v1/telecafezinho/{device_id}/heartbeat
 v1/telecafezinho/{device_id}/event
+v1/telecafezinho/{device_id}/meta/config
 v1/telecafezinho/{device_id}/meta/status
 v1/telecafezinho/{device_id}/cmd/in
 v1/telecafezinho/{device_id}/cmd/out
@@ -147,6 +148,37 @@ em etapa posterior.
       "flags": [
         {"flag": "state"},
         {"flag": "heartbeat"},
+        {"flag": "mqtt"}
+      ]
+    }
+  ]
+}
+```
+
+### meta/config
+
+Manifesto retido dos campos configuraveis conhecidos pelo firmware. Nesta
+primeira fase, o payload fica em topico unico e descreve id, tipo, origem,
+default, valor efetivo, limites e flags de cada campo exposto por MQTT.
+
+```json
+{
+  "device_id": "TeleCafezinho-5112D0",
+  "fw": "0.3.6 TeleCafezinho config manifest",
+  "session_id": "20260609T120000Z-5112D0",
+  "ts": "2026-06-09T12:00:00Z",
+  "registry_revision": 1,
+  "fields": [
+    {
+      "id": "wifi.sta_max_retry",
+      "type": "u32",
+      "source": "default",
+      "default": 3,
+      "value": 3,
+      "min": 1,
+      "max": 20,
+      "flags": [
+        {"flag": "web"},
         {"flag": "mqtt"}
       ]
     }

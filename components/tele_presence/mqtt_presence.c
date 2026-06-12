@@ -10,6 +10,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "tele_config.h"
 #include "tele_mqtt.h"
 #include "tele_status.h"
 
@@ -413,6 +414,23 @@ static cJSON *mqtt_presence_build_status_manifest(void *ctx)
     return result;
 }
 
+static cJSON *mqtt_presence_build_config_manifest(void *ctx)
+{
+    cJSON *result = cJSON_CreateObject();
+    (void)ctx;
+
+    if (!result) {
+        return NULL;
+    }
+
+    if (tele_config_add_manifest_to_json(result, TELE_CONFIG_FLAG_MQTT) != ESP_OK) {
+        cJSON_Delete(result);
+        return NULL;
+    }
+
+    return result;
+}
+
 static cJSON *mqtt_presence_build_heartbeat(void *ctx)
 {
     cJSON *result = cJSON_CreateObject();
@@ -428,6 +446,28 @@ static cJSON *mqtt_presence_build_heartbeat(void *ctx)
     }
 
     return result;
+}
+
+static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *field,
+                                                  const tele_config_value_t *value,
+                                                  void *ctx)
+{
+    (void)ctx;
+
+    if (!field || !value) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (strcmp(field->id, DEVICE_CONFIG_ID_PROVISIONING_SSID) == 0) {
+        esp_err_t err = wifi_manager_set_provisioning_ssid(value->string);
+        return err == ESP_ERR_INVALID_STATE ? ESP_OK : err;
+    }
+    if (strcmp(field->id, DEVICE_CONFIG_ID_STA_MAX_RETRY) == 0) {
+        esp_err_t err = wifi_manager_set_sta_max_retry((int)value->u32);
+        return err == ESP_ERR_INVALID_STATE ? ESP_OK : err;
+    }
+
+    return ESP_OK;
 }
 
 static esp_err_t mqtt_presence_apply_settings(const cJSON *args,
@@ -460,8 +500,9 @@ static esp_err_t mqtt_presence_apply_settings(const cJSON *args,
                 }
                 return err;
             }
-            err = wifi_manager_set_provisioning_ssid(item->valuestring);
-            if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            tele_config_value_t value = {.string = item->valuestring};
+            err = tele_config_apply_value(DEVICE_CONFIG_ID_PROVISIONING_SSID, &value);
+            if (err != ESP_OK) {
                 if (out_error) {
                     *out_error = "provisioning_ssid_apply_failed";
                 }
@@ -487,8 +528,9 @@ static esp_err_t mqtt_presence_apply_settings(const cJSON *args,
                 }
                 return err;
             }
-            err = wifi_manager_set_sta_max_retry(retry);
-            if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            tele_config_value_t value = {.u32 = (uint32_t)retry};
+            err = tele_config_apply_value(DEVICE_CONFIG_ID_STA_MAX_RETRY, &value);
+            if (err != ESP_OK) {
                 if (out_error) {
                     *out_error = "sta_max_retry_apply_failed";
                 }
@@ -617,6 +659,7 @@ esp_err_t mqtt_presence_start(void)
         .build_timestamp = mqtt_presence_build_timestamp,
         .build_state = mqtt_presence_build_state,
         .build_settings = mqtt_presence_build_settings,
+        .build_config_manifest = mqtt_presence_build_config_manifest,
         .build_status_manifest = mqtt_presence_build_status_manifest,
         .build_technical_status = mqtt_presence_build_technical_status,
         .build_heartbeat = mqtt_presence_build_heartbeat,
@@ -635,7 +678,27 @@ esp_err_t mqtt_presence_start(void)
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = mqtt_presence_register_status_fields();
+    esp_err_t err = device_config_store_register_fields();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao registrar configuracoes MQTT: %s", esp_err_to_name(err));
+        return err;
+    }
+    err = tele_config_set_apply_handler(DEVICE_CONFIG_ID_PROVISIONING_SSID,
+                                        mqtt_presence_apply_config_field,
+                                        NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao registrar apply handler para SSID de provisionamento: %s", esp_err_to_name(err));
+        return err;
+    }
+    err = tele_config_set_apply_handler(DEVICE_CONFIG_ID_STA_MAX_RETRY,
+                                        mqtt_presence_apply_config_field,
+                                        NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao registrar apply handler para retry STA: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = mqtt_presence_register_status_fields();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar status MQTT: %s", esp_err_to_name(err));
         return err;

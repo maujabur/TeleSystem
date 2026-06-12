@@ -4,7 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef TELE_CONFIG_HOST_TEST
+#include "tele_config_host_stubs.h"
+#else
+#include "cJSON.h"
 #include "esp_err.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,10 +66,16 @@ typedef struct {
     uint32_t flags;
 } tele_config_field_t;
 
+typedef esp_err_t (*tele_config_apply_cb_t)(const tele_config_field_t *field,
+                                            const tele_config_value_t *value,
+                                            void *ctx);
+
 esp_err_t tele_config_validate_value(const tele_config_field_t *field,
                                      const tele_config_value_t *value);
 esp_err_t tele_config_register_fields(const tele_config_field_t *fields, size_t field_count);
 const tele_config_field_t *tele_config_find_field(const char *id);
+esp_err_t tele_config_set_apply_handler(const char *id, tele_config_apply_cb_t apply_cb, void *ctx);
+esp_err_t tele_config_apply_value(const char *id, const tele_config_value_t *value);
 esp_err_t tele_config_get_effective(const char *id,
                                     tele_config_value_t *out_value,
                                     char *string_buffer,
@@ -72,6 +83,7 @@ esp_err_t tele_config_get_effective(const char *id,
                                     bool *out_from_nvs);
 esp_err_t tele_config_set_override(const char *id, const tele_config_value_t *value);
 esp_err_t tele_config_reset_override(const char *id);
+esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_flags);
 
 #ifdef __cplusplus
 }

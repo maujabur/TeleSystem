@@ -1190,6 +1190,7 @@ class App(ctk.CTk):
             ("Availability payload", "availability_payload"),
             ("Seen payload", "seen_payload"),
             ("Heartbeat payload", "heartbeat_payload"),
+            ("Config manifest payload", "config_manifest_payload"),
             ("Status manifest payload", "status_manifest_payload"),
         ]
 
@@ -2424,6 +2425,7 @@ class App(ctk.CTk):
         state = self._payload_for(device, "state")
         availability = self._payload_for(device, "availability")
         seen = self._payload_for(device, "seen")
+        config_manifest = self._payload_for(device, "meta/config")
         status_manifest = self._payload_for(device, "meta/status")
         event = self._payload_for(device, "event")
         cmd_out = self._payload_for(device, "cmd/out")
@@ -2458,6 +2460,7 @@ class App(ctk.CTk):
         self._set_detail("availability_payload", self._compact_json(availability))
         self._set_detail("seen_payload", self._compact_json(seen))
         self._set_detail("heartbeat_payload", self._compact_json(heartbeat))
+        self._set_detail("config_manifest_payload", self._compact_json(config_manifest))
         self._set_detail("status_manifest_payload", self._compact_json(status_manifest))
 
         cmd_ok_text = self.detail_value_labels["cmd_ok"].cget("text")
@@ -2635,6 +2638,8 @@ class App(ctk.CTk):
         tail = parts[len(base_parts) + 1:]
         if tail == ["cmd", "out"]:
             return device_id, "cmd/out"
+        if tail == ["meta", "config"]:
+            return device_id, "meta/config"
         if tail == ["meta", "status"]:
             return device_id, "meta/status"
         if len(tail) == 1 and tail[0] in {"availability", "seen", "heartbeat", "state", "event"}:

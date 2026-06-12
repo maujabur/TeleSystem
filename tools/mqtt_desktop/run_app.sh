@@ -85,4 +85,4 @@ fi
 source "$VENV_DIR/bin/activate"
 python -m pip install --disable-pip-version-check --quiet -r requirements.txt
 
-python esp32_mqtt_desktop.py
+python mqtt_control_center.py
