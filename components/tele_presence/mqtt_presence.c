@@ -34,7 +34,7 @@
 #endif
 
 #ifndef CONFIG_MQTT_TOPIC_NAMESPACE
-#define CONFIG_MQTT_TOPIC_NAMESPACE "v1/led"
+#define CONFIG_MQTT_TOPIC_NAMESPACE "v1/telecafezinho"
 #endif
 
 #ifndef CONFIG_MQTT_DEVICE_ID_PREFIX

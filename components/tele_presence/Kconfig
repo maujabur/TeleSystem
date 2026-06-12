@@ -27,7 +27,7 @@ config MQTT_PASSWORD
 config MQTT_TOPIC_NAMESPACE
     string "MQTT topic namespace"
     depends on MQTT_PRESENCE_ENABLED
-    default "v1/led"
+    default "v1/telecafezinho"
     help
         Prefixo de topicos usado pelo dispositivo. O device_id sera
         anexado automaticamente.
@@ -52,7 +52,7 @@ config MQTT_KEEPALIVE_S
     default 60
 
 config MQTT_QOS_CRITICAL
-    int "QoS for status/state/command"
+    int "QoS for availability/state/command"
     depends on MQTT_PRESENCE_ENABLED
     range 0 2
     default 1

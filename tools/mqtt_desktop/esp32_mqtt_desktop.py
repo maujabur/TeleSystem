@@ -16,7 +16,7 @@ from tkinter import END, StringVar, TclError, filedialog
 from tkinter import ttk
 
 
-BASE_TOPIC = "v1/acr"
+DEFAULT_BASE_TOPIC = "v1/telecafezinho"
 TRIGGER_MODE_LABEL_TO_VALUE = {
     "0 - Prediction": 0,
     "1 - Probabilidade": 1,
@@ -32,14 +32,8 @@ APSTA_POLICY_LABEL_TO_VALUE = {
 }
 APSTA_POLICY_VALUE_TO_LABEL = {v: k for k, v in APSTA_POLICY_LABEL_TO_VALUE.items()}
 
-TOPICS_TO_SUBSCRIBE = [
-    f"{BASE_TOPIC}/+/status",
-    f"{BASE_TOPIC}/+/heartbeat",
-    f"{BASE_TOPIC}/+/state",
-    f"{BASE_TOPIC}/+/event",
-    f"{BASE_TOPIC}/+/cmd/out",
-]
-PRESENCE_MESSAGE_TYPES = {"status", "heartbeat", "state", "event"}
+TOPIC_SUFFIXES_TO_SUBSCRIBE = ["availability", "heartbeat", "state", "event", "cmd/out"]
+PRESENCE_MESSAGE_TYPES = {"availability", "heartbeat", "state", "event"}
 PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
 
@@ -80,6 +74,18 @@ class MQTTManager:
         self.event_queue = event_queue
         self.client: Optional[mqtt.Client] = None
         self.connected = False
+        self.base_topic = DEFAULT_BASE_TOPIC
+
+    @staticmethod
+    def normalize_base_topic(base_topic: str) -> str:
+        normalized = (base_topic or DEFAULT_BASE_TOPIC).strip().strip("/")
+        return normalized or DEFAULT_BASE_TOPIC
+
+    def _topic(self, *parts: str) -> str:
+        return "/".join([self.base_topic, *parts])
+
+    def _topics_to_subscribe(self) -> list[str]:
+        return [self._topic("+", *suffix.split("/")) for suffix in TOPIC_SUFFIXES_TO_SUBSCRIBE]
 
     def connect(
         self,
@@ -88,10 +94,12 @@ class MQTTManager:
         username: str,
         password: str,
         tls_enabled: bool,
+        base_topic: str,
     ) -> None:
         if self.client is not None:
             self.disconnect()
 
+        self.base_topic = self.normalize_base_topic(base_topic)
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         if username:
             client.username_pw_set(username=username, password=password)
@@ -130,7 +138,7 @@ class MQTTManager:
         if not self.client or not self.connected:
             return False, "Not connected"
 
-        topic = f"{BASE_TOPIC}/{device_id}/cmd/in"
+        topic = self._topic(device_id, "cmd", "in")
         try:
             payload_str = json.dumps(payload, ensure_ascii=True)
             result = self.client.publish(topic, payload_str, qos=1)
@@ -161,10 +169,12 @@ class MQTTManager:
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = reason_code == 0
         if self.connected:
-            for topic in TOPICS_TO_SUBSCRIBE:
+            for topic in self._topics_to_subscribe():
                 client.subscribe(topic, qos=1)
             self.event_queue.put(("connection", {"connected": True, "reason": "Connected"}))
-            self.event_queue.put(("log", {"level": "info", "text": "Connected and subscribed to wildcard topics"}))
+            self.event_queue.put(
+                ("log", {"level": "info", "text": f"Connected and subscribed under {self.base_topic}"})
+            )
         else:
             self.event_queue.put(("connection", {"connected": False, "reason": f"Connect failed (code={reason_code})"}))
 
@@ -200,7 +210,7 @@ class MQTTManager:
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("ACR ESP32 MQTT Desktop MVP")
+        self.title("Jabur Consulting MQTT Control Center")
         self.geometry("1400x820")
 
         ctk.set_appearance_mode("system")
@@ -240,6 +250,7 @@ class App(ctk.CTk):
 
         self.host_var = StringVar(value="localhost")
         self.port_var = StringVar(value="1883")
+        self.base_topic_var = StringVar(value=DEFAULT_BASE_TOPIC)
         self.user_var = StringVar(value="")
         self.pass_var = StringVar(value="")
         self.clear_retained_device_var = StringVar(value="")
@@ -303,15 +314,16 @@ class App(ctk.CTk):
         self._labeled_entry(conn, 2, "Port", self.port_var)
         self._labeled_entry(conn, 3, "User", self.user_var)
         self._labeled_entry(conn, 4, "Password", self.pass_var, show="*")
-        self._labeled_entry(conn, 5, "HB timeout (s)", self.heartbeat_timeout_var)
+        self._labeled_entry(conn, 5, "Base topic", self.base_topic_var)
+        self._labeled_entry(conn, 6, "HB timeout (s)", self.heartbeat_timeout_var)
 
-        ctk.CTkCheckBox(conn, text="TLS", variable=self.tls_var).grid(row=6, column=0, sticky="w", padx=8, pady=(2, 8))
+        ctk.CTkCheckBox(conn, text="TLS", variable=self.tls_var).grid(row=7, column=0, sticky="w", padx=8, pady=(2, 8))
         ctk.CTkCheckBox(conn, text="Auto-probe online", variable=self.auto_probe_var).grid(
-            row=6, column=1, sticky="w", padx=8, pady=(2, 8)
+            row=7, column=1, sticky="w", padx=8, pady=(2, 8)
         )
 
         btns = ctk.CTkFrame(conn, fg_color="transparent")
-        btns.grid(row=7, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
+        btns.grid(row=8, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
         btns.grid_columnconfigure((0, 1), weight=1)
         self.btn_connect = ctk.CTkButton(btns, text="Connect", command=self._connect)
         self.btn_connect.grid(row=0, column=0, sticky="ew", padx=(0, 4))
@@ -319,7 +331,7 @@ class App(ctk.CTk):
         self.btn_disconnect.grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
         status_frame = ctk.CTkFrame(conn)
-        status_frame.grid(row=8, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
+        status_frame.grid(row=9, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
         self.conn_indicator = ctk.CTkLabel(status_frame, text=" ", width=18, height=18, fg_color="#6c757d", corner_radius=8)
         self.conn_indicator.grid(row=0, column=0, padx=(6, 8), pady=6)
         ctk.CTkLabel(status_frame, textvariable=self.conn_state_var).grid(row=0, column=1, sticky="w")
@@ -1254,7 +1266,7 @@ class App(ctk.CTk):
             ("Heartbeat heap_free", "hb_heap"),
             ("Heartbeat vbat", "hb_vbat"),
             ("State", "state"),
-            ("Status", "status"),
+            ("Availability", "availability"),
             ("Event", "event"),
             ("Event message", "event_message"),
             ("Cmd/out ts", "cmd_ts"),
@@ -1263,7 +1275,7 @@ class App(ctk.CTk):
             ("Cmd error", "cmd_error"),
             ("Cmd result", "cmd_result"),
             ("State payload", "state_payload"),
-            ("Status payload", "status_payload"),
+            ("Availability payload", "availability_payload"),
             ("Heartbeat payload", "heartbeat_payload"),
         ]
 
@@ -1301,6 +1313,7 @@ class App(ctk.CTk):
         self.port_var.set(str(mqtt_cfg.get("port", self.port_var.get())))
         self.user_var.set(str(mqtt_cfg.get("username", self.user_var.get())))
         self.pass_var.set(str(mqtt_cfg.get("password", self.pass_var.get())))
+        self.base_topic_var.set(str(mqtt_cfg.get("base_topic", self.base_topic_var.get())))
         self.tls_var.set(bool(mqtt_cfg.get("tls", self.tls_var.get())))
         self.heartbeat_timeout_var.set(str(config_data.get("heartbeat_timeout_sec", self.heartbeat_timeout_var.get())))
         self.technical_update_interval_var.set(
@@ -1377,6 +1390,7 @@ class App(ctk.CTk):
             username=self.user_var.get().strip(),
             password=self.pass_var.get(),
             tls_enabled=tls_enabled,
+            base_topic=self.base_topic_var.get().strip(),
         )
 
     def _resolve_broker_params(
@@ -1949,12 +1963,12 @@ class App(ctk.CTk):
             return
 
         topics = [
-            f"{BASE_TOPIC}/{device_id}/status",
-            f"{BASE_TOPIC}/{device_id}/heartbeat",
-            f"{BASE_TOPIC}/{device_id}/state",
-            f"{BASE_TOPIC}/{device_id}/event",
-            f"{BASE_TOPIC}/{device_id}/cmd/out",
-            f"{BASE_TOPIC}/{device_id}/cmd/in",
+            self._base_topic(device_id, "availability"),
+            self._base_topic(device_id, "heartbeat"),
+            self._base_topic(device_id, "state"),
+            self._base_topic(device_id, "event"),
+            self._base_topic(device_id, "cmd", "out"),
+            self._base_topic(device_id, "cmd", "in"),
         ]
         ok_count, fail_count = self.mqtt.clear_retained_topics(topics)
         self._append_log(
@@ -2833,7 +2847,7 @@ class App(ctk.CTk):
     def _device_summary(self, device: DeviceInfo) -> str:
         heartbeat = self._payload_for(device, "heartbeat")
         state = self._payload_for(device, "state")
-        status = self._payload_for(device, "status")
+        availability = self._payload_for(device, "availability")
         event = self._payload_for(device, "event")
         cmd_out = self._payload_for(device, "cmd/out")
         technical = device.last_technical_status_result or {}
@@ -2855,7 +2869,7 @@ class App(ctk.CTk):
 
         state_text = self._field(state, "state", "runtime_state", "wifi_state")
         if state_text == "-":
-            state_text = self._field(status, "status", "message", "state")
+            state_text = self._field(availability, "status", "message", "state")
         if state_text == "-" and technical:
             state_text = self._field(technical, "acr_state", "acr_status")
         if state_text != "-":
@@ -2980,7 +2994,7 @@ class App(ctk.CTk):
 
         heartbeat = self._payload_for(device, "heartbeat")
         state = self._payload_for(device, "state")
-        status = self._payload_for(device, "status")
+        availability = self._payload_for(device, "availability")
         event = self._payload_for(device, "event")
         cmd_out = self._payload_for(device, "cmd/out")
         ssid, ip, _rssi = self._device_network_info(device)
@@ -3000,7 +3014,7 @@ class App(ctk.CTk):
         self._set_detail("hb_vbat", self._field(heartbeat, "vbat"))
 
         self._set_detail("state", self._field(state, "state", "runtime_state", "wifi_state"))
-        self._set_detail("status", self._field(status, "status", "message", "state"))
+        self._set_detail("availability", self._field(availability, "status", "message", "state"))
 
         self._set_detail("event", self._field(event, "event", "name", "type"))
         self._set_detail("event_message", self._field(event, "message", "detail", "error"))
@@ -3011,7 +3025,7 @@ class App(ctk.CTk):
         self._set_detail("cmd_error", self._field(cmd_out, "error"))
         self._set_detail("cmd_result", self._field(cmd_out, "result"))
         self._set_detail("state_payload", self._compact_json(state))
-        self._set_detail("status_payload", self._compact_json(status))
+        self._set_detail("availability_payload", self._compact_json(availability))
         self._set_detail("heartbeat_payload", self._compact_json(heartbeat))
 
         cmd_ok_text = self.detail_value_labels["cmd_ok"].cget("text")
@@ -3033,7 +3047,7 @@ class App(ctk.CTk):
             device.last_get_state_result or {},
             self._payload_for(device, "state"),
             self._payload_for(device, "heartbeat"),
-            self._payload_for(device, "status"),
+            self._payload_for(device, "availability"),
         ]
         ssid = "-"
         ip = "-"
@@ -3178,19 +3192,24 @@ class App(ctk.CTk):
         self.log_box.see(END)
 
     def _parse_topic(self, topic: str) -> Tuple[Optional[str], Optional[str]]:
+        base_parts = self._base_topic().split("/")
         parts = topic.split("/")
-        if len(parts) < 4:
+        if len(parts) < len(base_parts) + 2:
             return None, None
-        if parts[0] != "v1" or parts[1] != "acr":
+        if parts[:len(base_parts)] != base_parts:
             return None, None
 
-        device_id = parts[2]
-        tail = parts[3:]
+        device_id = parts[len(base_parts)]
+        tail = parts[len(base_parts) + 1:]
         if tail == ["cmd", "out"]:
             return device_id, "cmd/out"
-        if len(tail) == 1 and tail[0] in {"status", "heartbeat", "state", "event"}:
+        if len(tail) == 1 and tail[0] in {"availability", "heartbeat", "state", "event"}:
             return device_id, tail[0]
         return None, None
+
+    def _base_topic(self, *parts: str) -> str:
+        base = self.mqtt.base_topic if self.mqtt.connected else MQTTManager.normalize_base_topic(self.base_topic_var.get())
+        return "/".join([base, *parts])
 
 
 def main():

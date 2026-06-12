@@ -35,30 +35,30 @@ Prefixo base:
 Default atual:
 
 ```text
-v1/led/{device_id}
+v1/telecafezinho/{device_id}
 ```
 
 Topicos usados:
 
 ```text
-v1/led/{device_id}/status
-v1/led/{device_id}/state
-v1/led/{device_id}/heartbeat
-v1/led/{device_id}/event
-v1/led/{device_id}/cmd/in
-v1/led/{device_id}/cmd/out
+v1/telecafezinho/{device_id}/availability
+v1/telecafezinho/{device_id}/state
+v1/telecafezinho/{device_id}/heartbeat
+v1/telecafezinho/{device_id}/event
+v1/telecafezinho/{device_id}/cmd/in
+v1/telecafezinho/{device_id}/cmd/out
 ```
 
 ## Publicacoes automaticas
 
-### status
+### availability
 
 Payload retido para online/offline. O mesmo topico e usado como LWT.
 
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.2.0 TeleCafezinho modular config",
+  "fw": "0.3.0 TeleCafezinho MQTT availability",
   "session_id": "20260609T120000Z-5112D0",
   "status": "online",
   "reason": "mqtt_connected",
@@ -73,7 +73,7 @@ Snapshot retido com conectividade, bateria e dados tecnicos curtos.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.2.0 TeleCafezinho modular config",
+  "fw": "0.3.0 TeleCafezinho MQTT availability",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "wifi_state": "sta_connected",
@@ -96,7 +96,7 @@ Telemetria periodica, sem retenção.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.2.0 TeleCafezinho modular config",
+  "fw": "0.3.0 TeleCafezinho MQTT availability",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "uptime_s": 60,
@@ -114,7 +114,7 @@ Eventos discretos de firmware.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.2.0 TeleCafezinho modular config",
+  "fw": "0.3.0 TeleCafezinho MQTT availability",
   "session_id": "20260609T120000Z-5112D0",
   "event": "boot",
   "message": "mqtt_online",
@@ -127,13 +127,13 @@ Eventos discretos de firmware.
 Comandos entram em:
 
 ```text
-v1/led/{device_id}/cmd/in
+v1/telecafezinho/{device_id}/cmd/in
 ```
 
 Respostas saem em:
 
 ```text
-v1/led/{device_id}/cmd/out
+v1/telecafezinho/{device_id}/cmd/out
 ```
 
 Formato base:
@@ -150,7 +150,7 @@ Resposta base:
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.2.0 TeleCafezinho modular config",
+  "fw": "0.3.0 TeleCafezinho MQTT availability",
   "session_id": "20260609T120000Z-5112D0",
   "cmd_id": "c1",
   "ok": true,

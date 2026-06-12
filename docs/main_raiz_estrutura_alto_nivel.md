@@ -68,7 +68,7 @@ Componente reutilizavel para MQTT:
 
 - cliente MQTT ESP-IDF;
 - topicos;
-- LWT/status;
+- LWT/availability;
 - heartbeat;
 - comandos e respostas;
 - deduplicacao de comandos mutaveis.

@@ -43,7 +43,7 @@ static char s_broker_host[96];
 static char s_device_id[TELE_MQTT_DEVICE_ID_SIZE];
 static char s_session_id[TELE_MQTT_SESSION_ID_SIZE];
 static char s_lwt_payload[TELE_MQTT_JSON_BUF_SIZE];
-static char s_topic_status[TELE_MQTT_TOPIC_BUF_SIZE];
+static char s_topic_availability[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_heartbeat[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_state[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_event[TELE_MQTT_TOPIC_BUF_SIZE];
@@ -259,7 +259,11 @@ static void generate_device_id(void)
 
 static void build_topics(void)
 {
-    snprintf(s_topic_status, sizeof(s_topic_status), "%s/%s/status", topic_namespace(), s_device_id);
+    snprintf(s_topic_availability,
+             sizeof(s_topic_availability),
+             "%s/%s/availability",
+             topic_namespace(),
+             s_device_id);
     snprintf(s_topic_heartbeat, sizeof(s_topic_heartbeat), "%s/%s/heartbeat", topic_namespace(), s_device_id);
     snprintf(s_topic_state, sizeof(s_topic_state), "%s/%s/state", topic_namespace(), s_device_id);
     snprintf(s_topic_event, sizeof(s_topic_event), "%s/%s/event", topic_namespace(), s_device_id);
@@ -621,7 +625,7 @@ static void handle_command_payload(const char *payload)
     publish_command_reply(cmd_id, false, "unsupported_command", NULL);
 }
 
-static void publish_status(const char *status_text, const char *reason)
+static void publish_availability(const char *status_text, const char *reason)
 {
     cJSON *payload = cJSON_CreateObject();
     if (!payload) {
@@ -630,7 +634,7 @@ static void publish_status(const char *status_text, const char *reason)
 
     cJSON_AddStringToObject(payload, "status", status_text ? status_text : "unknown");
     cJSON_AddStringToObject(payload, "reason", reason ? reason : "runtime");
-    publish_json_with_common(s_topic_status, payload, qos_critical(), 1);
+    publish_json_with_common(s_topic_availability, payload, qos_critical(), 1);
     cJSON_Delete(payload);
 }
 
@@ -712,7 +716,7 @@ static void mqtt_event_handler(void *handler_args,
         s_connected = true;
         ESP_LOGI(TAG, "MQTT conectado | broker=%s", str_or_empty(s_config.broker_uri));
         esp_mqtt_client_subscribe(s_client, s_topic_cmd_in, qos_critical());
-        publish_status("online", "mqtt_connected");
+        publish_availability("online", "mqtt_connected");
         publish_state_snapshot();
         (void)tele_mqtt_publish_event("boot", "mqtt_online");
         break;
@@ -809,7 +813,7 @@ esp_err_t tele_mqtt_start_client_if_ready(void)
     mqtt_cfg.broker.address.transport = s_broker_transport;
     mqtt_cfg.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
     mqtt_cfg.session.keepalive = keepalive_s();
-    mqtt_cfg.session.last_will.topic = s_topic_status;
+    mqtt_cfg.session.last_will.topic = s_topic_availability;
     mqtt_cfg.session.last_will.msg = s_lwt_payload;
     mqtt_cfg.session.last_will.qos = qos_critical();
     mqtt_cfg.session.last_will.retain = true;

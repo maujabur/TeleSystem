@@ -2,6 +2,7 @@
   "mqtt": {
     "host": "localhost",
     "port": 1883,
+    "base_topic": "v1/telecafezinho",
     "username": "",
     "password": "",
     "tls": false

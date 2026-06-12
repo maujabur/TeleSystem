@@ -1,6 +1,6 @@
-# ACR ESP32 MQTT Desktop MVP
+# Jabur Consulting MQTT Control Center
 
-Aplicativo desktop simples para operar dispositivos ESP32 via MQTT.
+Aplicativo desktop para administrar dispositivos ESP32 em campo via MQTT.
 
 ## Localizacao
 
@@ -31,12 +31,12 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - opcao `auto_connect_on_start` no `config.json` para conectar ao iniciar
   - estado visual intermediario `Starting...`/`Auto-connect...`/`Connecting...` evita mostrar desconectado enquanto a configuracao e a conexao automatica estao pendentes
   - botoes Connect/Disconnect refletem o estado atual; `Disconnect` atua como cancelamento antes de conectar
-- Descoberta de dispositivos por wildcard:
-  - `v1/acr/+/status`
-  - `v1/acr/+/heartbeat`
-  - `v1/acr/+/state`
-  - `v1/acr/+/event`
-  - `v1/acr/+/cmd/out`
+- Descoberta de dispositivos por wildcard usando `mqtt.base_topic`:
+  - `{base_topic}/+/availability`
+  - `{base_topic}/+/heartbeat`
+  - `{base_topic}/+/state`
+  - `{base_topic}/+/event`
+  - `{base_topic}/+/cmd/out`
 - Lista de dispositivos com visao compacta:
   - busca por device, firmware, sessao ou resumo
   - filtros `Todos`, `Online`, `Offline`, `Triagem` e `Retained`
@@ -80,7 +80,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 - Presenca de device:
   - mensagens MQTT retained nao marcam o device como online
   - payload vazio usado para limpar retained remove o snapshot local e nao conta como presenca
-  - online/offline considera apenas mensagem live de `status`, `heartbeat`, `state` ou `event` dentro do timeout
+  - online/offline considera apenas mensagem live de `availability`, `heartbeat`, `state` ou `event` dentro do timeout
   - envio de comando nao conta como presenca; `cmd/out` OK de comando pendente conta, pois confirma resposta do device
   - `retained` indica device conhecido apenas por snapshot retido do broker nesta sessao, mesmo quando o snapshot retido e um LWT `offline` sem timestamp
   - se o device ja foi visto live na sessao, ao expirar o timeout ele vira `offline`, nao `retained`
@@ -129,7 +129,7 @@ Se ocorrer `ModuleNotFoundError: No module named 'tkinter'`, instale `python3-tk
 
 Topico:
 
-- `v1/acr/{device_id}/cmd/in`
+- `{base_topic}/{device_id}/cmd/in`
 
 Payload (exemplo):
 
@@ -157,6 +157,7 @@ Use em `config.json`:
   "mqtt": {
     "host": "d77a33536b2143ba8d70a3abd3188ae5.s1.eu.hivemq.cloud",
     "port": 8883,
+    "base_topic": "v1/telecafezinho",
     "username": "SEU_USUARIO_HIVEMQ",
     "password": "SUA_SENHA_HIVEMQ",
     "tls": true
