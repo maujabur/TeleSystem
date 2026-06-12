@@ -24,6 +24,7 @@
 #define TELE_MQTT_CMD_DEDUP_WINDOW 16
 #define TELE_MQTT_CMD_IN_PAYLOAD_BUF_SIZE 1024
 #define TELE_MQTT_SESSION_ID_SIZE 48
+#define TELE_MQTT_START_RETRY_DELAY_MS 1000
 
 static const char *TAG = "tele-mqtt";
 
@@ -294,32 +295,41 @@ static void add_common_fields(cJSON *root, const char *ts)
     }
 }
 
-static void publish_json(const char *topic, cJSON *payload, int qos, int retain)
+static int publish_json(const char *topic, cJSON *payload, int qos, int retain)
 {
     char *payload_text = NULL;
+    int msg_id = -1;
 
     if (!payload) {
-        return;
+        return -1;
     }
 
     payload_text = cJSON_PrintUnformatted(payload);
     if (payload_text) {
-        publish_if_connected(topic, payload_text, qos, retain);
+        msg_id = publish_if_connected(topic, payload_text, qos, retain);
+        if (msg_id < 0) {
+            ESP_LOGW(TAG,
+                     "Falha ao publicar MQTT | topic=%s | qos=%d | retain=%d",
+                     topic ? topic : "(null)",
+                     qos,
+                     retain);
+        }
         cJSON_free(payload_text);
     }
+    return msg_id;
 }
 
-static void publish_json_with_common(const char *topic, cJSON *payload, int qos, int retain)
+static int publish_json_with_common(const char *topic, cJSON *payload, int qos, int retain)
 {
     char ts[TELE_MQTT_TS_BUF_SIZE] = {0};
 
     if (!payload) {
-        return;
+        return -1;
     }
 
     build_timestamp(ts, sizeof(ts));
     add_common_fields(payload, ts);
-    publish_json(topic, payload, qos, retain);
+    return publish_json(topic, payload, qos, retain);
 }
 
 static bool cmd_id_seen(const char *cmd_id)
@@ -693,6 +703,8 @@ static void heartbeat_task(void *arg)
 
         if (!s_client_started) {
             (void)tele_mqtt_start_client_if_ready();
+            vTaskDelay(pdMS_TO_TICKS(TELE_MQTT_START_RETRY_DELAY_MS));
+            continue;
         }
 
         if (s_connected) {
@@ -718,6 +730,7 @@ static void mqtt_event_handler(void *handler_args,
         esp_mqtt_client_subscribe(s_client, s_topic_cmd_in, qos_critical());
         publish_availability("online", "mqtt_connected");
         publish_state_snapshot();
+        publish_heartbeat();
         (void)tele_mqtt_publish_event("boot", "mqtt_online");
         break;
 

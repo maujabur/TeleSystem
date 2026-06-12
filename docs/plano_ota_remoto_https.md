@@ -138,7 +138,7 @@ validacao, ou evolua o componente no repositorio de origem antes de integrar.
 A string humana atual de firmware e util para debug, mas ruim para automacao:
 
 ```text
-0.3.0 TeleCafezinho MQTT availability
+0.3.2 TeleCafezinho MQTT startup cleanup
 ```
 
 Para OTA remoto, o ideal e separar:

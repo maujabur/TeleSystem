@@ -17,6 +17,7 @@ from tkinter import ttk
 
 
 DEFAULT_BASE_TOPIC = "v1/telecafezinho"
+APP_DIR = Path(__file__).resolve().parent
 TRIGGER_MODE_LABEL_TO_VALUE = {
     "0 - Prediction": 0,
     "1 - Probabilidade": 1,
@@ -32,7 +33,6 @@ APSTA_POLICY_LABEL_TO_VALUE = {
 }
 APSTA_POLICY_VALUE_TO_LABEL = {v: k for k, v in APSTA_POLICY_LABEL_TO_VALUE.items()}
 
-TOPIC_SUFFIXES_TO_SUBSCRIBE = ["availability", "heartbeat", "state", "event", "cmd/out"]
 PRESENCE_MESSAGE_TYPES = {"availability", "heartbeat", "state", "event"}
 PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
@@ -85,7 +85,7 @@ class MQTTManager:
         return "/".join([self.base_topic, *parts])
 
     def _topics_to_subscribe(self) -> list[str]:
-        return [self._topic("+", *suffix.split("/")) for suffix in TOPIC_SUFFIXES_TO_SUBSCRIBE]
+        return [self._topic("#")]
 
     def connect(
         self,
@@ -170,7 +170,9 @@ class MQTTManager:
         self.connected = reason_code == 0
         if self.connected:
             for topic in self._topics_to_subscribe():
-                client.subscribe(topic, qos=1)
+                result, _mid = client.subscribe(topic, qos=1)
+                if result != mqtt.MQTT_ERR_SUCCESS:
+                    self.event_queue.put(("log", {"level": "warn", "text": f"Subscribe failed rc={result}: {topic}"}))
             self.event_queue.put(("connection", {"connected": True, "reason": "Connected"}))
             self.event_queue.put(
                 ("log", {"level": "info", "text": f"Connected and subscribed under {self.base_topic}"})
@@ -473,6 +475,9 @@ class App(ctk.CTk):
         self.log_box.tag_config("warn", foreground="#d67a00")
         self.log_box.tag_config("error", foreground="#d11a2a")
         self.log_box.tag_config("selected_cmd", foreground="#0b5ed7")
+        self.log_box.tag_config("mqtt_retained", foreground="#c96a00")
+        self.log_box.tag_config("mqtt_heartbeat", foreground="#0b7897")
+        self.log_box.tag_config("mqtt_received", foreground="#2f855a")
         self.log_context_menu: Optional[ctk.CTkToplevel] = None
         self.log_box.bind("<Button-3>", self._show_log_context_menu)
         self.log_box.bind("<Button-2>", self._show_log_context_menu)
@@ -1292,11 +1297,11 @@ class App(ctk.CTk):
     def _load_example_or_local_config(self):
         config_data = None
         for filename in ("config.json", "config.example.json"):
-            path = Path(filename)
+            path = APP_DIR / filename
             if path.exists():
                 try:
                     config_data = json.loads(path.read_text(encoding="utf-8"))
-                    self._append_log(f"Loaded configuration from {filename}", tag="info")
+                    self._append_log(f"Loaded configuration from {path}", tag="info")
                     break
                 except Exception as exc:
                     self._append_log(f"Could not load {filename}: {exc}", tag="warn")
@@ -2619,9 +2624,13 @@ class App(ctk.CTk):
         log_line = self._build_log_line(device_id, message_type, effective_ts, payload_obj, payload_raw)
         if is_retained:
             log_line = f"[retained] {log_line}"
-        log_tag = "info"
-        if message_type == "cmd/out" and self.selected_device == device_id:
+            log_tag = "mqtt_retained"
+        elif message_type == "heartbeat":
+            log_tag = "mqtt_heartbeat"
+        elif message_type == "cmd/out" and self.selected_device == device_id:
             log_tag = "selected_cmd"
+        else:
+            log_tag = "mqtt_received"
         self._append_log(log_line, tag=log_tag)
 
         cmd_result_command = None
