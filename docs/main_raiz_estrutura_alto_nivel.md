@@ -78,9 +78,19 @@ Componente reutilizavel para MQTT:
 Adaptador de presenca MQTT:
 
 - configura `components/tele_mqtt`;
+- registra campos comuns em `components/tele_status`;
 - injeta estado de Wi-Fi, NTP, VBAT, POWER_GOOD e versao;
 - aplica configuracoes remotas de conectividade;
 - reserva os callbacks de comando para o dominio TeleCafezinho.
+
+### `components/tele_status`
+
+Registro reutilizavel de status read-only:
+
+- campos observaveis com tipo, unidade opcional, flags e callback de leitura;
+- sem NVS e sem persistencia;
+- fonte comum para `state` e `heartbeat` MQTT;
+- base futura para `meta/status`.
 
 ### `components/status_led`
 

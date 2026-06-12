@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "cJSON.h"
@@ -10,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "tele_mqtt.h"
+#include "tele_status.h"
 
 #include "device_config_store.h"
 #include "firmware_version.h"
@@ -73,6 +75,7 @@ static const char *TAG = "mqtt-presence";
 
 static bool s_started;
 static bool s_wifi_event_registered;
+static bool s_status_fields_registered;
 
 static const char *wifi_state_name(wifi_manager_state_t state)
 {
@@ -107,10 +110,180 @@ static bool mqtt_presence_build_timestamp(char *buffer, size_t buffer_len, void 
     return time_sync_format_utc_now(buffer, buffer_len);
 }
 
-static cJSON *mqtt_presence_build_state(void *ctx)
+static const char *status_read_wifi_state(void *ctx)
 {
     wifi_manager_status_t wifi_status = {0};
+    (void)ctx;
+
+    if (wifi_manager_get_status(&wifi_status) != ESP_OK) {
+        return "unknown";
+    }
+    return wifi_state_name(wifi_status.state);
+}
+
+static bool status_read_wifi_ready(void *ctx)
+{
+    wifi_manager_status_t wifi_status = {0};
+    (void)ctx;
+
+    return wifi_manager_get_status(&wifi_status) == ESP_OK && wifi_status.wifi_ready;
+}
+
+static const char *status_read_ssid(void *ctx)
+{
+    static char ssid[sizeof(((wifi_manager_status_t *)0)->ssid)] = {0};
+    wifi_manager_status_t wifi_status = {0};
+    (void)ctx;
+
+    ssid[0] = '\0';
+    if (wifi_manager_get_status(&wifi_status) == ESP_OK) {
+        snprintf(ssid, sizeof(ssid), "%s", wifi_status.ssid);
+    }
+    return ssid;
+}
+
+static const char *status_read_ip(void *ctx)
+{
+    static char ip[sizeof(((wifi_manager_status_t *)0)->ip)] = {0};
+    wifi_manager_status_t wifi_status = {0};
+    (void)ctx;
+
+    ip[0] = '\0';
+    if (wifi_manager_get_status(&wifi_status) == ESP_OK) {
+        snprintf(ip, sizeof(ip), "%s", wifi_status.ip);
+    }
+    return ip;
+}
+
+static int32_t status_read_rssi(void *ctx)
+{
+    wifi_manager_status_t wifi_status = {0};
+    (void)ctx;
+
+    if (wifi_manager_get_status(&wifi_status) != ESP_OK) {
+        return 0;
+    }
+    return wifi_status.rssi;
+}
+
+static uint32_t status_read_vbat_mv(void *ctx)
+{
     vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    (void)vbat_monitor_get_status(&vbat_status);
+    return (uint32_t)vbat_status.vbat_mv;
+}
+
+static uint32_t status_read_heap_free(void *ctx)
+{
+    (void)ctx;
+    return (uint32_t)heap_caps_get_free_size(MALLOC_CAP_DEFAULT);
+}
+
+static uint32_t status_read_uptime_s(void *ctx)
+{
+    (void)ctx;
+    return esp_log_timestamp() / 1000;
+}
+
+static uint32_t status_read_heartbeat_interval_s(void *ctx)
+{
+    (void)ctx;
+    return tele_mqtt_get_heartbeat_interval_s();
+}
+
+static bool status_read_time_synchronized(void *ctx)
+{
+    (void)ctx;
+    return time_sync_is_synchronized();
+}
+
+static const tele_status_field_t s_common_status_fields[] = {
+    {
+        .id = "wifi_state",
+        .type = TELE_STATUS_TYPE_STRING,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .read.string = status_read_wifi_state,
+    },
+    {
+        .id = "wifi_ready",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_wifi_ready,
+    },
+    {
+        .id = "ssid",
+        .type = TELE_STATUS_TYPE_STRING,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .read.string = status_read_ssid,
+    },
+    {
+        .id = "ip",
+        .type = TELE_STATUS_TYPE_STRING,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .read.string = status_read_ip,
+    },
+    {
+        .id = "rssi",
+        .type = TELE_STATUS_TYPE_I32,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .unit = "dBm",
+        .read.i32 = status_read_rssi,
+    },
+    {
+        .id = "vbat_mv",
+        .type = TELE_STATUS_TYPE_U32,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .unit = "mV",
+        .read.u32 = status_read_vbat_mv,
+    },
+    {
+        .id = "heap_free",
+        .type = TELE_STATUS_TYPE_U32,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .unit = "bytes",
+        .read.u32 = status_read_heap_free,
+    },
+    {
+        .id = "uptime_s",
+        .type = TELE_STATUS_TYPE_U32,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .unit = "s",
+        .read.u32 = status_read_uptime_s,
+    },
+    {
+        .id = "heartbeat_interval_s",
+        .type = TELE_STATUS_TYPE_U32,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .unit = "s",
+        .read.u32 = status_read_heartbeat_interval_s,
+    },
+    {
+        .id = "time_synchronized",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_time_synchronized,
+    },
+};
+
+static esp_err_t mqtt_presence_register_status_fields(void)
+{
+    if (s_status_fields_registered) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = tele_status_register_fields(s_common_status_fields,
+                                                sizeof(s_common_status_fields) /
+                                                sizeof(s_common_status_fields[0]));
+    if (err == ESP_OK) {
+        s_status_fields_registered = true;
+    }
+    return err;
+}
+
+static cJSON *mqtt_presence_build_state(void *ctx)
+{
     cJSON *result = cJSON_CreateObject();
     (void)ctx;
 
@@ -118,25 +291,10 @@ static cJSON *mqtt_presence_build_state(void *ctx)
         return NULL;
     }
 
-    if (wifi_manager_get_status(&wifi_status) != ESP_OK) {
-        cJSON_AddStringToObject(result, "wifi_state", "unknown");
-        cJSON_AddBoolToObject(result, "wifi_ready", false);
-    } else {
-        cJSON_AddStringToObject(result, "wifi_state", wifi_state_name(wifi_status.state));
-        cJSON_AddBoolToObject(result, "wifi_ready", wifi_status.wifi_ready);
-        cJSON_AddStringToObject(result, "ssid", wifi_status.ssid);
-        cJSON_AddStringToObject(result, "ip", wifi_status.ip);
-        cJSON_AddNumberToObject(result, "rssi", wifi_status.rssi);
+    if (tele_status_add_fields_to_json(result, TELE_STATUS_FLAG_STATE) != ESP_OK) {
+        cJSON_Delete(result);
+        return NULL;
     }
-
-    (void)vbat_monitor_get_status(&vbat_status);
-    cJSON_AddNumberToObject(result, "vbat_mv", vbat_status.vbat_mv);
-    cJSON_AddNumberToObject(result, "heap_free", (double)heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
-    cJSON_AddNumberToObject(result, "uptime_s", (double)(esp_log_timestamp() / 1000));
-    cJSON_AddNumberToObject(result,
-                            "heartbeat_interval_s",
-                            (double)tele_mqtt_get_heartbeat_interval_s());
-    cJSON_AddBoolToObject(result, "time_synchronized", time_sync_is_synchronized());
 
     return result;
 }
@@ -240,8 +398,6 @@ static cJSON *mqtt_presence_build_technical_status(void *ctx)
 
 static cJSON *mqtt_presence_build_heartbeat(void *ctx)
 {
-    wifi_manager_status_t wifi_status = {0};
-    vbat_monitor_status_t vbat_status = {0};
     cJSON *result = cJSON_CreateObject();
     (void)ctx;
 
@@ -249,16 +405,10 @@ static cJSON *mqtt_presence_build_heartbeat(void *ctx)
         return NULL;
     }
 
-    if (wifi_manager_get_status(&wifi_status) == ESP_OK) {
-        cJSON_AddNumberToObject(result, "rssi", wifi_status.rssi);
-        cJSON_AddStringToObject(result, "wifi_state", wifi_state_name(wifi_status.state));
-    } else {
-        cJSON_AddStringToObject(result, "wifi_state", "unknown");
+    if (tele_status_add_fields_to_json(result, TELE_STATUS_FLAG_HEARTBEAT) != ESP_OK) {
+        cJSON_Delete(result);
+        return NULL;
     }
-    (void)vbat_monitor_get_status(&vbat_status);
-    cJSON_AddNumberToObject(result, "uptime_s", (double)(esp_log_timestamp() / 1000));
-    cJSON_AddNumberToObject(result, "heap_free", (double)heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
-    cJSON_AddNumberToObject(result, "vbat_mv", vbat_status.vbat_mv);
 
     return result;
 }
@@ -467,11 +617,17 @@ esp_err_t mqtt_presence_start(void)
         return ESP_ERR_INVALID_ARG;
     }
 
+    esp_err_t err = mqtt_presence_register_status_fields();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao registrar status MQTT: %s", esp_err_to_name(err));
+        return err;
+    }
+
     if (!s_wifi_event_registered) {
-        esp_err_t err = esp_event_handler_register(WIFI_MANAGER_EVENT,
-                                                   ESP_EVENT_ANY_ID,
-                                                   mqtt_presence_wifi_event_handler,
-                                                   NULL);
+        err = esp_event_handler_register(WIFI_MANAGER_EVENT,
+                                         ESP_EVENT_ANY_ID,
+                                         mqtt_presence_wifi_event_handler,
+                                         NULL);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Falha ao registrar eventos Wi-Fi para MQTT: %s", esp_err_to_name(err));
             return err;
@@ -479,7 +635,7 @@ esp_err_t mqtt_presence_start(void)
         s_wifi_event_registered = true;
     }
 
-    esp_err_t err = tele_mqtt_start(&config);
+    err = tele_mqtt_start(&config);
     if (err != ESP_OK) {
         return err;
     }
