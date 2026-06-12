@@ -60,12 +60,12 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 - Comandos para `cmd/in`:
   - `ping`
   - `get_state`
-  - `get_settings`
+  - `config/get`
   - `get_technical_status`
   - `apply_and_reboot`
   - `set_heartbeat_interval`
 - Settings via MQTT:
-  - botao `Ler settings` envia `get_settings` e mostra o JSON devolvido pelo device
+  - botao `Atualizar config` envia `config/get` e mostra o manifesto devolvido pelo device
   - renderiza `meta/config` em modo read-only, com indicacao de campos `runtime_apply` e `reboot_required`
   - permite enviar atualizacao generica por campo usando `config/set`
   - botao `Salvar heartbeat` envia `set_heartbeat_interval`

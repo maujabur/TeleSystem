@@ -502,7 +502,7 @@ class App(ctk.CTk):
         row_a.grid_columnconfigure((0, 1, 2, 3), weight=1)
         ctk.CTkButton(row_a, text="ping", command=lambda: self._send_cmd("ping")).grid(row=0, column=0, sticky="ew", padx=4, pady=4)
         ctk.CTkButton(row_a, text="get_state", command=lambda: self._send_cmd("get_state")).grid(row=0, column=1, sticky="ew", padx=4, pady=4)
-        ctk.CTkButton(row_a, text="get_settings", command=self._request_get_settings).grid(row=0, column=2, sticky="ew", padx=4, pady=4)
+        ctk.CTkButton(row_a, text="config/get", command=self._request_config_get).grid(row=0, column=2, sticky="ew", padx=4, pady=4)
         ctk.CTkButton(row_a, text="status_tecnico", command=lambda: self._send_cmd("get_technical_status")).grid(
             row=0, column=3, sticky="ew", padx=4, pady=4
         )
@@ -543,7 +543,7 @@ class App(ctk.CTk):
             "Comandos desta aba sao enviados para o dispositivo selecionado na lista.\n"
             "- use get_state para atualizar a aba Status/State\n"
             "- use status_tecnico para consultar os dados da pagina de status tecnico\n"
-            "- use get_settings para visualizar o JSON de Settings\n"
+            "- use config/get para atualizar o manifesto de configuracao\n"
             "- Limpar retained remove snapshots antigos do broker\n",
         )
         info.configure(state="disabled")
@@ -560,7 +560,7 @@ class App(ctk.CTk):
         actions.grid_columnconfigure(0, weight=0)
         actions.grid_columnconfigure(1, weight=0)
         actions.grid_columnconfigure(2, weight=1)
-        ctk.CTkButton(actions, text="Ler settings", command=self._request_get_settings).grid(
+        ctk.CTkButton(actions, text="Atualizar config", command=self._request_config_get).grid(
             row=0, column=0, sticky="ew", padx=4, pady=4
         )
         ctk.CTkButton(actions, text="Salvar heartbeat", command=self._send_set_heartbeat).grid(
@@ -1381,7 +1381,7 @@ class App(ctk.CTk):
             self.settings_loaded_device_id = None
             self._set_settings_raw_text("-")
             self.settings_status_label.configure(
-                text=f"Settings de {previous_device} limpos ao trocar device. Leia settings do device atual."
+                text=f"Settings de {previous_device} limpos ao trocar device. Use config/get no device atual."
             )
 
     def _refresh_settings_panel(self):
@@ -1741,7 +1741,7 @@ class App(ctk.CTk):
                 lambda device_id=row_id: self._send_context_command(device_id, "get_technical_status", "Status"),
                 action_enabled,
             ),
-            ("get_settings", lambda device_id=row_id: self._request_get_settings_for_device(device_id), action_enabled),
+            ("config/get", lambda device_id=row_id: self._request_config_get_for_device(device_id), action_enabled),
             ("Limpar retained", lambda device_id=row_id: self._clear_retained_for_device_id(device_id), True),
             ("Abrir Status", lambda device_id=row_id: self._select_device_tab(device_id, "Status"), True),
             ("Abrir Settings", lambda device_id=row_id: self._select_device_tab(device_id, "Settings"), True),
@@ -1953,11 +1953,11 @@ class App(ctk.CTk):
         elif command == "get_technical_status" and hasattr(self, "status_time_label"):
             self.status_time_label.configure(text="Atualizacao: aguardando status_tecnico...")
 
-    def _request_get_settings_for_device(self, device_id: str):
+    def _request_config_get_for_device(self, device_id: str):
         self._select_device_tab(device_id, "Settings")
-        self._send_cmd_to_device(device_id, "get_settings")
+        self._send_cmd_to_device(device_id, "config/get")
         if hasattr(self, "settings_status_label"):
-            self.settings_status_label.configure(text="Ultima leitura: aguardando resposta...")
+            self.settings_status_label.configure(text="config/get: aguardando resposta...")
 
     def _clear_retained_for_device_id(self, device_id: str):
         self.clear_retained_device_var.set(device_id)
@@ -2173,21 +2173,29 @@ class App(ctk.CTk):
         tz_name = datetime.now().astimezone().tzname() or "local"
         return f"{dt_value.strftime('%Y-%m-%d %H:%M:%S')} {tz_name}"
 
-    def _request_get_settings(self):
-        self._send_cmd("get_settings")
+    def _request_config_get(self):
+        self._send_cmd("config/get")
         if hasattr(self, "settings_status_label"):
-            self.settings_status_label.configure(text="Ultima leitura: aguardando resposta...")
+            self.settings_status_label.configure(text="config/get: aguardando resposta...")
 
-    def _apply_settings_result(self, settings_result: Dict[str, Any], device_id: Optional[str] = None):
+    def _apply_config_get_result(self, config_result: Dict[str, Any], device_id: Optional[str] = None):
         self.settings_loaded_device_id = device_id or self.selected_device
-        self._set_settings_raw_text(json.dumps(settings_result, ensure_ascii=True, indent=2, sort_keys=True))
-        mqtt_section = settings_result.get("mqtt")
-        if isinstance(mqtt_section, dict) and mqtt_section.get("heartbeat_interval_s") is not None:
-            self.hb_interval_var.set(str(mqtt_section.get("heartbeat_interval_s")))
+        if self.settings_loaded_device_id:
+            device = self.devices.get(self.settings_loaded_device_id)
+            if device:
+                topic = self._base_topic(self.settings_loaded_device_id, "meta", "config")
+                device.last_messages["meta/config"] = MessageSnapshot(
+                    timestamp=datetime.now(),
+                    topic=topic,
+                    payload_obj=config_result,
+                    payload_raw=json.dumps(config_result, ensure_ascii=True),
+                )
+        self._set_settings_raw_text(json.dumps(config_result, ensure_ascii=True, indent=2, sort_keys=True))
+        self._refresh_settings_panel()
         if hasattr(self, "settings_status_label"):
             self.settings_status_label.configure(
                 text=(
-                    f"Ultima leitura: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+                    f"config/get: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
                     f"origem: {self.settings_loaded_device_id}"
                 )
             )
@@ -2352,13 +2360,13 @@ class App(ctk.CTk):
         if (
             message_type == "cmd/out"
             and self.selected_device == device_id
-            and cmd_result_command == "get_settings"
+            and cmd_result_command == "config/get"
             and isinstance(payload_obj, dict)
             and payload_obj.get("ok") is True
             and isinstance(payload_obj.get("result"), dict)
         ):
             result = payload_obj.get("result")
-            self._apply_settings_result(result, device_id=device_id)
+            self._apply_config_get_result(result, device_id=device_id)
 
         if (
             message_type == "cmd/out"

@@ -164,7 +164,7 @@ default, valor efetivo, limites e flags de cada campo exposto por MQTT.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.9 TeleCafezinho config set command",
+  "fw": "0.3.10 TeleCafezinho config get/set",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -253,12 +253,13 @@ Resposta base:
 {"cmd_id":"c2","name":"get_state"}
 ```
 
-### get_settings
+### config/get
 
-Retorna `device_connectivity` e `mqtt`.
+Retorna o manifesto de configuracao equivalente ao payload retido de
+`meta/config`.
 
 ```json
-{"cmd_id":"s1","name":"get_settings"}
+{"cmd_id":"cfg-get-1","name":"config/get"}
 ```
 
 ### get_technical_status

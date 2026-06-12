@@ -300,44 +300,6 @@ static cJSON *mqtt_presence_build_state(void *ctx)
     return result;
 }
 
-static cJSON *mqtt_presence_build_settings(void *ctx)
-{
-    cJSON *result = cJSON_CreateObject();
-    char provisioning_ssid[DEVICE_CONFIG_PROVISIONING_SSID_BUFFER_SIZE] = {0};
-    uint8_t sta_max_retry = 0;
-    device_config_apsta_policy_t apsta_policy = DEVICE_CONFIG_APSTA_AUTO_TIMEOUT;
-    uint32_t apsta_grace_period_s = 0;
-    cJSON *section = NULL;
-    (void)ctx;
-
-    if (!result) {
-        return NULL;
-    }
-
-    section = cJSON_AddObjectToObject(result, "device_connectivity");
-    if (section) {
-        if (device_config_store_load_provisioning_ssid(provisioning_ssid, sizeof(provisioning_ssid)) == ESP_OK) {
-            cJSON_AddStringToObject(section, "provisioning_ssid", provisioning_ssid);
-        }
-        if (device_config_store_load_sta_max_retry(&sta_max_retry) == ESP_OK) {
-            cJSON_AddNumberToObject(section, "sta_max_retry", sta_max_retry);
-        }
-        if (device_config_store_load_apsta_policy(&apsta_policy, &apsta_grace_period_s) == ESP_OK) {
-            cJSON_AddNumberToObject(section, "apsta_policy", (int)apsta_policy);
-            cJSON_AddNumberToObject(section, "apsta_grace_period_s", (double)apsta_grace_period_s);
-        }
-    }
-
-    section = cJSON_AddObjectToObject(result, "mqtt");
-    if (section) {
-        cJSON_AddNumberToObject(section,
-                                "heartbeat_interval_s",
-                                (double)tele_mqtt_get_heartbeat_interval_s());
-    }
-
-    return result;
-}
-
 static cJSON *mqtt_presence_build_technical_status(void *ctx)
 {
     vbat_monitor_status_t vbat_status = {0};
@@ -534,7 +496,6 @@ esp_err_t mqtt_presence_start(void)
         .is_ready = mqtt_presence_ready,
         .build_timestamp = mqtt_presence_build_timestamp,
         .build_state = mqtt_presence_build_state,
-        .build_settings = mqtt_presence_build_settings,
         .build_config_manifest = mqtt_presence_build_config_manifest,
         .build_status_manifest = mqtt_presence_build_status_manifest,
         .build_technical_status = mqtt_presence_build_technical_status,

@@ -39,7 +39,6 @@ typedef struct {
     tele_mqtt_ready_cb_t is_ready;
     tele_mqtt_timestamp_cb_t build_timestamp;
     tele_mqtt_json_cb_t build_state;
-    tele_mqtt_json_cb_t build_settings;
     tele_mqtt_json_cb_t build_config_manifest;
     tele_mqtt_json_cb_t build_status_manifest;
     tele_mqtt_json_cb_t build_technical_status;

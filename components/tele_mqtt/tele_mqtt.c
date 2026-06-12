@@ -570,9 +570,9 @@ static void handle_command_payload(const char *payload)
         return;
     }
 
-    if (strcmp(cmd_name, "get_settings") == 0) {
-        result = s_config.build_settings ? s_config.build_settings(s_config.ctx) : cJSON_CreateObject();
-        publish_command_reply(cmd_id, result != NULL, result ? NULL : "settings_unavailable", result);
+    if (strcmp(cmd_name, "config/get") == 0) {
+        result = s_config.build_config_manifest ? s_config.build_config_manifest(s_config.ctx) : cJSON_CreateObject();
+        publish_command_reply(cmd_id, result != NULL, result ? NULL : "config_unavailable", result);
         cJSON_Delete(result);
         cJSON_Delete(root);
         return;
