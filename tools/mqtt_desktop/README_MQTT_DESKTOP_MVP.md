@@ -67,6 +67,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 - Settings via MQTT:
   - botao `Ler settings` envia `get_settings` e mostra o JSON devolvido pelo device
   - renderiza `meta/config` em modo read-only, com indicacao de campos `runtime_apply` e `reboot_required`
+  - permite enviar atualizacao generica por campo usando `config/set`
   - botao `Salvar heartbeat` envia `set_heartbeat_interval`
   - botao `Apply + reboot` envia `apply_and_reboot`
   - botao `Limpar retained` publica payload vazio retido nos topicos do device para remover ghosts

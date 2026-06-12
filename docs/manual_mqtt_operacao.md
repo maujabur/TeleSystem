@@ -164,7 +164,7 @@ default, valor efetivo, limites e flags de cada campo exposto por MQTT.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.8 TeleCafezinho config update flow",
+  "fw": "0.3.9 TeleCafezinho config set command",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -279,31 +279,45 @@ Altera o intervalo de heartbeat em runtime.
 
 O valor aceito fica entre 15 e 3600 segundos e nao e persistido em NVS.
 
-### set_settings
+### config/set
 
-Atualiza configuracoes de conectividade do dispositivo.
+Atualiza um campo configuravel exposto por `meta/config`.
 
 ```json
 {
-  "cmd_id": "s2",
-  "name": "set_settings",
+  "cmd_id": "cfg1",
+  "name": "config/set",
   "args": {
-    "device_connectivity": {
-      "provisioning_ssid": "TeleCafezinho",
-      "sta_max_retry": 5,
-      "apsta_policy": 1,
-      "apsta_grace_period_s": 900
-    }
+    "id": "wifi.sta_max_retry",
+    "value": 5
+  }
+}
+```
+
+Resposta bem-sucedida:
+
+```json
+{
+  "cmd_id": "cfg1",
+  "ok": true,
+  "result": {
+    "id": "wifi.sta_max_retry",
+    "stored": true,
+    "applied": true,
+    "requires_reboot": false
   }
 }
 ```
 
 Regras:
 
-- `apsta_policy` e `apsta_grace_period_s` devem ser enviados juntos;
+- `id` deve existir no registry e ter flag `mqtt`;
+- `value` deve combinar com o tipo declarado em `meta/config`;
+- cada comando atualiza um campo por vez;
 - todos os valores passam por `tele_config_update_value()`;
 - campos com `runtime_apply` sao aplicados por callback opcional antes de persistir;
 - campos com `reboot_required` sao persistidos como override e entram em vigor no proximo boot ou apos comando de reboot;
+- apos sucesso, o firmware republica `meta/config` retido;
 - comandos mutaveis usam deduplicacao por `cmd_id`.
 
 ### apply_and_reboot

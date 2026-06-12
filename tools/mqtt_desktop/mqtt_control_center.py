@@ -216,7 +216,7 @@ class App(ctk.CTk):
         self.status_raw_text_value = ""
         self.settings_loaded_device_id: Optional[str] = None
         self.settings_raw_text_value = ""
-        self.settings_config_labels: Dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel]] = {}
+        self.settings_config_widgets: Dict[str, Dict[str, Any]] = {}
         self.settings_config_signature: tuple[str, ...] = ()
         self.pending_cmd_by_id: Dict[str, PendingCommand] = {}
         self.log_line_count = 0
@@ -575,8 +575,8 @@ class App(ctk.CTk):
 
         self.settings_config_frame = ctk.CTkScrollableFrame(parent)
         self.settings_config_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
-        for col in range(6):
-            self.settings_config_frame.grid_columnconfigure(col, weight=1 if col in (0, 1) else 0)
+        for col in range(8):
+            self.settings_config_frame.grid_columnconfigure(col, weight=1 if col in (0, 1, 6) else 0)
 
         self.settings_raw_text = ctk.CTkTextbox(parent, height=180, wrap="none")
         self.settings_raw_text.grid(row=3, column=0, sticky="nsew", padx=8, pady=(0, 8))
@@ -1411,7 +1411,7 @@ class App(ctk.CTk):
     def _clear_config_manifest_view(self):
         for child in self.settings_config_frame.winfo_children():
             child.destroy()
-        self.settings_config_labels = {}
+        self.settings_config_widgets = {}
         self.settings_config_signature = ()
 
     def _render_config_manifest_view(self, manifest: Optional[Dict[str, Any]]):
@@ -1427,7 +1427,7 @@ class App(ctk.CTk):
                     text="Sem meta/config recebido ainda.",
                     anchor="w",
                     text_color=("gray45", "gray65"),
-                ).grid(row=0, column=0, columnspan=6, sticky="ew", padx=8, pady=8)
+                ).grid(row=0, column=0, columnspan=8, sticky="ew", padx=8, pady=8)
                 self.settings_config_signature = ("__empty__",)
             return
 
@@ -1435,7 +1435,7 @@ class App(ctk.CTk):
         if signature != self.settings_config_signature:
             self._clear_config_manifest_view()
             self.settings_config_signature = signature
-            headers = ("Campo", "Valor", "Origem", "Aplicacao", "Tipo", "Limites")
+            headers = ("Campo", "Valor", "Origem", "Aplicacao", "Tipo", "Limites", "Novo valor", "Acao")
             for col, header in enumerate(headers):
                 ctk.CTkLabel(
                     self.settings_config_frame,
@@ -1457,7 +1457,20 @@ class App(ctk.CTk):
                     )
                     label.grid(row=row, column=col, sticky="ew", padx=8, pady=2)
                     row_labels.append(label)
-                self.settings_config_labels[field_id] = tuple(row_labels)
+                entry = ctk.CTkEntry(self.settings_config_frame, width=180)
+                entry.grid(row=row, column=6, sticky="ew", padx=8, pady=2)
+                button = ctk.CTkButton(
+                    self.settings_config_frame,
+                    text="Enviar",
+                    width=72,
+                    command=lambda fid=field_id: self._send_config_set_from_field(fid),
+                )
+                button.grid(row=row, column=7, sticky="ew", padx=8, pady=2)
+                self.settings_config_widgets[field_id] = {
+                    "labels": tuple(row_labels),
+                    "entry": entry,
+                    "button": button,
+                }
 
         for field in fields:
             if not isinstance(field, dict):
@@ -1465,9 +1478,12 @@ class App(ctk.CTk):
             field_id = str(field.get("id") or "")
             if not field_id:
                 continue
-            labels = self.settings_config_labels.get(field_id)
-            if not labels:
+            widgets = self.settings_config_widgets.get(field_id)
+            if not widgets:
                 continue
+            labels = widgets.get("labels")
+            entry = widgets.get("entry")
+            button = widgets.get("button")
 
             value_text = self._format_config_value(field, "value")
             source_text = str(field.get("source") or "-")
@@ -1486,6 +1502,17 @@ class App(ctk.CTk):
                         label.configure(text_color="#1f8b24")
                     else:
                         label.configure(text_color=("gray10", "gray90"))
+
+            editable = not self._config_has_flag(field, "read_only") and not field.get("value_hidden")
+            if entry and button:
+                placeholder = value_text if value_text != "-" else ""
+                if entry.cget("placeholder_text") != placeholder:
+                    entry.configure(placeholder_text=placeholder)
+                state = "normal" if editable else "disabled"
+                if entry.cget("state") != state:
+                    entry.configure(state=state)
+                if button.cget("state") != state:
+                    button.configure(state=state)
 
         if hasattr(self, "settings_status_label"):
             revision = manifest.get("registry_revision", "-") if isinstance(manifest, dict) else "-"
@@ -1533,6 +1560,69 @@ class App(ctk.CTk):
         if reboot:
             return "reboot"
         return "armazenado"
+
+    def _config_manifest_field(self, field_id: str) -> Optional[Dict[str, Any]]:
+        if not self.selected_device:
+            return None
+        device = self.devices.get(self.selected_device)
+        if not device:
+            return None
+        manifest = self._payload_for(device, "meta/config")
+        fields = manifest.get("fields") if isinstance(manifest, dict) else None
+        if not isinstance(fields, list):
+            return None
+        for field in fields:
+            if isinstance(field, dict) and str(field.get("id") or "") == field_id:
+                return field
+        return None
+
+    def _parse_config_entry_value(self, field: Dict[str, Any], text: str) -> Tuple[bool, Any, str]:
+        field_type = str(field.get("type") or "")
+        raw = text.strip()
+        if field_type == "bool":
+            lowered = raw.lower()
+            if lowered in {"true", "1", "sim", "yes", "on"}:
+                return True, True, ""
+            if lowered in {"false", "0", "nao", "não", "no", "off"}:
+                return True, False, ""
+            return False, None, "Valor booleano deve ser true/false"
+        if field_type in {"i32", "enum", "u32"}:
+            try:
+                value = int(raw)
+            except ValueError:
+                return False, None, "Valor numerico deve ser inteiro"
+            if field_type == "u32" and value < 0:
+                return False, None, "Valor u32 nao pode ser negativo"
+            return True, value, ""
+        if field_type == "string":
+            if raw == "":
+                return False, None, "Valor string nao pode ser vazio"
+            return True, raw, ""
+        return False, None, f"Tipo nao suportado: {field_type or '-'}"
+
+    def _send_config_set_from_field(self, field_id: str):
+        if not self.selected_device:
+            self._append_log("Selecione um dispositivo para config/set", tag="warn")
+            return
+        field = self._config_manifest_field(field_id)
+        widgets = self.settings_config_widgets.get(field_id)
+        entry = widgets.get("entry") if widgets else None
+        if not field or not entry:
+            self._append_log(f"Campo de config indisponivel: {field_id}", tag="warn")
+            return
+        if self._config_has_flag(field, "read_only"):
+            self._append_log(f"Campo read_only nao pode ser alterado: {field_id}", tag="warn")
+            return
+
+        ok, value, error = self._parse_config_entry_value(field, entry.get())
+        if not ok:
+            self._append_log(f"{field_id}: {error}", tag="error")
+            return
+
+        self._send_cmd("config/set", {"id": field_id, "value": value})
+        entry.delete(0, END)
+        if hasattr(self, "settings_status_label"):
+            self.settings_status_label.configure(text=f"config/set enviado para {field_id}; aguardando ACK...")
 
     def _on_device_tree_motion(self, event):
         row_id = self.tree.identify_row(event.y)
@@ -2269,6 +2359,27 @@ class App(ctk.CTk):
         ):
             result = payload_obj.get("result")
             self._apply_settings_result(result, device_id=device_id)
+
+        if (
+            message_type == "cmd/out"
+            and self.selected_device == device_id
+            and cmd_result_command == "config/set"
+            and isinstance(payload_obj, dict)
+            and hasattr(self, "settings_status_label")
+        ):
+            result = payload_obj.get("result")
+            if payload_obj.get("ok") is True and isinstance(result, dict):
+                self.settings_status_label.configure(
+                    text=(
+                        f"config/set OK: {result.get('id', '-')} | "
+                        f"stored={result.get('stored', '-')} applied={result.get('applied', '-')} "
+                        f"reboot={result.get('requires_reboot', '-')}"
+                    )
+                )
+            elif payload_obj.get("ok") is False:
+                self.settings_status_label.configure(
+                    text=f"config/set falhou: {payload_obj.get('error', '-')}"
+                )
 
         if self.selected_device == device_id:
             self._refresh_device_details()

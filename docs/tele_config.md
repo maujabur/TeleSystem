@@ -40,14 +40,14 @@ pode existir como API publica, enquanto a persistencia usa `w_retry`.
 
 As funcoes antigas `device_config_store_*` continuam existindo para manter
 compatibilidade com o portal e com os pontos de leitura de configuracao, mas
-agora elas chamam `tele_config` internamente. Fluxos de atualizacao MQTT usam
-`tele_config_update_value()`, que valida, aplica callback opcional de runtime e
-persiste o override.
+agora elas chamam `tele_config` internamente. Fluxos de atualizacao MQTT usam o
+comando generico `config/set`, que chama `tele_config_update_value()`: valida,
+aplica callback opcional de runtime e persiste o override.
 
 ## Decisoes abertas
 
-- Evoluir o comando MQTT de settings para aceitar atualizacao generica por
-  `id` de campo, mantendo o formato legado enquanto for util.
+- Permitir comandos transacionais para atualizar varios campos de uma vez
+  quando isso for realmente necessario.
 - Criar adaptadores web genericos para formularios simples, mantendo paginas
   especificas quando a experiencia precisar ser melhor.
 - Decidir politica de migracao dos namespaces NVS antigos. Como a versao

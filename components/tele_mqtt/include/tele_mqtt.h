@@ -15,10 +15,6 @@ extern "C" {
 typedef bool (*tele_mqtt_ready_cb_t)(void *ctx);
 typedef bool (*tele_mqtt_timestamp_cb_t)(char *buffer, size_t buffer_len, void *ctx);
 typedef cJSON *(*tele_mqtt_json_cb_t)(void *ctx);
-typedef esp_err_t (*tele_mqtt_settings_handler_t)(const cJSON *args,
-                                                  cJSON **out_result,
-                                                  const char **out_error,
-                                                  void *ctx);
 typedef bool (*tele_mqtt_command_mutating_cb_t)(const char *cmd_name,
                                                 const cJSON *args,
                                                 void *ctx);
@@ -48,7 +44,6 @@ typedef struct {
     tele_mqtt_json_cb_t build_status_manifest;
     tele_mqtt_json_cb_t build_technical_status;
     tele_mqtt_json_cb_t build_heartbeat;
-    tele_mqtt_settings_handler_t apply_settings;
     tele_mqtt_command_mutating_cb_t is_mutating_command;
     tele_mqtt_command_handler_t handle_command;
     tele_mqtt_restart_cb_t restart;

@@ -15,6 +15,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mqtt_client.h"
+#include "tele_config.h"
 
 #define TELE_MQTT_TOPIC_BUF_SIZE 128
 #define TELE_MQTT_DEVICE_ID_SIZE 64
@@ -56,6 +57,8 @@ static char s_topic_cmd_out[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_cmd_in_payload_buf[TELE_MQTT_CMD_IN_PAYLOAD_BUF_SIZE];
 static char s_recent_mutating_cmd_ids[TELE_MQTT_CMD_DEDUP_WINDOW][TELE_MQTT_CMD_ID_SIZE];
 static size_t s_recent_mutating_cmd_index;
+
+static void publish_config_manifest(void);
 
 static const char *str_or_empty(const char *value)
 {
@@ -441,6 +444,80 @@ static cJSON *build_ping_result(void)
     return result;
 }
 
+static esp_err_t json_to_config_value(const tele_config_field_t *field,
+                                      const cJSON *json_value,
+                                      tele_config_value_t *out_value,
+                                      const char **out_error)
+{
+    if (!field || !json_value || !out_value) {
+        if (out_error) {
+            *out_error = "missing_config_value";
+        }
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    switch (field->type) {
+    case TELE_CONFIG_TYPE_BOOL:
+        if (!cJSON_IsBool(json_value)) {
+            if (out_error) {
+                *out_error = "config_value_type_bool_required";
+            }
+            return ESP_ERR_INVALID_ARG;
+        }
+        out_value->boolean = cJSON_IsTrue(json_value);
+        return ESP_OK;
+    case TELE_CONFIG_TYPE_I32:
+    case TELE_CONFIG_TYPE_ENUM:
+        if (!cJSON_IsNumber(json_value)) {
+            if (out_error) {
+                *out_error = "config_value_type_i32_required";
+            }
+            return ESP_ERR_INVALID_ARG;
+        }
+        out_value->i32 = (int32_t)json_value->valuedouble;
+        return ESP_OK;
+    case TELE_CONFIG_TYPE_U32:
+        if (!cJSON_IsNumber(json_value) || json_value->valuedouble < 0) {
+            if (out_error) {
+                *out_error = "config_value_type_u32_required";
+            }
+            return ESP_ERR_INVALID_ARG;
+        }
+        out_value->u32 = (uint32_t)json_value->valuedouble;
+        return ESP_OK;
+    case TELE_CONFIG_TYPE_STRING:
+        if (!cJSON_IsString(json_value) || !json_value->valuestring) {
+            if (out_error) {
+                *out_error = "config_value_type_string_required";
+            }
+            return ESP_ERR_INVALID_ARG;
+        }
+        out_value->string = json_value->valuestring;
+        return ESP_OK;
+    default:
+        if (out_error) {
+            *out_error = "config_field_type_unsupported";
+        }
+        return ESP_ERR_INVALID_ARG;
+    }
+}
+
+static cJSON *build_config_update_result(const char *id, const tele_config_update_result_t *update)
+{
+    cJSON *result = cJSON_CreateObject();
+    if (!result) {
+        return NULL;
+    }
+
+    cJSON_AddStringToObject(result, "id", id ? id : "");
+    if (update) {
+        cJSON_AddBoolToObject(result, "stored", update->stored);
+        cJSON_AddBoolToObject(result, "applied", update->applied);
+        cJSON_AddBoolToObject(result, "requires_reboot", update->requires_reboot);
+    }
+    return result;
+}
+
 static void handle_command_payload(const char *payload)
 {
     cJSON *root = NULL;
@@ -544,8 +621,15 @@ static void handle_command_payload(const char *payload)
         return;
     }
 
-    if (strcmp(cmd_name, "set_settings") == 0) {
-        esp_err_t err = ESP_ERR_NOT_SUPPORTED;
+    if (strcmp(cmd_name, "config/set") == 0) {
+        cJSON *field_id_item = cJSON_IsObject(args) ?
+                               cJSON_GetObjectItemCaseSensitive(args, "id") : NULL;
+        cJSON *value_item = cJSON_IsObject(args) ?
+                            cJSON_GetObjectItemCaseSensitive(args, "value") : NULL;
+        const tele_config_field_t *field = NULL;
+        tele_config_value_t value = {0};
+        tele_config_update_result_t update = {0};
+        esp_err_t err = ESP_OK;
 
         if (reject_duplicate_mutating_command(cmd_id)) {
             cJSON_Delete(root);
@@ -558,17 +642,34 @@ static void handle_command_payload(const char *payload)
             return;
         }
 
-        if (s_config.apply_settings) {
-            err = s_config.apply_settings(args, &result, &error, s_config.ctx);
-        } else {
-            error = "settings_not_supported";
+        if (!cJSON_IsString(field_id_item) || !field_id_item->valuestring || field_id_item->valuestring[0] == '\0') {
+            cJSON_Delete(root);
+            publish_command_reply(cmd_id, false, "missing_config_id", NULL);
+            return;
         }
 
+        field = tele_config_find_field(field_id_item->valuestring);
+        if (!field || (field->flags & TELE_CONFIG_FLAG_MQTT) == 0) {
+            cJSON_Delete(root);
+            publish_command_reply(cmd_id, false, "config_field_not_found", NULL);
+            return;
+        }
+
+        err = json_to_config_value(field, value_item, &value, &error);
+        if (err != ESP_OK) {
+            cJSON_Delete(root);
+            publish_command_reply(cmd_id, false, error ? error : "config_value_invalid", NULL);
+            return;
+        }
+
+        err = tele_config_update_value(field->id, &value, &update);
+        result = build_config_update_result(field->id, &update);
         if (err == ESP_OK) {
             cmd_id_remember(cmd_id);
             publish_command_reply(cmd_id, true, NULL, result);
+            publish_config_manifest();
         } else {
-            publish_command_reply(cmd_id, false, error ? error : "settings_apply_failed", result);
+            publish_command_reply(cmd_id, false, "config_update_failed", result);
         }
         cJSON_Delete(result);
         cJSON_Delete(root);

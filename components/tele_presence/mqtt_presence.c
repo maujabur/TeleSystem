@@ -470,110 +470,6 @@ static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *fie
     return ESP_OK;
 }
 
-static esp_err_t mqtt_presence_apply_settings(const cJSON *args,
-                                              cJSON **out_result,
-                                              const char **out_error,
-                                              void *ctx)
-{
-    const cJSON *device_connectivity = NULL;
-    bool updated = false;
-    (void)ctx;
-
-    if (!cJSON_IsObject(args)) {
-        if (out_error) {
-            *out_error = "missing_args_object";
-        }
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    device_connectivity = cJSON_GetObjectItemCaseSensitive((cJSON *)args, "device_connectivity");
-    if (cJSON_IsObject(device_connectivity)) {
-        const cJSON *item = NULL;
-        esp_err_t err = ESP_OK;
-
-        item = cJSON_GetObjectItemCaseSensitive((cJSON *)device_connectivity, "provisioning_ssid");
-        if (cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
-            tele_config_value_t value = {.string = item->valuestring};
-            err = tele_config_update_value(DEVICE_CONFIG_ID_PROVISIONING_SSID, &value, NULL);
-            if (err != ESP_OK) {
-                if (out_error) {
-                    *out_error = "provisioning_ssid_update_failed";
-                }
-                return err;
-            }
-            updated = true;
-        }
-
-        item = cJSON_GetObjectItemCaseSensitive((cJSON *)device_connectivity, "sta_max_retry");
-        if (cJSON_IsNumber(item)) {
-            int retry = item->valueint;
-            tele_config_value_t value = {.u32 = (uint32_t)retry};
-            err = tele_config_update_value(DEVICE_CONFIG_ID_STA_MAX_RETRY, &value, NULL);
-            if (err != ESP_OK) {
-                if (out_error) {
-                    *out_error = "sta_max_retry_update_failed";
-                }
-                return err;
-            }
-            updated = true;
-        }
-
-        const cJSON *policy_item = cJSON_GetObjectItemCaseSensitive((cJSON *)device_connectivity, "apsta_policy");
-        const cJSON *grace_item = cJSON_GetObjectItemCaseSensitive((cJSON *)device_connectivity,
-                                                                   "apsta_grace_period_s");
-        if (policy_item || grace_item) {
-            if (!cJSON_IsNumber(policy_item) || !cJSON_IsNumber(grace_item)) {
-                if (out_error) {
-                    *out_error = "apsta_policy_and_grace_required";
-                }
-                return ESP_ERR_INVALID_ARG;
-            }
-
-            int policy = policy_item->valueint;
-            uint32_t grace_period_s = (uint32_t)grace_item->valuedouble;
-            tele_config_value_t policy_value = {.i32 = policy};
-            tele_config_value_t grace_value = {.u32 = grace_period_s};
-            const tele_config_field_t *policy_field = tele_config_find_field(DEVICE_CONFIG_ID_APSTA_POLICY);
-            const tele_config_field_t *grace_field = tele_config_find_field(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S);
-            if (tele_config_validate_value(policy_field, &policy_value) != ESP_OK ||
-                tele_config_validate_value(grace_field, &grace_value) != ESP_OK) {
-                if (out_error) {
-                    *out_error = "apsta_config_out_of_range";
-                }
-                return ESP_ERR_INVALID_ARG;
-            }
-
-            err = tele_config_update_value(DEVICE_CONFIG_ID_APSTA_POLICY, &policy_value, NULL);
-            if (err != ESP_OK) {
-                if (out_error) {
-                    *out_error = "apsta_policy_update_failed";
-                }
-                return err;
-            }
-            err = tele_config_update_value(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S, &grace_value, NULL);
-            if (err != ESP_OK) {
-                if (out_error) {
-                    *out_error = "apsta_grace_update_failed";
-                }
-                return err;
-            }
-            updated = true;
-        }
-    }
-
-    if (!updated) {
-        if (out_error) {
-            *out_error = "no_supported_settings_in_args";
-        }
-        return ESP_ERR_NOT_FOUND;
-    }
-
-    if (out_result) {
-        *out_result = mqtt_presence_build_settings(NULL);
-    }
-    return ESP_OK;
-}
-
 static esp_err_t mqtt_presence_handle_product_command(const char *cmd_name,
                                                       const cJSON *args,
                                                       cJSON **out_result,
@@ -643,7 +539,6 @@ esp_err_t mqtt_presence_start(void)
         .build_status_manifest = mqtt_presence_build_status_manifest,
         .build_technical_status = mqtt_presence_build_technical_status,
         .build_heartbeat = mqtt_presence_build_heartbeat,
-        .apply_settings = mqtt_presence_apply_settings,
         .is_mutating_command = mqtt_presence_is_mutating_product_command,
         .handle_command = mqtt_presence_handle_product_command,
         .restart = mqtt_presence_restart,
