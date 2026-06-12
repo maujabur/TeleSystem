@@ -120,18 +120,19 @@ class MQTTManager:
             self.event_queue.put(("error", f"Connection failed: {exc}"))
             self.event_queue.put(("connection", {"connected": False, "reason": "Connect failed"}))
 
-    def disconnect(self) -> None:
+    def disconnect(self, emit_event: bool = True) -> None:
         if self.client is None:
             return
 
+        client = self.client
+        self.client = None
+        self.connected = False
         try:
-            self.client.loop_stop()
-            self.client.disconnect()
+            client.disconnect()
+            client.loop_stop()
         except Exception:
             pass
-        finally:
-            self.client = None
-            self.connected = False
+        if emit_event:
             self.event_queue.put(("connection", {"connected": False, "reason": "Disconnected"}))
 
     def publish_command(self, device_id: str, payload: Dict[str, Any]) -> Tuple[bool, str]:
@@ -225,6 +226,8 @@ class App(ctk.CTk):
         self.detail_value_labels: Dict[str, ctk.CTkLabel] = {}
         self.status_value_labels: Dict[str, ctk.CTkLabel] = {}
         self.status_display_values: Dict[str, str] = {}
+        self.status_manifest_labels: Dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel]] = {}
+        self.status_manifest_signature: tuple[str, ...] = ()
         self.status_raw_text_value = ""
         self.settings_vars: Dict[str, Any] = {}
         self.settings_inputs: Dict[str, Any] = {}
@@ -266,6 +269,11 @@ class App(ctk.CTk):
         self.technical_auto_update_var = ctk.BooleanVar(value=True)
         self.technical_update_interval_var = StringVar(value="3")
         self.conn_state_var = StringVar(value="Starting...")
+        self.hb_interval_var = StringVar(value="60")
+        self.settings_apply_identity_var = ctk.BooleanVar(value=False)
+        self.commands_panel_built = False
+        self.settings_panel_built = False
+        self._init_settings_vars()
 
         self._build_ui()
         self._enable_mousewheel_scrolling()
@@ -293,6 +301,31 @@ class App(ctk.CTk):
                     color = border_color if distance >= radius - 1.3 else fill_color
                     image.put(color, (x, y))
         return image
+
+    def _init_settings_vars(self):
+        self.settings_vars = {
+            "automatic_enabled": ctk.BooleanVar(value=False),
+            "automatic_interval_ms": StringVar(value=""),
+            "capture_duration_seconds": StringVar(value=""),
+            "digital_gain": StringVar(value=""),
+            "silence_threshold_rms": StringVar(value=""),
+            "silence_hysteresis_rms": StringVar(value=""),
+            "min_active_ms": StringVar(value=""),
+            "trigger_mode_label": StringVar(value=""),
+            "ai_probability_threshold": StringVar(value=""),
+            "trigger_enabled": ctk.BooleanVar(value=False),
+            "trigger_gpio": StringVar(value=""),
+            "trigger_active_level": StringVar(value=""),
+            "trigger_pulse_ms": StringVar(value=""),
+            "provisioning_ssid": StringVar(value=""),
+            "sta_max_retry": StringVar(value=""),
+            "apsta_policy_label": StringVar(value=""),
+            "apsta_grace_period_s": StringVar(value=""),
+            "acr_region": StringVar(value=""),
+            "acr_container_id": StringVar(value=""),
+            "acr_upload_prefix": StringVar(value=""),
+            "acr_bearer_token": StringVar(value=""),
+        }
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=0)
@@ -463,12 +496,10 @@ class App(ctk.CTk):
 
         tab_commands = tabs.tab("Comandos")
         tab_commands.grid_columnconfigure(0, weight=1)
-        self._build_commands_panel(tab_commands)
 
         tab_settings = tabs.tab("Settings")
         tab_settings.grid_columnconfigure(0, weight=1)
         tab_settings.grid_rowconfigure(0, weight=1)
-        self._build_settings_panel(tab_settings)
 
         self.log_box = ctk.CTkTextbox(bottom_container, wrap="none")
         self.log_box.grid(row=0, column=0, sticky="nsew", padx=4, pady=4)
@@ -478,6 +509,7 @@ class App(ctk.CTk):
         self.log_box.tag_config("mqtt_retained", foreground="#c96a00")
         self.log_box.tag_config("mqtt_heartbeat", foreground="#0b7897")
         self.log_box.tag_config("mqtt_received", foreground="#2f855a")
+        self.log_box.tag_config("mqtt_lwt", foreground="#7c3aed")
         self.log_context_menu: Optional[ctk.CTkToplevel] = None
         self.log_box.bind("<Button-3>", self._show_log_context_menu)
         self.log_box.bind("<Button-2>", self._show_log_context_menu)
@@ -487,6 +519,18 @@ class App(ctk.CTk):
         self.bind_all("<Escape>", self._hide_device_context_menu, add="+")
 
         self._append_log("Application started", tag="info")
+
+    def _ensure_commands_panel(self):
+        if self.commands_panel_built:
+            return
+        self._build_commands_panel(self.tabs.tab("Comandos"))
+        self.commands_panel_built = True
+
+    def _ensure_settings_panel(self):
+        if self.settings_panel_built:
+            return
+        self._build_settings_panel(self.tabs.tab("Settings"))
+        self.settings_panel_built = True
 
     def _build_commands_panel(self, parent):
         parent.grid_rowconfigure(1, weight=1)
@@ -520,7 +564,6 @@ class App(ctk.CTk):
         hb_frame = ctk.CTkFrame(row_b, fg_color="transparent")
         hb_frame.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
         hb_frame.grid_columnconfigure(0, weight=1)
-        self.hb_interval_var = StringVar(value="60")
         hb_entry = ctk.CTkEntry(hb_frame, textvariable=self.hb_interval_var)
         hb_entry.grid(row=0, column=0, sticky="ew", pady=(0, 4))
         self.settings_inputs["heartbeat_interval_s"] = hb_entry
@@ -559,30 +602,6 @@ class App(ctk.CTk):
         parent.grid_rowconfigure(1, weight=0)
         parent.grid_rowconfigure(2, weight=1)
 
-        self.settings_vars = {
-            "automatic_enabled": ctk.BooleanVar(value=False),
-            "automatic_interval_ms": StringVar(value=""),
-            "capture_duration_seconds": StringVar(value=""),
-            "digital_gain": StringVar(value=""),
-            "silence_threshold_rms": StringVar(value=""),
-            "silence_hysteresis_rms": StringVar(value=""),
-            "min_active_ms": StringVar(value=""),
-            "trigger_mode_label": StringVar(value=""),
-            "ai_probability_threshold": StringVar(value=""),
-            "trigger_enabled": ctk.BooleanVar(value=False),
-            "trigger_gpio": StringVar(value=""),
-            "trigger_active_level": StringVar(value=""),
-            "trigger_pulse_ms": StringVar(value=""),
-            "provisioning_ssid": StringVar(value=""),
-            "sta_max_retry": StringVar(value=""),
-            "apsta_policy_label": StringVar(value=""),
-            "apsta_grace_period_s": StringVar(value=""),
-            "acr_region": StringVar(value=""),
-            "acr_container_id": StringVar(value=""),
-            "acr_upload_prefix": StringVar(value=""),
-            "acr_bearer_token": StringVar(value=""),
-        }
-        self.settings_apply_identity_var = ctk.BooleanVar(value=False)
         self.settings_inputs = {}
 
         actions = ctk.CTkFrame(parent)
@@ -766,7 +785,7 @@ class App(ctk.CTk):
         top.grid_columnconfigure(5, weight=0)
         top.grid_columnconfigure(6, weight=0)
 
-        ctk.CTkLabel(top, text="Status tecnico", font=ctk.CTkFont(size=16, weight="bold")).grid(
+        ctk.CTkLabel(top, text="Status", font=ctk.CTkFont(size=16, weight="bold")).grid(
             row=0, column=0, sticky="w", padx=(8, 12), pady=(4, 0)
         )
         self.status_time_label = ctk.CTkLabel(
@@ -806,42 +825,29 @@ class App(ctk.CTk):
         )
 
         card_specs = [
-            ("loop", "Loop"),
-            ("automatic", "Automatico"),
-            ("last_result", "Ultimo resultado"),
-            ("audio", "Audio"),
-            ("network", "Rede"),
-            ("errors_retry", "Erros / retry"),
-            ("counters", "Contadores"),
-            ("vbat", "VBAT"),
+            ("connectivity", "Conectividade"),
+            ("runtime", "Runtime"),
+            ("heartbeat", "Heartbeat"),
+            ("power", "Energia"),
+            ("memory", "Memoria"),
+            ("technical", "Tecnico"),
+            ("manifest", "Manifesto"),
+            ("errors", "Erros"),
         ]
         for index, (key, title) in enumerate(card_specs):
             self._status_card(self.status_body, index // 4, index % 4, key, title)
 
         row = 2
-        ctk.CTkLabel(self.status_body, text="Tempos", font=ctk.CTkFont(size=14, weight="bold")).grid(
+        ctk.CTkLabel(self.status_body, text="Status manifesto", font=ctk.CTkFont(size=14, weight="bold")).grid(
             row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(12, 4)
         )
         row += 1
-        timing_frame = ctk.CTkFrame(self.status_body)
-        timing_frame.grid(row=row, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
-        timings = [
-            ("capture", "Captura"),
-            ("upload", "Upload"),
-            ("upload_connect", "TLS"),
-            ("upload_write", "Envio"),
-            ("upload_response", "POST"),
-            ("response_wait", "ACR"),
-            ("total_cycle", "Total"),
-        ]
-        for col, (key, label) in enumerate(timings):
-            timing_frame.grid_columnconfigure(col, weight=1)
-            ctk.CTkLabel(timing_frame, text=label, text_color=("gray40", "gray70")).grid(
-                row=0, column=col, sticky="w", padx=8, pady=(8, 0)
-            )
-            value_label = ctk.CTkLabel(timing_frame, text="--", font=ctk.CTkFont(weight="bold"))
-            value_label.grid(row=1, column=col, sticky="w", padx=8, pady=(0, 8))
-            self.status_value_labels[f"timing.{key}"] = value_label
+        self.status_manifest_frame = ctk.CTkFrame(self.status_body)
+        self.status_manifest_frame.grid(row=row, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
+        self.status_manifest_frame.grid_columnconfigure(0, weight=2)
+        self.status_manifest_frame.grid_columnconfigure(1, weight=1)
+        self.status_manifest_frame.grid_columnconfigure(2, weight=2)
+        self.status_manifest_frame.grid_columnconfigure(3, weight=3)
 
         row += 1
         ctk.CTkLabel(self.status_body, text="Campos brutos", font=ctk.CTkFont(size=14, weight="bold")).grid(
@@ -932,7 +938,9 @@ class App(ctk.CTk):
         get_state_payload = device.last_get_state_result or {}
         technical_status_payload = device.last_technical_status_result or {}
         heartbeat_payload = self._payload_for(device, "heartbeat")
-        control_payload = technical_status_payload.get("acr_control", {})
+        status_manifest_payload = self._payload_for(device, "meta/status")
+        manifest_fields = status_manifest_payload.get("fields") if isinstance(status_manifest_payload, dict) else None
+        has_status_manifest = isinstance(manifest_fields, list) and bool(manifest_fields)
         vbat_payload = technical_status_payload.get("vbat", {})
         power_good_payload = technical_status_payload.get("power_good", {})
 
@@ -944,20 +952,29 @@ class App(ctk.CTk):
         if technical_status_payload:
             merged.update(self._flatten_dict(technical_status_payload))
 
-        if not merged:
+        if not merged and not has_status_manifest:
             self._show_status_empty("Sem campos de status ainda. Clique em get_state ou status_tecnico.")
             self._clear_status_values()
         else:
             self._hide_status_empty()
-            self._render_technical_status_view(
-                technical_status_payload,
-                get_state_payload,
-                state_topic_payload,
+            if merged:
+                self._render_technical_status_view(
+                    technical_status_payload,
+                    get_state_payload,
+                    state_topic_payload,
+                    heartbeat_payload,
+                    vbat_payload if isinstance(vbat_payload, dict) else {},
+                    power_good_payload if isinstance(power_good_payload, dict) else {},
+                    merged,
+                )
+            else:
+                self._clear_status_values(clear_manifest=False)
+            self._render_status_manifest_view(
+                status_manifest_payload,
                 heartbeat_payload,
-                control_payload if isinstance(control_payload, dict) else {},
-                vbat_payload if isinstance(vbat_payload, dict) else {},
-                power_good_payload if isinstance(power_good_payload, dict) else {},
-                merged,
+                state_topic_payload,
+                get_state_payload,
+                technical_status_payload,
             )
 
         source = []
@@ -988,11 +1005,13 @@ class App(ctk.CTk):
         if hasattr(self, "status_empty_label"):
             self.status_empty_label.grid_remove()
 
-    def _clear_status_values(self):
+    def _clear_status_values(self, clear_manifest: bool = True):
         for key in self.status_value_labels:
             self._set_status_label(key, "--")
         if hasattr(self, "status_raw_text"):
             self._set_status_raw_text("-")
+        if clear_manifest and hasattr(self, "status_manifest_frame"):
+            self._clear_status_manifest_view()
 
     def _set_status_label(self, key: str, value: Any):
         label = self.status_value_labels.get(key)
@@ -1019,43 +1038,10 @@ class App(ctk.CTk):
         get_state: Dict[str, Any],
         state_topic: Dict[str, Any],
         heartbeat: Dict[str, Any],
-        control: Dict[str, Any],
         vbat: Dict[str, Any],
         power_good: Dict[str, Any],
         merged: Dict[str, Any],
     ):
-        retry_text = (
-            f"retry em {self._format_ms(self._num(tech, 'acr_retry_remaining_ms'))}"
-            if bool(tech.get("acr_retry_pending"))
-            else "sem retry"
-        )
-        last_result = "--"
-        if bool(tech.get("audio_last_silence_discarded")):
-            last_result = "Silencio descartado"
-        elif self._num(tech, "acr_last_result_at_ms", 0) > 0:
-            actor = "IA / trigger" if bool(tech.get("acr_last_trigger")) else "Humano"
-            last_result = f"{actor} | {self._num(tech, 'acr_last_ai_probability', 0):.1f}%"
-
-        auto_text = "--"
-        if control:
-            auto_text = (
-                f"{'Ligado' if bool(control.get('automatic_enabled')) else 'Desligado'} | "
-                f"int {self._format_ms(self._num(control, 'automatic_interval_ms'))} | "
-                f"capt {self._value(control, 'capture_duration_seconds', '--')}s | "
-                f"ganho {self._num(control, 'digital_gain', 0):.2f}x"
-            )
-
-        audio_detail = (
-            f"RMS {self._num(tech, 'audio_last_rms', 0):.0f} | "
-            f"pico {self._num(tech, 'audio_last_peak_percent', 0):.1f}% | "
-            f"silencio {'sim' if bool(tech.get('audio_last_silence_detected')) else 'nao'} | "
-            f"clipped {'sim' if bool(tech.get('audio_last_clipped_detected')) else 'nao'}"
-        )
-        counters_text = (
-            f"envios {self._value(tech, 'acr_submitted_count', 0)} | "
-            f"silencio {self._value(tech, 'acr_silence_discarded_count', 0)} | "
-            f"erros ACR {self._value(tech, 'acr_error_count', 0)}"
-        )
         vbat_text = self._format_vbat(vbat, get_state)
         power_good_text = self._format_power_good(power_good, vbat)
         network_payloads = [get_state, state_topic, heartbeat]
@@ -1079,38 +1065,30 @@ class App(ctk.CTk):
             if tech
             else self._num(get_state, "uptime_s", self._num(heartbeat, "uptime_s", None))
         )
-
-        self._set_status_label("card.loop.value", self._format_state(str(self._value(tech, "acr_state", self._value(state_topic, "wifi_state", "--")))))
-        self._set_status_label("card.loop.detail", self._value(tech, "acr_status", ""))
-        self._set_status_label("card.automatic.value", auto_text)
-        self._set_status_label(
-            "card.automatic.detail",
-            f"hyst {self._value(control, 'silence_hysteresis_rms', '--')} | min ativo {self._format_ms(self._num(control, 'min_active_ms'))}",
+        heap_free = self._value(heartbeat, "heap_free", self._value(state_topic, "heap_free", self._value(tech, "heap_free", "--")))
+        heartbeat_interval = self._value(state_topic, "heartbeat_interval_s", self._value(heartbeat, "heartbeat_interval_s", "--"))
+        time_sync = self._value(state_topic, "time_synchronized", self._value(tech, "time_synchronized", "--"))
+        error_text = self._first_non_empty(
+            tech.get("last_error"),
+            tech.get("error"),
+            state_topic.get("last_error"),
+            state_topic.get("error"),
         )
-        self._set_status_label("card.last_result.value", last_result)
-        self._set_status_label("card.last_result.detail", self._value(tech, "acr_last_prediction", "--"))
-        self._set_status_label("card.audio.value", self._format_ms(self._num(tech, "audio_last_active_ms")))
-        self._set_status_label("card.audio.detail", audio_detail)
-        self._set_status_label("card.network.value", network_value)
-        self._set_status_label("card.network.detail", f"SSID {network_ssid}")
-        self._set_status_label("card.errors_retry.value", f"{self._value(tech, 'acr_consecutive_errors', 0)} erros | {retry_text}")
-        self._set_status_label("card.errors_retry.detail", self._value(tech, "acr_last_error", ""))
-        self._set_status_label("card.counters.value", counters_text)
-        self._set_status_label("card.counters.detail", f"uptime {self._format_uptime(uptime_value)}")
-        self._set_status_label("card.vbat.value", vbat_text)
-        self._set_status_label("card.vbat.detail", power_good_text)
 
-        timing_keys = {
-            "capture": "acr_capture_ms",
-            "upload": "acr_upload_ms",
-            "upload_connect": "acr_upload_connect_ms",
-            "upload_write": "acr_upload_write_ms",
-            "upload_response": "acr_upload_response_ms",
-            "response_wait": "acr_response_wait_ms",
-            "total_cycle": "acr_total_cycle_ms",
-        }
-        for label_key, payload_key in timing_keys.items():
-            self._set_status_label(f"timing.{label_key}", self._format_ms(self._num(tech, payload_key)))
+        self._set_status_label("card.connectivity.value", network_value)
+        self._set_status_label("card.connectivity.detail", f"SSID {network_ssid}")
+        self._set_status_label("card.runtime.value", self._format_uptime(uptime_value))
+        self._set_status_label("card.runtime.detail", f"NTP {time_sync}")
+        self._set_status_label("card.heartbeat.value", f"RSSI {network_rssi}")
+        self._set_status_label("card.heartbeat.detail", f"intervalo {heartbeat_interval}s")
+        self._set_status_label("card.power.value", vbat_text)
+        self._set_status_label("card.power.detail", power_good_text)
+        self._set_status_label("card.memory.value", heap_free)
+        self._set_status_label("card.memory.detail", "heap_free")
+        self._set_status_label("card.technical.value", f"{len(merged)} campos")
+        self._set_status_label("card.technical.detail", "payload tecnico disponivel" if tech else "sem payload tecnico")
+        self._set_status_label("card.errors.value", error_text or "sem erro")
+        self._set_status_label("card.errors.detail", "campos error/last_error")
 
         raw_lines = []
         for key in sorted(merged.keys()):
@@ -1118,6 +1096,125 @@ class App(ctk.CTk):
             value_text = json.dumps(value, ensure_ascii=True) if isinstance(value, (dict, list)) else str(value)
             raw_lines.append(f"{key}: {value_text}")
         self._set_status_raw_text("\n".join(raw_lines) if raw_lines else "-")
+
+    def _clear_status_manifest_view(self):
+        for child in self.status_manifest_frame.winfo_children():
+            child.destroy()
+        self.status_manifest_labels = {}
+        self.status_manifest_signature = ()
+
+    def _render_status_manifest_view(
+        self,
+        manifest: Dict[str, Any],
+        heartbeat: Dict[str, Any],
+        state_topic: Dict[str, Any],
+        get_state: Dict[str, Any],
+        technical_status: Dict[str, Any],
+    ):
+        if not hasattr(self, "status_manifest_frame"):
+            return
+
+        fields = manifest.get("fields") if isinstance(manifest, dict) else None
+        if not isinstance(fields, list) or not fields:
+            if self.status_manifest_signature != ("__empty__",):
+                self._clear_status_manifest_view()
+                ctk.CTkLabel(
+                    self.status_manifest_frame,
+                    text="Sem meta/status recebido ainda.",
+                    anchor="w",
+                    text_color=("gray45", "gray65"),
+                ).grid(row=0, column=0, columnspan=4, sticky="ew", padx=8, pady=8)
+                self.status_manifest_signature = ("__empty__",)
+            return
+
+        signature = tuple(str(field.get("id") or "") for field in fields if isinstance(field, dict) and field.get("id"))
+        if signature != self.status_manifest_signature:
+            self._clear_status_manifest_view()
+            self.status_manifest_signature = signature
+            headers = ("Campo", "Tipo", "Valor", "Flags")
+            for col, header in enumerate(headers):
+                ctk.CTkLabel(
+                    self.status_manifest_frame,
+                    text=header,
+                    anchor="w",
+                    font=ctk.CTkFont(weight="bold"),
+                    text_color=("gray35", "gray75"),
+                ).grid(row=0, column=col, sticky="ew", padx=8, pady=(8, 4))
+
+            for row, field_id in enumerate(signature, start=1):
+                row_labels = []
+                for col in range(4):
+                    label = ctk.CTkLabel(
+                        self.status_manifest_frame,
+                        text="--",
+                        anchor="w",
+                        justify="left",
+                        wraplength=260 if col in (0, 3) else 180,
+                    )
+                    label.grid(row=row, column=col, sticky="ew", padx=8, pady=2)
+                    row_labels.append(label)
+                self.status_manifest_labels[field_id] = tuple(row_labels)
+
+        values = self._manifest_value_sources(heartbeat, state_topic, get_state, technical_status)
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            field_id = str(field.get("id") or "")
+            if not field_id:
+                continue
+            unit = str(field.get("unit") or "")
+            value = values.get(field_id, "--")
+            value_text = self._format_manifest_value(value, unit)
+            type_text = str(field.get("type") or "-")
+            flags_text = self._format_manifest_flags(field.get("flags"))
+            labels = self.status_manifest_labels.get(field_id)
+            if not labels:
+                continue
+
+            for label, text in zip(labels, (field_id, type_text, value_text, flags_text)):
+                if label.cget("text") != text:
+                    label.configure(text=text)
+
+        self._set_status_label("card.manifest.value", f"{len(signature)} campos")
+        revision = manifest.get("registry_revision", "-") if isinstance(manifest, dict) else "-"
+        self._set_status_label("card.manifest.detail", f"revision {revision}")
+
+    def _manifest_value_sources(
+        self,
+        heartbeat: Dict[str, Any],
+        state_topic: Dict[str, Any],
+        get_state: Dict[str, Any],
+        technical_status: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        values: Dict[str, Any] = {}
+        for payload in (technical_status, get_state, state_topic, heartbeat):
+            if isinstance(payload, dict):
+                values.update(self._flatten_dict(payload))
+        return values
+
+    def _format_manifest_value(self, value: Any, unit: str) -> str:
+        if value is None or value == "":
+            return "--"
+        if isinstance(value, bool):
+            text = "true" if value else "false"
+        elif isinstance(value, (dict, list)):
+            text = json.dumps(value, ensure_ascii=True)
+        else:
+            text = str(value)
+        if unit and text != "--":
+            return f"{text} {unit}"
+        return text
+
+    def _format_manifest_flags(self, flags: Any) -> str:
+        if not isinstance(flags, list):
+            return "-"
+        names = []
+        for item in flags:
+            if isinstance(item, dict) and item.get("flag"):
+                names.append(str(item.get("flag")))
+            elif isinstance(item, str):
+                names.append(item)
+        return ", ".join(names) if names else "-"
 
     def _status_card(self, parent, row: int, col: int, key: str, title: str):
         card = ctk.CTkFrame(parent)
@@ -1175,6 +1272,12 @@ class App(ctk.CTk):
         except (TypeError, ValueError):
             return default
 
+    def _first_non_empty(self, *values: Any) -> str:
+        for value in values:
+            if value not in (None, ""):
+                return str(value)
+        return ""
+
     def _format_ms(self, value: Any) -> str:
         try:
             numeric = float(value)
@@ -1192,7 +1295,7 @@ class App(ctk.CTk):
             "capturing": "Capturando",
             "silence_discarded": "Silencio descartado",
             "uploading": "Enviando",
-            "waiting_acr": "Aguardando ACR",
+            "waiting_acr": "Aguardando resposta",
             "result_human": "Humano",
             "result_ai": "IA",
             "error": "Erro",
@@ -1829,6 +1932,12 @@ class App(ctk.CTk):
         return hasattr(self, "tabs") and self.tabs.get() == "Status"
 
     def _on_main_tab_changed(self):
+        current_tab = self.tabs.get() if hasattr(self, "tabs") else ""
+        if current_tab == "Comandos":
+            self._ensure_commands_panel()
+        elif current_tab == "Settings":
+            self._ensure_settings_panel()
+
         if (
             self._is_status_tab_visible()
             and bool(self.technical_auto_update_var.get())
@@ -2636,7 +2745,10 @@ class App(ctk.CTk):
         self._upsert_tree_row(device)
 
         log_line = self._build_log_line(device_id, message_type, effective_ts, payload_obj, payload_raw)
-        if is_retained:
+        if is_lwt_offline:
+            log_line = f"[lwt] {log_line}"
+            log_tag = "mqtt_lwt"
+        elif is_retained:
             log_line = f"[retained] {log_line}"
             log_tag = "mqtt_retained"
         elif message_type == "heartbeat":
@@ -3020,6 +3132,8 @@ class App(ctk.CTk):
         heartbeat = self._payload_for(device, "heartbeat")
         state = self._payload_for(device, "state")
         availability = self._payload_for(device, "availability")
+        seen = self._payload_for(device, "seen")
+        status_manifest = self._payload_for(device, "meta/status")
         event = self._payload_for(device, "event")
         cmd_out = self._payload_for(device, "cmd/out")
         ssid, ip, _rssi = self._device_network_info(device)
@@ -3246,7 +3360,7 @@ def main():
 
     def on_close():
         try:
-            app.mqtt.disconnect()
+            app.mqtt.disconnect(emit_event=False)
         except TclError:
             pass
         app.destroy()

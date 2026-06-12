@@ -42,8 +42,13 @@ Cada campo tem:
 publica `meta/status` retained com os metadados dos campos expostos por MQTT,
 incluindo tipo, unidade opcional e flags.
 
+O Control Center ja consome esse manifesto para renderizar uma tabela read-only
+dos campos conhecidos e seus valores atuais, usando os payloads `heartbeat`,
+`state`, `get_state` e `get_technical_status` como fontes de valor.
+
 ## Fora de escopo por enquanto
 
-- renderizacao dinamica no Control Center;
+- edicao de valores, que pertence ao `tele_config`;
+- paginacao do manifesto, que so deve entrar quando o payload crescer;
 - campos aninhados complexos, como o status tecnico completo de VBAT;
 - persistencia ou configuracao remota, que pertencem ao `tele_config`.
