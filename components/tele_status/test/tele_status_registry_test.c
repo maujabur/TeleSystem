@@ -31,26 +31,26 @@ static const tele_status_field_t fields[] = {
     {
         .id = "wifi_ready",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
         .read.boolean = bool_value,
     },
     {
         .id = "rssi",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
         .read.i32 = i32_value,
     },
     {
         .id = "uptime_s",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_HEARTBEAT,
+        .flags = TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
         .read.u32 = u32_value,
         .ctx = &(uint32_t) {123},
     },
     {
         .id = "ip",
         .type = TELE_STATUS_TYPE_STRING,
-        .flags = TELE_STATUS_FLAG_STATE,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
         .read.string = string_value,
         .ctx = "192.168.15.97",
     },
@@ -87,6 +87,25 @@ int main(void)
     assert(strstr(text, "\"rssi\":-42") != NULL);
     assert(strstr(text, "\"ip\":\"192.168.15.97\"") != NULL);
     assert(strstr(text, "\"uptime_s\"") == NULL);
+    cJSON_free(text);
+    cJSON_Delete(root);
+
+    root = cJSON_CreateObject();
+    assert(root != NULL);
+    assert(tele_status_add_manifest_to_json(root, TELE_STATUS_FLAG_MQTT) == ESP_OK);
+    text = cJSON_PrintUnformatted(root);
+    assert(text != NULL);
+    assert(strstr(text, "\"registry_revision\":1") != NULL);
+    assert(strstr(text, "\"fields\"") != NULL);
+    assert(strstr(text, "\"id\":\"wifi_ready\"") != NULL);
+    assert(strstr(text, "\"type\":\"bool\"") != NULL);
+    assert(strstr(text, "\"flag\":\"state\"") != NULL);
+    assert(strstr(text, "\"id\":\"rssi\"") != NULL);
+    assert(strstr(text, "\"type\":\"i32\"") != NULL);
+    assert(strstr(text, "\"id\":\"uptime_s\"") != NULL);
+    assert(strstr(text, "\"type\":\"u32\"") != NULL);
+    assert(strstr(text, "\"id\":\"ip\"") != NULL);
+    assert(strstr(text, "\"type\":\"string\"") != NULL);
     cJSON_free(text);
     cJSON_Delete(root);
 

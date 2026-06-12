@@ -396,6 +396,23 @@ static cJSON *mqtt_presence_build_technical_status(void *ctx)
     return result;
 }
 
+static cJSON *mqtt_presence_build_status_manifest(void *ctx)
+{
+    cJSON *result = cJSON_CreateObject();
+    (void)ctx;
+
+    if (!result) {
+        return NULL;
+    }
+
+    if (tele_status_add_manifest_to_json(result, TELE_STATUS_FLAG_MQTT) != ESP_OK) {
+        cJSON_Delete(result);
+        return NULL;
+    }
+
+    return result;
+}
+
 static cJSON *mqtt_presence_build_heartbeat(void *ctx)
 {
     cJSON *result = cJSON_CreateObject();
@@ -600,6 +617,7 @@ esp_err_t mqtt_presence_start(void)
         .build_timestamp = mqtt_presence_build_timestamp,
         .build_state = mqtt_presence_build_state,
         .build_settings = mqtt_presence_build_settings,
+        .build_status_manifest = mqtt_presence_build_status_manifest,
         .build_technical_status = mqtt_presence_build_technical_status,
         .build_heartbeat = mqtt_presence_build_heartbeat,
         .apply_settings = mqtt_presence_apply_settings,

@@ -14,6 +14,8 @@ typedef int esp_err_t;
 typedef struct cJSON cJSON;
 
 cJSON *cJSON_CreateObject(void);
+cJSON *cJSON_AddArrayToObject(cJSON *object, const char *name);
+bool cJSON_AddItemToArray(cJSON *array, cJSON *item);
 bool cJSON_AddBoolToObject(cJSON *object, const char *name, bool value);
 double cJSON_AddNumberToObject(cJSON *object, const char *name, double value);
 bool cJSON_AddStringToObject(cJSON *object, const char *name, const char *value);

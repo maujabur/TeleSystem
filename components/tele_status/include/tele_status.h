@@ -57,6 +57,7 @@ typedef struct {
 esp_err_t tele_status_register_fields(const tele_status_field_t *fields, size_t field_count);
 const tele_status_field_t *tele_status_find_field(const char *id);
 esp_err_t tele_status_add_fields_to_json(cJSON *root, uint32_t required_flags);
+esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_flags);
 
 #ifdef __cplusplus
 }

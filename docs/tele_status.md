@@ -38,12 +38,12 @@ Cada campo tem:
 - `heartbeat_interval_s`
 - `time_synchronized`
 
-Nesta primeira fatia, os topicos MQTT continuam iguais. A mudanca e interna:
-`state` e `heartbeat` passam a ser montados a partir do registry.
+`state` e `heartbeat` sao montados a partir do registry. O firmware tambem
+publica `meta/status` retained com os metadados dos campos expostos por MQTT,
+incluindo tipo, unidade opcional e flags.
 
 ## Fora de escopo por enquanto
 
-- manifesto MQTT `meta/status`;
 - renderizacao dinamica no Control Center;
 - campos aninhados complexos, como o status tecnico completo de VBAT;
 - persistencia ou configuracao remota, que pertencem ao `tele_config`.

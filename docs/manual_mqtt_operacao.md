@@ -46,6 +46,7 @@ v1/telecafezinho/{device_id}/seen
 v1/telecafezinho/{device_id}/state
 v1/telecafezinho/{device_id}/heartbeat
 v1/telecafezinho/{device_id}/event
+v1/telecafezinho/{device_id}/meta/status
 v1/telecafezinho/{device_id}/cmd/in
 v1/telecafezinho/{device_id}/cmd/out
 ```
@@ -59,7 +60,7 @@ Payload retido para online/offline. O mesmo topico e usado como LWT.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.4 TeleCafezinho retained seen",
+  "fw": "0.3.5 TeleCafezinho status manifest",
   "session_id": "20260609T120000Z-5112D0",
   "status": "online",
   "reason": "mqtt_connected",
@@ -76,7 +77,7 @@ sem gravar nada em NVS/flash.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.4 TeleCafezinho retained seen",
+  "fw": "0.3.5 TeleCafezinho status manifest",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "last_seen_ts": "2026-06-09T12:01:00Z",
@@ -91,7 +92,7 @@ Snapshot retido com conectividade, bateria e dados tecnicos curtos.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.4 TeleCafezinho retained seen",
+  "fw": "0.3.5 TeleCafezinho status manifest",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "wifi_state": "sta_connected",
@@ -114,7 +115,7 @@ Telemetria periodica, sem retenção.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.4 TeleCafezinho retained seen",
+  "fw": "0.3.5 TeleCafezinho status manifest",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "uptime_s": 60,
@@ -125,6 +126,34 @@ Telemetria periodica, sem retenção.
 }
 ```
 
+### meta/status
+
+Manifesto retido dos campos de status conhecidos pelo firmware. Nesta fase, o
+Control Center apenas reconhece e guarda o payload; a renderizacao dinamica vem
+em etapa posterior.
+
+```json
+{
+  "device_id": "TeleCafezinho-5112D0",
+  "fw": "0.3.5 TeleCafezinho status manifest",
+  "session_id": "20260609T120000Z-5112D0",
+  "ts": "2026-06-09T12:00:00Z",
+  "registry_revision": 1,
+  "fields": [
+    {
+      "id": "rssi",
+      "type": "i32",
+      "unit": "dBm",
+      "flags": [
+        {"flag": "state"},
+        {"flag": "heartbeat"},
+        {"flag": "mqtt"}
+      ]
+    }
+  ]
+}
+```
+
 ### event
 
 Eventos discretos de firmware.
@@ -132,7 +161,7 @@ Eventos discretos de firmware.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.4 TeleCafezinho retained seen",
+  "fw": "0.3.5 TeleCafezinho status manifest",
   "session_id": "20260609T120000Z-5112D0",
   "event": "boot",
   "message": "mqtt_online",
@@ -168,7 +197,7 @@ Resposta base:
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.4 TeleCafezinho retained seen",
+  "fw": "0.3.5 TeleCafezinho status manifest",
   "session_id": "20260609T120000Z-5112D0",
   "cmd_id": "c1",
   "ok": true,

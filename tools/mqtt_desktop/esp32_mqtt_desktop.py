@@ -1283,6 +1283,7 @@ class App(ctk.CTk):
             ("Availability payload", "availability_payload"),
             ("Seen payload", "seen_payload"),
             ("Heartbeat payload", "heartbeat_payload"),
+            ("Status manifest payload", "status_manifest_payload"),
         ]
 
         for index, (label, key) in enumerate(rows, start=1):
@@ -1974,6 +1975,7 @@ class App(ctk.CTk):
             self._base_topic(device_id, "heartbeat"),
             self._base_topic(device_id, "state"),
             self._base_topic(device_id, "event"),
+            self._base_topic(device_id, "meta", "status"),
             self._base_topic(device_id, "cmd", "out"),
             self._base_topic(device_id, "cmd", "in"),
         ]
@@ -2584,6 +2586,12 @@ class App(ctk.CTk):
         effective_ts = payload_ts or broker_time
         contact_ts = broker_time
         counts_as_presence = message_type in PRESENCE_MESSAGE_TYPES and not is_empty_payload
+        is_lwt_offline = (
+            message_type == "availability"
+            and isinstance(payload_obj, dict)
+            and payload_obj.get("status") == "offline"
+            and payload_obj.get("reason") == "lwt"
+        )
 
         if is_empty_payload:
             device.last_messages.pop(message_type, None)
@@ -2602,11 +2610,15 @@ class App(ctk.CTk):
             if counts_as_presence and payload_ts and not device.seen_live:
                 if not device.last_seen or payload_ts > device.last_seen:
                     device.last_seen = payload_ts
+            if is_lwt_offline:
+                device.online = False
             if counts_as_presence and self.mqtt.connected and bool(self.auto_probe_var.get()) and not device.seen_live:
                 now = datetime.now()
                 if not device.last_probe_at or now - device.last_probe_at > timedelta(seconds=30):
                     device.last_probe_at = now
                     self._send_cmd_to_device(device_id, "get_state", log_publish=False)
+        elif is_lwt_offline:
+            device.online = False
         elif counts_as_presence:
             device.seen_live = True
             device.last_seen = contact_ts
@@ -2860,6 +2872,7 @@ class App(ctk.CTk):
         state = self._payload_for(device, "state")
         availability = self._payload_for(device, "availability")
         seen = self._payload_for(device, "seen")
+        status_manifest = self._payload_for(device, "meta/status")
         event = self._payload_for(device, "event")
         cmd_out = self._payload_for(device, "cmd/out")
         technical = device.last_technical_status_result or {}
@@ -3040,6 +3053,7 @@ class App(ctk.CTk):
         self._set_detail("availability_payload", self._compact_json(availability))
         self._set_detail("seen_payload", self._compact_json(seen))
         self._set_detail("heartbeat_payload", self._compact_json(heartbeat))
+        self._set_detail("status_manifest_payload", self._compact_json(status_manifest))
 
         cmd_ok_text = self.detail_value_labels["cmd_ok"].cget("text")
         if cmd_ok_text == "True":
@@ -3216,6 +3230,8 @@ class App(ctk.CTk):
         tail = parts[len(base_parts) + 1:]
         if tail == ["cmd", "out"]:
             return device_id, "cmd/out"
+        if tail == ["meta", "status"]:
+            return device_id, "meta/status"
         if len(tail) == 1 and tail[0] in {"availability", "seen", "heartbeat", "state", "event"}:
             return device_id, tail[0]
         return None, None
