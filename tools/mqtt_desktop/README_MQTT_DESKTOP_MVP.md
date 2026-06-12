@@ -66,7 +66,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `set_heartbeat_interval`
 - Settings via MQTT:
   - botao `Ler settings` envia `get_settings` e mostra o JSON devolvido pelo device
-  - a aba e read-only ate existir um contrato generico de `meta/config`
+  - renderiza `meta/config` em modo read-only, com indicacao de campos `runtime_apply` e `reboot_required`
   - botao `Salvar heartbeat` envia `set_heartbeat_interval`
   - botao `Apply + reboot` envia `apply_and_reboot`
   - botao `Limpar retained` publica payload vazio retido nos topicos do device para remover ghosts
@@ -85,7 +85,6 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - com auto-probe ligado, o app envia `get_state` para devices conhecidos sem live recente
 - Aba Status:
   - mostra cards genericos de conectividade, runtime, heartbeat, energia, memoria, manifesto e erros
-  - reconhece `meta/config` como manifesto read-only dos campos configuraveis publicados pelo device
   - renderiza `meta/status` como manifesto read-only dos campos de status publicados pelo device
   - mantem tabela de campos brutos do payload de `state`, do resultado de `get_state` e do status tecnico
   - botoes `get_state` e `status_tecnico` para atualizacao ativa

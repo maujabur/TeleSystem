@@ -164,7 +164,7 @@ default, valor efetivo, limites e flags de cada campo exposto por MQTT.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.6 TeleCafezinho config manifest",
+  "fw": "0.3.8 TeleCafezinho config update flow",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -179,7 +179,8 @@ default, valor efetivo, limites e flags de cada campo exposto por MQTT.
       "max": 20,
       "flags": [
         {"flag": "web"},
-        {"flag": "mqtt"}
+        {"flag": "mqtt"},
+        {"flag": "runtime_apply"}
       ]
     }
   ]
@@ -300,7 +301,9 @@ Atualiza configuracoes de conectividade do dispositivo.
 Regras:
 
 - `apsta_policy` e `apsta_grace_period_s` devem ser enviados juntos;
-- `sta_max_retry` aceita a mesma faixa validada pela API HTTP;
+- todos os valores passam por `tele_config_update_value()`;
+- campos com `runtime_apply` sao aplicados por callback opcional antes de persistir;
+- campos com `reboot_required` sao persistidos como override e entram em vigor no proximo boot ou apos comando de reboot;
 - comandos mutaveis usam deduplicacao por `cmd_id`.
 
 ### apply_and_reboot

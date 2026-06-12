@@ -70,12 +70,21 @@ typedef esp_err_t (*tele_config_apply_cb_t)(const tele_config_field_t *field,
                                             const tele_config_value_t *value,
                                             void *ctx);
 
+typedef struct {
+    bool applied;
+    bool stored;
+    bool requires_reboot;
+} tele_config_update_result_t;
+
 esp_err_t tele_config_validate_value(const tele_config_field_t *field,
                                      const tele_config_value_t *value);
 esp_err_t tele_config_register_fields(const tele_config_field_t *fields, size_t field_count);
 const tele_config_field_t *tele_config_find_field(const char *id);
 esp_err_t tele_config_set_apply_handler(const char *id, tele_config_apply_cb_t apply_cb, void *ctx);
 esp_err_t tele_config_apply_value(const char *id, const tele_config_value_t *value);
+esp_err_t tele_config_update_value(const char *id,
+                                   const tele_config_value_t *value,
+                                   tele_config_update_result_t *out_result);
 esp_err_t tele_config_get_effective(const char *id,
                                     tele_config_value_t *out_value,
                                     char *string_buffer,

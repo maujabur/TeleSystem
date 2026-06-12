@@ -493,18 +493,11 @@ static esp_err_t mqtt_presence_apply_settings(const cJSON *args,
 
         item = cJSON_GetObjectItemCaseSensitive((cJSON *)device_connectivity, "provisioning_ssid");
         if (cJSON_IsString(item) && item->valuestring && item->valuestring[0] != '\0') {
-            err = device_config_store_save_provisioning_ssid(item->valuestring);
-            if (err != ESP_OK) {
-                if (out_error) {
-                    *out_error = "provisioning_ssid_save_failed";
-                }
-                return err;
-            }
             tele_config_value_t value = {.string = item->valuestring};
-            err = tele_config_apply_value(DEVICE_CONFIG_ID_PROVISIONING_SSID, &value);
+            err = tele_config_update_value(DEVICE_CONFIG_ID_PROVISIONING_SSID, &value, NULL);
             if (err != ESP_OK) {
                 if (out_error) {
-                    *out_error = "provisioning_ssid_apply_failed";
+                    *out_error = "provisioning_ssid_update_failed";
                 }
                 return err;
             }
@@ -514,25 +507,11 @@ static esp_err_t mqtt_presence_apply_settings(const cJSON *args,
         item = cJSON_GetObjectItemCaseSensitive((cJSON *)device_connectivity, "sta_max_retry");
         if (cJSON_IsNumber(item)) {
             int retry = item->valueint;
-            if (retry < DEVICE_CONFIG_STA_MAX_RETRY_MIN || retry > DEVICE_CONFIG_STA_MAX_RETRY_MAX) {
-                if (out_error) {
-                    *out_error = "sta_max_retry_out_of_range";
-                }
-                return ESP_ERR_INVALID_ARG;
-            }
-
-            err = device_config_store_save_sta_max_retry((uint8_t)retry);
-            if (err != ESP_OK) {
-                if (out_error) {
-                    *out_error = "sta_max_retry_save_failed";
-                }
-                return err;
-            }
             tele_config_value_t value = {.u32 = (uint32_t)retry};
-            err = tele_config_apply_value(DEVICE_CONFIG_ID_STA_MAX_RETRY, &value);
+            err = tele_config_update_value(DEVICE_CONFIG_ID_STA_MAX_RETRY, &value, NULL);
             if (err != ESP_OK) {
                 if (out_error) {
-                    *out_error = "sta_max_retry_apply_failed";
+                    *out_error = "sta_max_retry_update_failed";
                 }
                 return err;
             }
@@ -552,28 +531,29 @@ static esp_err_t mqtt_presence_apply_settings(const cJSON *args,
 
             int policy = policy_item->valueint;
             uint32_t grace_period_s = (uint32_t)grace_item->valuedouble;
-            if (policy < DEVICE_CONFIG_APSTA_ALWAYS_ON ||
-                policy > DEVICE_CONFIG_APSTA_STA_ONLY ||
-                grace_period_s < DEVICE_CONFIG_APSTA_GRACE_PERIOD_S_MIN ||
-                grace_period_s > DEVICE_CONFIG_APSTA_GRACE_PERIOD_S_MAX) {
+            tele_config_value_t policy_value = {.i32 = policy};
+            tele_config_value_t grace_value = {.u32 = grace_period_s};
+            const tele_config_field_t *policy_field = tele_config_find_field(DEVICE_CONFIG_ID_APSTA_POLICY);
+            const tele_config_field_t *grace_field = tele_config_find_field(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S);
+            if (tele_config_validate_value(policy_field, &policy_value) != ESP_OK ||
+                tele_config_validate_value(grace_field, &grace_value) != ESP_OK) {
                 if (out_error) {
                     *out_error = "apsta_config_out_of_range";
                 }
                 return ESP_ERR_INVALID_ARG;
             }
 
-            err = device_config_store_save_apsta_policy((device_config_apsta_policy_t)policy,
-                                                        grace_period_s);
+            err = tele_config_update_value(DEVICE_CONFIG_ID_APSTA_POLICY, &policy_value, NULL);
             if (err != ESP_OK) {
                 if (out_error) {
-                    *out_error = "apsta_config_save_failed";
+                    *out_error = "apsta_policy_update_failed";
                 }
                 return err;
             }
-            err = wifi_manager_set_apsta_policy((wifi_manager_apsta_policy_t)policy, grace_period_s);
-            if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            err = tele_config_update_value(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S, &grace_value, NULL);
+            if (err != ESP_OK) {
                 if (out_error) {
-                    *out_error = "apsta_config_apply_failed";
+                    *out_error = "apsta_grace_update_failed";
                 }
                 return err;
             }

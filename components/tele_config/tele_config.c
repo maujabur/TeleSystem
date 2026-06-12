@@ -247,6 +247,53 @@ static esp_err_t validate_field_default(const tele_config_field_t *field)
     return tele_config_validate_value(field, &value);
 }
 
+static esp_err_t store_override_value(const tele_config_field_t *field, const tele_config_value_t *value)
+{
+    if (!field || !value) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+#ifdef TELE_CONFIG_HOST_TEST
+    return ESP_OK;
+#else
+    char key[TELE_CONFIG_NVS_KEY_MAX_LEN + 1] = {0};
+    esp_err_t err = copy_nvs_key(field, key, sizeof(key));
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    nvs_handle_t handle = 0;
+    err = nvs_open(TELE_CONFIG_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    switch (field->type) {
+    case TELE_CONFIG_TYPE_BOOL:
+        err = nvs_set_u8(handle, key, value->boolean ? 1 : 0);
+        break;
+    case TELE_CONFIG_TYPE_I32:
+    case TELE_CONFIG_TYPE_ENUM:
+        err = nvs_set_i32(handle, key, value->i32);
+        break;
+    case TELE_CONFIG_TYPE_U32:
+        err = nvs_set_u32(handle, key, value->u32);
+        break;
+    case TELE_CONFIG_TYPE_STRING:
+        err = nvs_set_str(handle, key, value->string);
+        break;
+    default:
+        err = ESP_ERR_INVALID_ARG;
+        break;
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+    nvs_close(handle);
+    return err;
+#endif
+}
+
 esp_err_t tele_config_validate_value(const tele_config_field_t *field,
                                      const tele_config_value_t *value)
 {
@@ -349,6 +396,59 @@ esp_err_t tele_config_apply_value(const char *id, const tele_config_value_t *val
     }
 
     return entry->apply_cb(entry->field, value, entry->apply_ctx);
+}
+
+esp_err_t tele_config_update_value(const char *id,
+                                   const tele_config_value_t *value,
+                                   tele_config_update_result_t *out_result)
+{
+    tele_config_registry_entry_t *entry = find_entry(id);
+    tele_config_update_result_t result = {0};
+
+    if (out_result) {
+        *out_result = result;
+    }
+    if (!entry || !entry->field || !value) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if ((entry->field->flags & TELE_CONFIG_FLAG_READ_ONLY) != 0) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    result.requires_reboot = (entry->field->flags & TELE_CONFIG_FLAG_REBOOT_REQUIRED) != 0;
+
+    esp_err_t err = tele_config_validate_value(entry->field, value);
+    if (err != ESP_OK) {
+        if (out_result) {
+            *out_result = result;
+        }
+        return err;
+    }
+
+    if (entry->apply_cb) {
+        err = entry->apply_cb(entry->field, value, entry->apply_ctx);
+        if (err != ESP_OK) {
+            if (out_result) {
+                *out_result = result;
+            }
+            return err;
+        }
+        result.applied = true;
+    }
+
+    err = store_override_value(entry->field, value);
+    if (err != ESP_OK) {
+        if (out_result) {
+            *out_result = result;
+        }
+        return err;
+    }
+    result.stored = true;
+
+    if (out_result) {
+        *out_result = result;
+    }
+    return ESP_OK;
 }
 
 esp_err_t tele_config_get_effective(const char *id,
@@ -531,45 +631,7 @@ esp_err_t tele_config_set_override(const char *id, const tele_config_value_t *va
         return err;
     }
 
-#ifdef TELE_CONFIG_HOST_TEST
-    return ESP_ERR_NOT_SUPPORTED;
-#else
-    char key[TELE_CONFIG_NVS_KEY_MAX_LEN + 1] = {0};
-    err = copy_nvs_key(field, key, sizeof(key));
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    nvs_handle_t handle = 0;
-    err = nvs_open(TELE_CONFIG_NVS_NAMESPACE, NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    switch (field->type) {
-    case TELE_CONFIG_TYPE_BOOL:
-        err = nvs_set_u8(handle, key, value->boolean ? 1 : 0);
-        break;
-    case TELE_CONFIG_TYPE_I32:
-    case TELE_CONFIG_TYPE_ENUM:
-        err = nvs_set_i32(handle, key, value->i32);
-        break;
-    case TELE_CONFIG_TYPE_U32:
-        err = nvs_set_u32(handle, key, value->u32);
-        break;
-    case TELE_CONFIG_TYPE_STRING:
-        err = nvs_set_str(handle, key, value->string);
-        break;
-    default:
-        err = ESP_ERR_INVALID_ARG;
-        break;
-    }
-    if (err == ESP_OK) {
-        err = nvs_commit(handle);
-    }
-    nvs_close(handle);
-    return err;
-#endif
+    return store_override_value(field, value);
 }
 
 esp_err_t tele_config_reset_override(const char *id)

@@ -216,6 +216,8 @@ class App(ctk.CTk):
         self.status_raw_text_value = ""
         self.settings_loaded_device_id: Optional[str] = None
         self.settings_raw_text_value = ""
+        self.settings_config_labels: Dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel]] = {}
+        self.settings_config_signature: tuple[str, ...] = ()
         self.pending_cmd_by_id: Dict[str, PendingCommand] = {}
         self.log_line_count = 0
         self.mousewheel_scroll_frames: list[Any] = []
@@ -550,7 +552,8 @@ class App(ctk.CTk):
         parent.grid_columnconfigure(0, weight=1)
         parent.grid_rowconfigure(0, weight=0)
         parent.grid_rowconfigure(1, weight=0)
-        parent.grid_rowconfigure(2, weight=1)
+        parent.grid_rowconfigure(2, weight=2)
+        parent.grid_rowconfigure(3, weight=1)
 
         actions = ctk.CTkFrame(parent)
         actions.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
@@ -570,10 +573,16 @@ class App(ctk.CTk):
         self.settings_status_label = ctk.CTkLabel(parent, text="Ultima leitura: -", anchor="w")
         self.settings_status_label.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 4))
 
-        self.settings_raw_text = ctk.CTkTextbox(parent, height=360, wrap="none")
-        self.settings_raw_text.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        self.settings_config_frame = ctk.CTkScrollableFrame(parent)
+        self.settings_config_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        for col in range(6):
+            self.settings_config_frame.grid_columnconfigure(col, weight=1 if col in (0, 1) else 0)
+
+        self.settings_raw_text = ctk.CTkTextbox(parent, height=180, wrap="none")
+        self.settings_raw_text.grid(row=3, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.settings_raw_text.insert(END, "-")
         self.settings_raw_text.configure(state="disabled")
+        self._refresh_settings_panel()
 
     def _build_status_panel(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -1354,6 +1363,7 @@ class App(ctk.CTk):
         if not selection:
             self.selected_device = None
             self._refresh_status_panel()
+            self._refresh_settings_panel()
             return
 
         self.selected_device = selection[0]
@@ -1361,6 +1371,7 @@ class App(ctk.CTk):
         self._update_settings_selection_status()
         self._refresh_device_details()
         self._refresh_status_panel()
+        self._refresh_settings_panel()
 
     def _update_settings_selection_status(self):
         if not hasattr(self, "settings_status_label"):
@@ -1372,6 +1383,156 @@ class App(ctk.CTk):
             self.settings_status_label.configure(
                 text=f"Settings de {previous_device} limpos ao trocar device. Leia settings do device atual."
             )
+
+    def _refresh_settings_panel(self):
+        if not hasattr(self, "settings_config_frame"):
+            return
+
+        if not self.selected_device:
+            self._render_config_manifest_view(None)
+            self._set_settings_raw_text("-")
+            if hasattr(self, "settings_status_label"):
+                self.settings_status_label.configure(text="Selecione um dispositivo para visualizar settings.")
+            return
+
+        device = self.devices.get(self.selected_device)
+        if not device:
+            self._render_config_manifest_view(None)
+            self._set_settings_raw_text("-")
+            if hasattr(self, "settings_status_label"):
+                self.settings_status_label.configure(text="Dispositivo sem dados de settings.")
+            return
+
+        config_manifest = self._payload_for(device, "meta/config")
+        self._render_config_manifest_view(config_manifest)
+        if config_manifest and self.settings_loaded_device_id != self.selected_device:
+            self._set_settings_raw_text(json.dumps(config_manifest, ensure_ascii=True, indent=2, sort_keys=True))
+
+    def _clear_config_manifest_view(self):
+        for child in self.settings_config_frame.winfo_children():
+            child.destroy()
+        self.settings_config_labels = {}
+        self.settings_config_signature = ()
+
+    def _render_config_manifest_view(self, manifest: Optional[Dict[str, Any]]):
+        if not hasattr(self, "settings_config_frame"):
+            return
+
+        fields = manifest.get("fields") if isinstance(manifest, dict) else None
+        if not isinstance(fields, list) or not fields:
+            if self.settings_config_signature != ("__empty__",):
+                self._clear_config_manifest_view()
+                ctk.CTkLabel(
+                    self.settings_config_frame,
+                    text="Sem meta/config recebido ainda.",
+                    anchor="w",
+                    text_color=("gray45", "gray65"),
+                ).grid(row=0, column=0, columnspan=6, sticky="ew", padx=8, pady=8)
+                self.settings_config_signature = ("__empty__",)
+            return
+
+        signature = tuple(str(field.get("id") or "") for field in fields if isinstance(field, dict) and field.get("id"))
+        if signature != self.settings_config_signature:
+            self._clear_config_manifest_view()
+            self.settings_config_signature = signature
+            headers = ("Campo", "Valor", "Origem", "Aplicacao", "Tipo", "Limites")
+            for col, header in enumerate(headers):
+                ctk.CTkLabel(
+                    self.settings_config_frame,
+                    text=header,
+                    anchor="w",
+                    font=ctk.CTkFont(weight="bold"),
+                    text_color=("gray35", "gray75"),
+                ).grid(row=0, column=col, sticky="ew", padx=8, pady=(8, 4))
+
+            for row, field_id in enumerate(signature, start=1):
+                row_labels = []
+                for col in range(6):
+                    label = ctk.CTkLabel(
+                        self.settings_config_frame,
+                        text="--",
+                        anchor="w",
+                        justify="left",
+                        wraplength=240 if col in (0, 1) else 150,
+                    )
+                    label.grid(row=row, column=col, sticky="ew", padx=8, pady=2)
+                    row_labels.append(label)
+                self.settings_config_labels[field_id] = tuple(row_labels)
+
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            field_id = str(field.get("id") or "")
+            if not field_id:
+                continue
+            labels = self.settings_config_labels.get(field_id)
+            if not labels:
+                continue
+
+            value_text = self._format_config_value(field, "value")
+            source_text = str(field.get("source") or "-")
+            apply_text = self._format_config_application(field)
+            type_text = str(field.get("type") or "-")
+            limits_text = self._format_config_limits(field)
+            texts = (field_id, value_text, source_text, apply_text, type_text, limits_text)
+
+            for index, (label, text) in enumerate(zip(labels, texts)):
+                if label.cget("text") != text:
+                    label.configure(text=text)
+                if index == 3:
+                    if "reboot" in text:
+                        label.configure(text_color="#d9822b")
+                    elif "runtime" in text:
+                        label.configure(text_color="#1f8b24")
+                    else:
+                        label.configure(text_color=("gray10", "gray90"))
+
+        if hasattr(self, "settings_status_label"):
+            revision = manifest.get("registry_revision", "-") if isinstance(manifest, dict) else "-"
+            self.settings_status_label.configure(
+                text=f"meta/config: {len(signature)} campos | revision {revision} | device: {self.selected_device}"
+            )
+
+    def _format_config_value(self, field: Dict[str, Any], key: str) -> str:
+        if field.get(f"{key}_hidden") is True:
+            return "<secret>"
+        value = field.get(key)
+        if value is None or value == "":
+            return "-"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=True)
+        return str(value)
+
+    def _format_config_limits(self, field: Dict[str, Any]) -> str:
+        if field.get("min") is not None or field.get("max") is not None:
+            return f"{field.get('min', '-')}..{field.get('max', '-')}"
+        if field.get("min_len") is not None or field.get("max_len") is not None:
+            return f"len {field.get('min_len', '-')}..{field.get('max_len', '-')}"
+        return "-"
+
+    def _config_has_flag(self, field: Dict[str, Any], flag_name: str) -> bool:
+        flags = field.get("flags")
+        if not isinstance(flags, list):
+            return False
+        for item in flags:
+            if isinstance(item, dict) and item.get("flag") == flag_name:
+                return True
+            if item == flag_name:
+                return True
+        return False
+
+    def _format_config_application(self, field: Dict[str, Any]) -> str:
+        runtime = self._config_has_flag(field, "runtime_apply")
+        reboot = self._config_has_flag(field, "reboot_required")
+        if runtime and reboot:
+            return "runtime + reboot"
+        if runtime:
+            return "runtime"
+        if reboot:
+            return "reboot"
+        return "armazenado"
 
     def _on_device_tree_motion(self, event):
         row_id = self.tree.identify_row(event.y)
@@ -1720,6 +1881,7 @@ class App(ctk.CTk):
         self._update_settings_selection_status()
         self._refresh_device_details()
         self._refresh_status_panel()
+        self._refresh_settings_panel()
         if hasattr(self, "tabs"):
             self.tabs.set(tab_name)
 
@@ -1744,6 +1906,7 @@ class App(ctk.CTk):
             self._ensure_commands_panel()
         elif current_tab == "Settings":
             self._ensure_settings_panel()
+            self._refresh_settings_panel()
 
         if (
             self._is_status_tab_visible()
@@ -1885,6 +2048,7 @@ class App(ctk.CTk):
             self._base_topic(device_id, "heartbeat"),
             self._base_topic(device_id, "state"),
             self._base_topic(device_id, "event"),
+            self._base_topic(device_id, "meta", "config"),
             self._base_topic(device_id, "meta", "status"),
             self._base_topic(device_id, "cmd", "out"),
             self._base_topic(device_id, "cmd", "in"),
@@ -2109,6 +2273,7 @@ class App(ctk.CTk):
         if self.selected_device == device_id:
             self._refresh_device_details()
             self._refresh_status_panel()
+            self._refresh_settings_panel()
 
     def _check_offline_devices(self):
         timeout = self._heartbeat_timeout()
