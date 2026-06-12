@@ -42,6 +42,7 @@ Topicos usados:
 
 ```text
 v1/telecafezinho/{device_id}/availability
+v1/telecafezinho/{device_id}/seen
 v1/telecafezinho/{device_id}/state
 v1/telecafezinho/{device_id}/heartbeat
 v1/telecafezinho/{device_id}/event
@@ -58,11 +59,28 @@ Payload retido para online/offline. O mesmo topico e usado como LWT.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.3 TeleCafezinho status registry",
+  "fw": "0.3.4 TeleCafezinho retained seen",
   "session_id": "20260609T120000Z-5112D0",
   "status": "online",
   "reason": "mqtt_connected",
   "ts": "2026-06-09T12:00:00Z"
+}
+```
+
+### seen
+
+Ultimo contato conhecido, retido no broker. Este topico permite que o Control
+Center reinicie e ainda saiba quando o dispositivo foi visto pela ultima vez,
+sem gravar nada em NVS/flash.
+
+```json
+{
+  "device_id": "TeleCafezinho-5112D0",
+  "fw": "0.3.4 TeleCafezinho retained seen",
+  "session_id": "20260609T120000Z-5112D0",
+  "ts": "2026-06-09T12:01:00Z",
+  "last_seen_ts": "2026-06-09T12:01:00Z",
+  "reason": "heartbeat"
 }
 ```
 
@@ -73,7 +91,7 @@ Snapshot retido com conectividade, bateria e dados tecnicos curtos.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.3 TeleCafezinho status registry",
+  "fw": "0.3.4 TeleCafezinho retained seen",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "wifi_state": "sta_connected",
@@ -96,7 +114,7 @@ Telemetria periodica, sem retenção.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.3 TeleCafezinho status registry",
+  "fw": "0.3.4 TeleCafezinho retained seen",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "uptime_s": 60,
@@ -114,7 +132,7 @@ Eventos discretos de firmware.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.3 TeleCafezinho status registry",
+  "fw": "0.3.4 TeleCafezinho retained seen",
   "session_id": "20260609T120000Z-5112D0",
   "event": "boot",
   "message": "mqtt_online",
@@ -150,7 +168,7 @@ Resposta base:
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.3 TeleCafezinho status registry",
+  "fw": "0.3.4 TeleCafezinho retained seen",
   "session_id": "20260609T120000Z-5112D0",
   "cmd_id": "c1",
   "ok": true,

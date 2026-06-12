@@ -45,6 +45,7 @@ static char s_device_id[TELE_MQTT_DEVICE_ID_SIZE];
 static char s_session_id[TELE_MQTT_SESSION_ID_SIZE];
 static char s_lwt_payload[TELE_MQTT_JSON_BUF_SIZE];
 static char s_topic_availability[TELE_MQTT_TOPIC_BUF_SIZE];
+static char s_topic_seen[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_heartbeat[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_state[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_event[TELE_MQTT_TOPIC_BUF_SIZE];
@@ -265,6 +266,7 @@ static void build_topics(void)
              "%s/%s/availability",
              topic_namespace(),
              s_device_id);
+    snprintf(s_topic_seen, sizeof(s_topic_seen), "%s/%s/seen", topic_namespace(), s_device_id);
     snprintf(s_topic_heartbeat, sizeof(s_topic_heartbeat), "%s/%s/heartbeat", topic_namespace(), s_device_id);
     snprintf(s_topic_state, sizeof(s_topic_state), "%s/%s/state", topic_namespace(), s_device_id);
     snprintf(s_topic_event, sizeof(s_topic_event), "%s/%s/event", topic_namespace(), s_device_id);
@@ -659,6 +661,22 @@ static void publish_state_snapshot(void)
     cJSON_Delete(payload);
 }
 
+static void publish_seen(const char *reason)
+{
+    char ts[TELE_MQTT_TS_BUF_SIZE] = {0};
+    cJSON *payload = cJSON_CreateObject();
+    if (!payload) {
+        return;
+    }
+
+    build_timestamp(ts, sizeof(ts));
+    add_common_fields(payload, ts);
+    cJSON_AddStringToObject(payload, "last_seen_ts", ts);
+    cJSON_AddStringToObject(payload, "reason", reason ? reason : "runtime");
+    publish_json(s_topic_seen, payload, qos_critical(), 1);
+    cJSON_Delete(payload);
+}
+
 static void publish_heartbeat(void)
 {
     cJSON *payload = s_config.build_heartbeat ? s_config.build_heartbeat(s_config.ctx) : cJSON_CreateObject();
@@ -668,6 +686,7 @@ static void publish_heartbeat(void)
 
     publish_json_with_common(s_topic_heartbeat, payload, qos_telemetry(), 0);
     cJSON_Delete(payload);
+    publish_seen("heartbeat");
 }
 
 esp_err_t tele_mqtt_publish_event(const char *event_name, const char *message)

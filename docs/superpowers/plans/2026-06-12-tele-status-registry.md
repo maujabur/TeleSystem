@@ -84,7 +84,7 @@ Document that `tele_status` is read-only, has no NVS, and is the future source f
 
 - [ ] **Step 2: Bump firmware version**
 
-Set the firmware string to `0.3.3 TeleCafezinho status registry`.
+Set the firmware string to the current feature version.
 
 - [ ] **Step 3: Verify**
 

@@ -33,7 +33,7 @@ APSTA_POLICY_LABEL_TO_VALUE = {
 }
 APSTA_POLICY_VALUE_TO_LABEL = {v: k for k, v in APSTA_POLICY_LABEL_TO_VALUE.items()}
 
-PRESENCE_MESSAGE_TYPES = {"availability", "heartbeat", "state", "event"}
+PRESENCE_MESSAGE_TYPES = {"availability", "seen", "heartbeat", "state", "event"}
 PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
 
@@ -1281,6 +1281,7 @@ class App(ctk.CTk):
             ("Cmd result", "cmd_result"),
             ("State payload", "state_payload"),
             ("Availability payload", "availability_payload"),
+            ("Seen payload", "seen_payload"),
             ("Heartbeat payload", "heartbeat_payload"),
         ]
 
@@ -1969,6 +1970,7 @@ class App(ctk.CTk):
 
         topics = [
             self._base_topic(device_id, "availability"),
+            self._base_topic(device_id, "seen"),
             self._base_topic(device_id, "heartbeat"),
             self._base_topic(device_id, "state"),
             self._base_topic(device_id, "event"),
@@ -1984,7 +1986,7 @@ class App(ctk.CTk):
     def _extract_payload_timestamp(self, payload_obj: Optional[Dict[str, Any]]) -> Optional[datetime]:
         if not isinstance(payload_obj, dict):
             return None
-        ts_value = payload_obj.get("ts")
+        ts_value = payload_obj.get("last_seen_ts") or payload_obj.get("ts")
         if not ts_value:
             return None
 
@@ -2857,6 +2859,7 @@ class App(ctk.CTk):
         heartbeat = self._payload_for(device, "heartbeat")
         state = self._payload_for(device, "state")
         availability = self._payload_for(device, "availability")
+        seen = self._payload_for(device, "seen")
         event = self._payload_for(device, "event")
         cmd_out = self._payload_for(device, "cmd/out")
         technical = device.last_technical_status_result or {}
@@ -3035,6 +3038,7 @@ class App(ctk.CTk):
         self._set_detail("cmd_result", self._field(cmd_out, "result"))
         self._set_detail("state_payload", self._compact_json(state))
         self._set_detail("availability_payload", self._compact_json(availability))
+        self._set_detail("seen_payload", self._compact_json(seen))
         self._set_detail("heartbeat_payload", self._compact_json(heartbeat))
 
         cmd_ok_text = self.detail_value_labels["cmd_ok"].cget("text")
@@ -3212,7 +3216,7 @@ class App(ctk.CTk):
         tail = parts[len(base_parts) + 1:]
         if tail == ["cmd", "out"]:
             return device_id, "cmd/out"
-        if len(tail) == 1 and tail[0] in {"availability", "heartbeat", "state", "event"}:
+        if len(tail) == 1 and tail[0] in {"availability", "seen", "heartbeat", "state", "event"}:
             return device_id, tail[0]
         return None, None
 

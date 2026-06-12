@@ -138,7 +138,7 @@ validacao, ou evolua o componente no repositorio de origem antes de integrar.
 A string humana atual de firmware e util para debug, mas ruim para automacao:
 
 ```text
-0.3.3 TeleCafezinho status registry
+0.3.4 TeleCafezinho retained seen
 ```
 
 Para OTA remoto, o ideal e separar:
