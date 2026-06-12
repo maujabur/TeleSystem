@@ -9,13 +9,13 @@ Aplicativo desktop para administrar dispositivos ESP32 em campo via MQTT.
 
 ## Stack
 
-- Python 3.11+
+- Python 3.10+
 - CustomTkinter
 - paho-mqtt
 
 ## Pre-requisitos do sistema (Linux)
 
-- Python 3.11+ instalado
+- Python 3.10+ instalado
 - Tkinter instalado no sistema (necessario para GUI)
 
 Ubuntu/Debian:
@@ -33,8 +33,10 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - botoes Connect/Disconnect refletem o estado atual; `Disconnect` atua como cancelamento antes de conectar
 - Descoberta de dispositivos por wildcard usando `mqtt.base_topic`:
   - `{base_topic}/+/availability`
+  - `{base_topic}/+/seen`
   - `{base_topic}/+/heartbeat`
   - `{base_topic}/+/state`
+  - `{base_topic}/+/meta/status`
   - `{base_topic}/+/event`
   - `{base_topic}/+/cmd/out`
 - Lista de dispositivos com visao compacta:
@@ -62,20 +64,11 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `apply_and_reboot`
   - `set_heartbeat_interval`
 - Settings via MQTT:
-  - botao `Ler settings` envia `get_settings` e preenche o formulario
-  - botao `Salvar settings` envia `set_settings` apenas com alteracoes, em comandos pequenos e sequenciais
-  - `Salvar settings` so permite salvar no mesmo device de origem da ultima leitura
-  - ao trocar de device, campos de Settings sao limpos para evitar salvar valores do device anterior
-  - botoes `Abrir perfil` e `Salvar perfil` permitem carregar/salvar perfis JSON de settings entre sessoes
-  - por padrao, perfis de arquivo preservam `provisioning_ssid` e `upload_prefix` do destino
-  - checkbox `aplicar identidade` permite aplicar `provisioning_ssid` e `upload_prefix` do perfil quando necessario
-  - depois de abrir um perfil, o usuario revisa e clica `Salvar settings` explicitamente para enviar
+  - botao `Ler settings` envia `get_settings` e mostra o JSON devolvido pelo device
+  - a aba e read-only ate existir um contrato generico de `meta/config`
   - botao `Salvar heartbeat` envia `set_heartbeat_interval`
   - botao `Apply + reboot` envia `apply_and_reboot`
   - botao `Limpar retained` publica payload vazio retido nos topicos do device para remover ghosts
-  - use `Ler settings` antes de salvar para sincronizar valores atuais do device
-  - campos invalidos ficam destacados em vermelho e validos em verde
-  - `trigger_mode` e `apsta_policy` usam selects com rotulos amigaveis
   - area de log e redimensionavel com mouse (splitter vertical)
 - Presenca de device:
   - mensagens MQTT retained nao marcam o device como online
@@ -86,11 +79,12 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - se o device ja foi visto live na sessao, ao expirar o timeout ele vira `offline`, nao `retained`
   - em uma nova abertura do app, um device pode aparecer como `retained` novamente se ainda houver payload retido no broker
   - `pendente` indica device online com comando enviado e ainda sem resposta
-  - `triagem` indica offline ou erro real, como `cmd/out` com falha, evento de erro ou erro tecnico reportado
+  - `triagem` indica offline ou erro real, como `cmd/out` com falha ou evento de erro
   - toggle `Auto-probe presenca` na UI para ativar/desativar sonda automatica
   - com auto-probe ligado, o app envia `get_state` para devices conhecidos sem live recente
 - Aba Status:
-  - mostra cards formatados para loop, automatico, resultado, audio, BT_NEXT, erros, contadores, bateria e tempos
+  - mostra cards genericos de conectividade, runtime, heartbeat, energia, memoria, manifesto e erros
+  - renderiza `meta/status` como manifesto read-only dos campos de status publicados pelo device
   - mantem tabela de campos brutos do payload de `state`, do resultado de `get_state` e do status tecnico
   - botoes `get_state` e `status_tecnico` para atualizacao ativa
   - auto-update configuravel para `status_tecnico` com default de 3 segundos
@@ -124,6 +118,12 @@ python esp32_mqtt_desktop.py
 ```
 
 Se ocorrer `ModuleNotFoundError: No module named 'tkinter'`, instale `python3-tk` e execute novamente.
+
+Nao execute a GUI com `sudo`. Se a `.venv` ficou com dono `root`, corrija uma vez:
+
+```bash
+sudo chown -R "$USER:$USER" tools/mqtt_desktop/.venv
+```
 
 ## Exemplo de payload de comando publicado
 

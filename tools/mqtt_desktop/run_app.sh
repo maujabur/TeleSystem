@@ -4,6 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+if [[ "${EUID:-$(id -u)}" -eq 0 && -n "${SUDO_USER:-}" ]]; then
+  echo "Erro: nao rode este app com sudo."
+  echo "Corrija as permissoes e rode novamente como usuario normal:"
+  echo "  sudo chown -R \"$SUDO_USER:$SUDO_USER\" \"$SCRIPT_DIR/.venv\""
+  exit 1
+fi
+
 pick_python_bin() {
   if command -v python3.11 >/dev/null 2>&1; then
     echo "python3.11"
@@ -27,9 +34,9 @@ fi
 PY_MM="$($PY_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 PY_MAJOR="${PY_MM%%.*}"
 PY_MINOR="${PY_MM##*.}"
-if [[ "$PY_MAJOR" -lt 3 || ( "$PY_MAJOR" -eq 3 && "$PY_MINOR" -lt 11 ) ]]; then
-  echo "Erro: este app requer Python 3.11+ (detectado $PY_MM)."
-  echo "Instale Python 3.11+ e rode novamente."
+if [[ "$PY_MAJOR" -lt 3 || ( "$PY_MAJOR" -eq 3 && "$PY_MINOR" -lt 10 ) ]]; then
+  echo "Erro: este app requer Python 3.10+ (detectado $PY_MM)."
+  echo "Instale Python 3.10+ e rode novamente."
   exit 1
 fi
 
@@ -39,11 +46,43 @@ if ! "$PY_BIN" -c "import tkinter" >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -d ".venv" ]]; then
-  "$PY_BIN" -m venv .venv
+VENV_DIR=".venv"
+MIN_PY_MINOR=10
+
+venv_needs_recreate() {
+  if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+    return 0
+  fi
+
+  local venv_mm
+  venv_mm="$("$VENV_DIR/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+  local venv_major="${venv_mm%%.*}"
+  local venv_minor="${venv_mm##*.}"
+  [[ "$venv_major" -lt 3 || ( "$venv_major" -eq 3 && "$venv_minor" -lt "$MIN_PY_MINOR" ) ]]
+}
+
+if [[ ! -d "$VENV_DIR" ]] || venv_needs_recreate; then
+  if [[ -d "$VENV_DIR" ]]; then
+    if [[ ! -w "$VENV_DIR" ]]; then
+      echo "Erro: ambiente Python local sem permissao de escrita: $SCRIPT_DIR/$VENV_DIR"
+      echo "Corrija uma vez e rode novamente sem sudo:"
+      echo "  sudo chown -R \"$(id -un):$(id -gn)\" \"$SCRIPT_DIR/$VENV_DIR\""
+      exit 1
+    fi
+    echo "Recriando ambiente Python local em $SCRIPT_DIR/$VENV_DIR..."
+    rm -rf "$VENV_DIR"
+  fi
+  "$PY_BIN" -m venv "$VENV_DIR"
 fi
 
-source .venv/bin/activate
-pip install -r requirements.txt
+if [[ ! -w "$VENV_DIR" ]]; then
+  echo "Erro: ambiente Python local sem permissao de escrita: $SCRIPT_DIR/$VENV_DIR"
+  echo "Corrija uma vez e rode novamente sem sudo:"
+  echo "  sudo chown -R \"$(id -un):$(id -gn)\" \"$SCRIPT_DIR/$VENV_DIR\""
+  exit 1
+fi
+
+source "$VENV_DIR/bin/activate"
+python -m pip install --disable-pip-version-check --quiet -r requirements.txt
 
 python esp32_mqtt_desktop.py
