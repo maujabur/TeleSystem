@@ -93,12 +93,16 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - com auto-probe ligado, o app envia `get_state` para devices conhecidos sem live recente
 - Aba Status:
   - mostra cards genericos de conectividade, runtime, heartbeat, energia, memoria, manifesto e erros
-  - renderiza `meta/status` agrupado por `group`, usando `label` e `description`
-  - mantem tabela de campos brutos do payload de `state`, do resultado de `get_state` e do status tecnico
+  - renderiza `meta/status` em `Status declarado`, agrupado por `group`, usando `label` e `description`
+  - separa `Diagnostico tecnico` do payload `get_technical_status`
+  - mantem area `Raw/debug` com campos brutos de `state`, `get_state` e `status_tecnico`
   - botoes `get_state` e `status_tecnico` para atualizacao ativa
   - auto-update configuravel para `status_tecnico` com default de 3 segundos
 - UX de botoes:
   - barras de acoes de Comandos, Settings e Status ficam fixas (nao rolam com o conteudo)
+- Performance visual:
+  - abas pesadas sao montadas sob demanda ao serem abertas
+  - manifests e diagnosticos atualizam valores sem recriar widgets quando a estrutura nao mudou
 - `cmd_id` gerado automaticamente
 - comandos pendentes expiram automaticamente para nao bloquear auto-update indefinidamente
 - Log em tempo real com destaque de `cmd/out` do dispositivo selecionado

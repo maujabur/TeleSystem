@@ -297,6 +297,8 @@ class App(ctk.CTk):
         self.status_display_values: Dict[str, str] = {}
         self.status_manifest_labels: Dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel]] = {}
         self.status_manifest_signature: tuple[str, ...] = ()
+        self.status_technical_labels: Dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel]] = {}
+        self.status_technical_signature: tuple[str, ...] = ()
         self.status_raw_text_value = ""
         self.settings_loaded_device_id: Optional[str] = None
         self.settings_raw_text_value = ""
@@ -337,6 +339,7 @@ class App(ctk.CTk):
         self.technical_update_interval_var = StringVar(value="3")
         self.conn_state_var = StringVar(value="Starting...")
         self.hb_interval_var = StringVar(value="60")
+        self.status_panel_built = False
         self.commands_panel_built = False
         self.settings_panel_built = False
 
@@ -532,7 +535,6 @@ class App(ctk.CTk):
         tab_status = tabs.tab("Status")
         tab_status.grid_columnconfigure(0, weight=1)
         tab_status.grid_rowconfigure(0, weight=1)
-        self._build_status_panel(tab_status)
 
         tab_commands = tabs.tab("Comandos")
         tab_commands.grid_columnconfigure(0, weight=1)
@@ -559,6 +561,12 @@ class App(ctk.CTk):
         self.bind_all("<Escape>", self._hide_device_context_menu, add="+")
 
         self._append_log("Application started", tag="info")
+
+    def _ensure_status_panel(self):
+        if self.status_panel_built:
+            return
+        self._build_status_panel(self.tabs.tab("Status"))
+        self.status_panel_built = True
 
     def _ensure_commands_panel(self):
         if self.commands_panel_built:
@@ -927,7 +935,7 @@ class App(ctk.CTk):
 
         self.settings_raw_text = ctk.CTkTextbox(parent, height=180, wrap="none")
         self.settings_raw_text.grid(row=3, column=0, sticky="nsew", padx=8, pady=(0, 8))
-        self.settings_raw_text.insert(END, "-")
+        self.settings_raw_text.insert(END, self.settings_raw_text_value or "-")
         self.settings_raw_text.configure(state="disabled")
         self._refresh_settings_panel()
 
@@ -999,7 +1007,7 @@ class App(ctk.CTk):
             self._status_card(self.status_body, index // 4, index % 4, key, title)
 
         row = 2
-        ctk.CTkLabel(self.status_body, text="Status manifesto", font=ctk.CTkFont(size=14, weight="bold")).grid(
+        ctk.CTkLabel(self.status_body, text="Status declarado", font=ctk.CTkFont(size=14, weight="bold")).grid(
             row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(12, 4)
         )
         row += 1
@@ -1011,7 +1019,17 @@ class App(ctk.CTk):
         self.status_manifest_frame.grid_columnconfigure(3, weight=3)
 
         row += 1
-        ctk.CTkLabel(self.status_body, text="Campos brutos", font=ctk.CTkFont(size=14, weight="bold")).grid(
+        ctk.CTkLabel(self.status_body, text="Diagnostico tecnico", font=ctk.CTkFont(size=14, weight="bold")).grid(
+            row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(12, 4)
+        )
+        row += 1
+        self.status_technical_frame = ctk.CTkFrame(self.status_body)
+        self.status_technical_frame.grid(row=row, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
+        self.status_technical_frame.grid_columnconfigure(0, weight=2)
+        self.status_technical_frame.grid_columnconfigure(1, weight=3)
+
+        row += 1
+        ctk.CTkLabel(self.status_body, text="Raw/debug", font=ctk.CTkFont(size=14, weight="bold")).grid(
             row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(12, 4)
         )
         row += 1
@@ -1171,6 +1189,8 @@ class App(ctk.CTk):
             self._set_status_label(key, "--")
         if hasattr(self, "status_raw_text"):
             self._set_status_raw_text("-")
+        if hasattr(self, "status_technical_frame"):
+            self._render_technical_diagnostics({})
         if clear_manifest and hasattr(self, "status_manifest_frame"):
             self._clear_status_manifest_view()
 
@@ -1251,12 +1271,100 @@ class App(ctk.CTk):
         self._set_status_label("card.errors.value", error_text or "sem erro")
         self._set_status_label("card.errors.detail", "campos error/last_error")
 
+        self._render_technical_diagnostics(tech)
+
         raw_lines = []
         for key in sorted(merged.keys()):
             value = merged[key]
             value_text = json.dumps(value, ensure_ascii=True) if isinstance(value, (dict, list)) else str(value)
             raw_lines.append(f"{key}: {value_text}")
         self._set_status_raw_text("\n".join(raw_lines) if raw_lines else "-")
+
+    def _render_technical_diagnostics(self, tech: Dict[str, Any]):
+        if not hasattr(self, "status_technical_frame"):
+            return
+
+        if not isinstance(tech, dict) or not tech:
+            if self.status_technical_signature != ("__empty__",):
+                self._clear_technical_diagnostics_view()
+                empty_label = ctk.CTkLabel(
+                    self.status_technical_frame,
+                    text="Sem payload de status_tecnico. Use o botao status_tecnico para consultar diagnostico detalhado.",
+                    anchor="w",
+                    text_color=("gray45", "gray65"),
+                )
+                empty_label.grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=8)
+                self.status_technical_signature = ("__empty__",)
+            return
+
+        groups = self._technical_diagnostic_groups(tech)
+        signature_parts = []
+        for title, values in groups:
+            visible_keys = tuple(sorted(key for key, value in values.items() if value not in (None, "")))
+            if visible_keys:
+                signature_parts.append(f"{title}|{','.join(visible_keys)}")
+        signature = tuple(signature_parts)
+
+        if signature != self.status_technical_signature:
+            self._clear_technical_diagnostics_view()
+            self.status_technical_signature = signature
+            row = 0
+            for title, values in groups:
+                visible_keys = [
+                    key
+                    for key in sorted(values.keys())
+                    if values[key] not in (None, "")
+                ]
+                if not visible_keys:
+                    continue
+                ctk.CTkLabel(
+                    self.status_technical_frame,
+                    text=title,
+                    anchor="w",
+                    font=ctk.CTkFont(weight="bold"),
+                    text_color=("gray35", "gray75"),
+                ).grid(row=row, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 2))
+                row += 1
+                for key in visible_keys:
+                    key_id = f"{title}.{key}"
+                    key_label = ctk.CTkLabel(self.status_technical_frame, text=key, anchor="w")
+                    value_label = ctk.CTkLabel(self.status_technical_frame, text="--", anchor="w", justify="left")
+                    key_label.grid(row=row, column=0, sticky="ew", padx=8, pady=2)
+                    value_label.grid(row=row, column=1, sticky="ew", padx=8, pady=2)
+                    self.status_technical_labels[key_id] = (key_label, value_label)
+                    row += 1
+
+        for title, values in groups:
+            for key, value in values.items():
+                if value in (None, ""):
+                    continue
+                labels = self.status_technical_labels.get(f"{title}.{key}")
+                if not labels:
+                    continue
+                value_text = json.dumps(value, ensure_ascii=True) if isinstance(value, (dict, list)) else str(value)
+                if labels[1].cget("text") != value_text:
+                    labels[1].configure(text=value_text)
+
+    def _clear_technical_diagnostics_view(self):
+        for child in self.status_technical_frame.winfo_children():
+            child.destroy()
+        self.status_technical_labels = {}
+        self.status_technical_signature = ()
+
+    def _technical_diagnostic_groups(self, tech: Dict[str, Any]) -> list[tuple[str, Dict[str, Any]]]:
+        return [
+            (
+                "Sistema",
+                {
+                    "uptime_seconds": tech.get("uptime_seconds"),
+                    "time_synchronized": tech.get("time_synchronized"),
+                    "heap_free": tech.get("heap_free"),
+                    "heartbeat_interval_s": tech.get("heartbeat_interval_s"),
+                },
+            ),
+            ("Power Good", tech.get("power_good") if isinstance(tech.get("power_good"), dict) else {}),
+            ("VBAT", tech.get("vbat") if isinstance(tech.get("vbat"), dict) else {}),
+        ]
 
     def _clear_status_manifest_view(self):
         for child in self.status_manifest_frame.winfo_children():
@@ -1735,16 +1843,14 @@ class App(ctk.CTk):
         selection = self.tree.selection()
         if not selection:
             self.selected_device = None
-            self._refresh_status_panel()
-            self._refresh_settings_panel()
+            self._refresh_active_device_tab()
             return
 
         self.selected_device = selection[0]
         self.clear_retained_device_var.set(self.selected_device)
         self._update_settings_selection_status()
         self._refresh_device_details()
-        self._refresh_status_panel()
-        self._refresh_settings_panel()
+        self._refresh_active_device_tab()
 
     def _update_settings_selection_status(self):
         if not hasattr(self, "settings_status_label"):
@@ -2081,7 +2187,7 @@ class App(ctk.CTk):
         self.selected_device = row_id
         self.clear_retained_device_var.set(row_id)
         self._refresh_device_details()
-        self._refresh_status_panel()
+        self._refresh_active_device_tab()
         self._hide_device_context_menu()
 
         menu = ctk.CTkToplevel(self)
@@ -2369,12 +2475,11 @@ class App(ctk.CTk):
             self.tree.selection_set(device_id)
         self.clear_retained_device_var.set(device_id)
         self._update_settings_selection_status()
-        self._refresh_device_details()
-        self._refresh_status_panel()
-        self._refresh_commands_panel()
-        self._refresh_settings_panel()
         if hasattr(self, "tabs"):
             self.tabs.set(tab_name)
+        self._ensure_tab_panel(tab_name)
+        self._refresh_device_details()
+        self._refresh_active_device_tab()
 
     def _request_get_state_selected(self):
         if not self.selected_device:
@@ -2389,16 +2494,15 @@ class App(ctk.CTk):
         self._send_cmd_to_device(self.selected_device, "get_technical_status")
 
     def _is_status_tab_visible(self) -> bool:
-        return hasattr(self, "tabs") and self.tabs.get() == "Status"
+        return self._current_tab_name() == "Status"
+
+    def _current_tab_name(self) -> str:
+        return self.tabs.get() if hasattr(self, "tabs") else ""
 
     def _on_main_tab_changed(self):
-        current_tab = self.tabs.get() if hasattr(self, "tabs") else ""
-        if current_tab == "Comandos":
-            self._ensure_commands_panel()
-            self._refresh_commands_panel()
-        elif current_tab == "Settings":
-            self._ensure_settings_panel()
-            self._refresh_settings_panel()
+        current_tab = self._current_tab_name()
+        self._ensure_tab_panel(current_tab)
+        self._refresh_active_device_tab()
 
         if (
             self._is_status_tab_visible()
@@ -2408,6 +2512,23 @@ class App(ctk.CTk):
             and not self._has_pending_command(self.selected_device, "get_technical_status")
         ):
             self._send_cmd_to_device(self.selected_device, "get_technical_status", log_publish=False)
+
+    def _ensure_tab_panel(self, tab_name: str):
+        if tab_name == "Status":
+            self._ensure_status_panel()
+        elif tab_name == "Comandos":
+            self._ensure_commands_panel()
+        elif tab_name == "Settings":
+            self._ensure_settings_panel()
+
+    def _refresh_active_device_tab(self):
+        current_tab = self._current_tab_name()
+        if current_tab == "Status":
+            self._refresh_status_panel()
+        elif current_tab == "Comandos":
+            self._refresh_commands_panel()
+        elif current_tab == "Settings":
+            self._refresh_settings_panel()
 
     def _technical_status_auto_update_tick(self):
         interval_s = self._technical_update_interval_seconds()
@@ -2593,7 +2714,8 @@ class App(ctk.CTk):
                     payload_obj=commands_result,
                     payload_raw=json.dumps(commands_result, ensure_ascii=True),
                 )
-        self._refresh_commands_panel()
+        if self._current_tab_name() == "Comandos":
+            self._refresh_commands_panel()
 
     def _apply_config_get_result(self, config_result: Dict[str, Any], device_id: Optional[str] = None):
         self.settings_loaded_device_id = device_id or self.selected_device
@@ -2608,7 +2730,8 @@ class App(ctk.CTk):
                     payload_raw=json.dumps(config_result, ensure_ascii=True),
                 )
         self._set_settings_raw_text(json.dumps(config_result, ensure_ascii=True, indent=2, sort_keys=True))
-        self._refresh_settings_panel()
+        if self._current_tab_name() == "Settings":
+            self._refresh_settings_panel()
         if hasattr(self, "settings_status_label"):
             self.settings_status_label.configure(
                 text=(
@@ -2618,11 +2741,11 @@ class App(ctk.CTk):
             )
 
     def _set_settings_raw_text(self, text: str):
-        if not hasattr(self, "settings_raw_text"):
-            return
         if self.settings_raw_text_value == text:
             return
         self.settings_raw_text_value = text
+        if not hasattr(self, "settings_raw_text"):
+            return
         self.settings_raw_text.configure(state="normal")
         self.settings_raw_text.delete("1.0", END)
         self.settings_raw_text.insert(END, text)
@@ -2704,7 +2827,7 @@ class App(ctk.CTk):
             self._append_log(f"Payload vazio recebido em {topic}; snapshot local removido", tag="info")
             if self.selected_device == device_id:
                 self._refresh_device_details()
-                self._refresh_status_panel()
+                self._refresh_active_device_tab()
             return
 
         if is_retained:
@@ -2819,9 +2942,7 @@ class App(ctk.CTk):
 
         if self.selected_device == device_id:
             self._refresh_device_details()
-            self._refresh_status_panel()
-            self._refresh_commands_panel()
-            self._refresh_settings_panel()
+            self._refresh_active_device_tab()
 
     def _check_offline_devices(self):
         timeout = self._heartbeat_timeout()
@@ -2842,8 +2963,7 @@ class App(ctk.CTk):
                 self._upsert_tree_row(dev)
             if self.selected_device:
                 self._refresh_device_details()
-                self._refresh_status_panel()
-                self._refresh_commands_panel()
+                self._refresh_active_device_tab()
 
         self.after(1000, self._check_offline_devices)
 

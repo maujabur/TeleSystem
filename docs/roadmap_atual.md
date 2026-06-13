@@ -44,6 +44,12 @@ componentes.
 - Evoluir `tools/mqtt_desktop` para usar os manifests `tele_config`,
   `tele_status` e `tele_commands` tambem na criacao de formularios e acoes
   mais ricas, reduzindo os campos especificos herdados do projeto anterior.
+- Enriquecer o diagnostico tecnico: migrar parte de `get_technical_status` para
+  manifests/metadados ou criar manifesto tecnico proprio para VBAT,
+  power-good e diagnosticos aninhados.
+- Proxima fatia sugerida: definir o contrato de metadados tecnicos para decidir
+  o que sai do payload livre de `get_technical_status` e passa a ser declarado
+  por manifesto, mantendo `get_technical_status` como snapshot detalhado.
 
 ## Evolucoes futuras
 
