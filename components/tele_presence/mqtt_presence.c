@@ -1,5 +1,6 @@
 #include "mqtt_presence.h"
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -60,6 +61,11 @@
 #define CONFIG_MQTT_QOS_TELEMETRY 0
 #endif
 
+#define MQTT_CONFIG_ID_HEARTBEAT_INTERVAL "mqtt.heartbeat_interval_s"
+#define MQTT_CONFIG_HEARTBEAT_INTERVAL_NVS_KEY "m_hbint"
+#define MQTT_HEARTBEAT_INTERVAL_MIN_S 15
+#define MQTT_HEARTBEAT_INTERVAL_MAX_S 3600
+
 #ifndef CONFIG_POWER_GOOD_GPIO_ENABLED
 #define CONFIG_POWER_GOOD_GPIO_ENABLED 0
 #endif
@@ -77,6 +83,19 @@ static const char *TAG = "mqtt-presence";
 static bool s_started;
 static bool s_wifi_event_registered;
 static bool s_status_fields_registered;
+static bool s_config_fields_registered;
+
+static const tele_config_field_t s_mqtt_config_fields[] = {
+    {
+        .id = MQTT_CONFIG_ID_HEARTBEAT_INTERVAL,
+        .nvs_key = MQTT_CONFIG_HEARTBEAT_INTERVAL_NVS_KEY,
+        .type = TELE_CONFIG_TYPE_U32,
+        .default_value.u32 = CONFIG_MQTT_HEARTBEAT_INTERVAL_S,
+        .min.u32 = MQTT_HEARTBEAT_INTERVAL_MIN_S,
+        .max.u32 = MQTT_HEARTBEAT_INTERVAL_MAX_S,
+        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+    },
+};
 
 static const char *wifi_state_name(wifi_manager_state_t state)
 {
@@ -176,6 +195,135 @@ static uint32_t status_read_vbat_mv(void *ctx)
     return (uint32_t)vbat_status.vbat_mv;
 }
 
+static bool status_read_vbat_enabled(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    return vbat_monitor_get_status(&vbat_status) == ESP_OK && vbat_status.enabled;
+}
+
+static bool status_read_vbat_initialized(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    return vbat_monitor_get_status(&vbat_status) == ESP_OK && vbat_status.initialized;
+}
+
+static bool status_read_vbat_calibrated(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    return vbat_monitor_get_status(&vbat_status) == ESP_OK && vbat_status.calibrated;
+}
+
+static bool status_read_vbat_maintenance_mode(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    return vbat_monitor_get_status(&vbat_status) == ESP_OK && vbat_status.maintenance_mode;
+}
+
+static int32_t status_read_vbat_gpio(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    (void)vbat_monitor_get_status(&vbat_status);
+    return vbat_status.gpio;
+}
+
+static int32_t status_read_vbat_raw_avg(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    (void)vbat_monitor_get_status(&vbat_status);
+    return vbat_status.raw_avg;
+}
+
+static int32_t status_read_vbat_gpio_mv(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    (void)vbat_monitor_get_status(&vbat_status);
+    return vbat_status.gpio_mv;
+}
+
+static int32_t status_read_vbat_nested_mv(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    (void)vbat_monitor_get_status(&vbat_status);
+    return vbat_status.vbat_mv;
+}
+
+static uint32_t status_read_vbat_measurement_count(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    (void)vbat_monitor_get_status(&vbat_status);
+    return vbat_status.measurement_count;
+}
+
+static bool status_read_vbat_shutdown_enabled(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    return vbat_monitor_get_status(&vbat_status) == ESP_OK && vbat_status.shutdown_enabled;
+}
+
+static bool status_read_vbat_shutdown_countdown_active(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    return vbat_monitor_get_status(&vbat_status) == ESP_OK && vbat_status.shutdown_countdown_active;
+}
+
+static int32_t status_read_vbat_shutdown_threshold_mv(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    (void)vbat_monitor_get_status(&vbat_status);
+    return vbat_status.shutdown_threshold_mv;
+}
+
+static int32_t status_read_vbat_shutdown_debounce_ms(void *ctx)
+{
+    vbat_monitor_status_t vbat_status = {0};
+    (void)ctx;
+
+    (void)vbat_monitor_get_status(&vbat_status);
+    return vbat_status.shutdown_debounce_ms;
+}
+
+static bool status_read_power_good_enabled(void *ctx)
+{
+    (void)ctx;
+    return CONFIG_POWER_GOOD_GPIO_ENABLED;
+}
+
+static uint32_t status_read_power_good_gpio(void *ctx)
+{
+    (void)ctx;
+    return CONFIG_POWER_GOOD_GPIO;
+}
+
+static uint32_t status_read_power_good_active_level(void *ctx)
+{
+    (void)ctx;
+    return CONFIG_POWER_GOOD_ACTIVE_LEVEL;
+}
+
 static uint32_t status_read_heap_free(void *ctx)
 {
     (void)ctx;
@@ -253,7 +401,8 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Tensao de bateria medida.",
         .group = "power",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT |
+                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
         .unit = "mV",
         .read.u32 = status_read_vbat_mv,
     },
@@ -263,7 +412,8 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Memoria heap livre.",
         .group = "memory",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT |
+                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
         .unit = "bytes",
         .read.u32 = status_read_heap_free,
     },
@@ -273,7 +423,8 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Tempo desde o boot.",
         .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT |
+                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
         .unit = "s",
         .read.u32 = status_read_uptime_s,
     },
@@ -283,7 +434,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Intervalo configurado para heartbeat MQTT.",
         .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
         .unit = "s",
         .read.u32 = status_read_heartbeat_interval_s,
     },
@@ -293,8 +444,156 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se NTP/sincronismo de tempo esta pronto.",
         .group = "time",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
         .read.boolean = status_read_time_synchronized,
+    },
+    {
+        .id = "power_good.enabled",
+        .label = "Power Good habilitado",
+        .description = "Indica se o controle POWER_GOOD esta habilitado no firmware.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_power_good_enabled,
+    },
+    {
+        .id = "power_good.gpio",
+        .label = "Power Good GPIO",
+        .description = "GPIO configurado para POWER_GOOD.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_U32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.u32 = status_read_power_good_gpio,
+    },
+    {
+        .id = "power_good.active_level",
+        .label = "Power Good nivel ativo",
+        .description = "Nivel logico ativo do POWER_GOOD.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_U32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.u32 = status_read_power_good_active_level,
+    },
+    {
+        .id = "vbat.enabled",
+        .label = "VBAT habilitado",
+        .description = "Indica se o monitoramento de bateria esta habilitado.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_vbat_enabled,
+    },
+    {
+        .id = "vbat.initialized",
+        .label = "VBAT inicializado",
+        .description = "Indica se o monitor VBAT foi inicializado.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_vbat_initialized,
+    },
+    {
+        .id = "vbat.calibrated",
+        .label = "VBAT calibrado",
+        .description = "Indica se a leitura VBAT esta usando calibracao ADC.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_vbat_calibrated,
+    },
+    {
+        .id = "vbat.maintenance_mode",
+        .label = "VBAT manutencao",
+        .description = "Indica modo de manutencao por bateria desconectada.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_vbat_maintenance_mode,
+    },
+    {
+        .id = "vbat.gpio",
+        .label = "VBAT GPIO",
+        .description = "GPIO de leitura VBAT.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_I32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.i32 = status_read_vbat_gpio,
+    },
+    {
+        .id = "vbat.raw_avg",
+        .label = "VBAT ADC raw",
+        .description = "Media bruta da leitura ADC de VBAT.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_I32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.i32 = status_read_vbat_raw_avg,
+    },
+    {
+        .id = "vbat.gpio_mv",
+        .label = "VBAT GPIO mV",
+        .description = "Tensao medida diretamente no GPIO VBAT.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_I32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .unit = "mV",
+        .read.i32 = status_read_vbat_gpio_mv,
+    },
+    {
+        .id = "vbat.vbat_mv",
+        .label = "VBAT mV",
+        .description = "Tensao estimada da bateria.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_I32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .unit = "mV",
+        .read.i32 = status_read_vbat_nested_mv,
+    },
+    {
+        .id = "vbat.measurement_count",
+        .label = "VBAT amostras",
+        .description = "Quantidade de medicoes VBAT realizadas.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_U32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.u32 = status_read_vbat_measurement_count,
+    },
+    {
+        .id = "vbat.shutdown_enabled",
+        .label = "VBAT shutdown habilitado",
+        .description = "Indica se desligamento por bateria baixa esta habilitado.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_vbat_shutdown_enabled,
+    },
+    {
+        .id = "vbat.shutdown_threshold_mv",
+        .label = "VBAT threshold",
+        .description = "Limiar de desligamento por bateria baixa.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_I32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .unit = "mV",
+        .read.i32 = status_read_vbat_shutdown_threshold_mv,
+    },
+    {
+        .id = "vbat.shutdown_debounce_ms",
+        .label = "VBAT debounce",
+        .description = "Tempo de debounce para desligamento por bateria baixa.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_I32,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .unit = "ms",
+        .read.i32 = status_read_vbat_shutdown_debounce_ms,
+    },
+    {
+        .id = "vbat.shutdown_countdown_active",
+        .label = "VBAT countdown ativo",
+        .description = "Indica se o countdown de desligamento esta ativo.",
+        .group = "power",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .read.boolean = status_read_vbat_shutdown_countdown_active,
     },
 };
 
@@ -311,6 +610,46 @@ static esp_err_t mqtt_presence_register_status_fields(void)
         s_status_fields_registered = true;
     }
     return err;
+}
+
+static esp_err_t mqtt_presence_register_config_fields(void)
+{
+    if (s_config_fields_registered) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = tele_config_register_fields(s_mqtt_config_fields,
+                                                sizeof(s_mqtt_config_fields) /
+                                                    sizeof(s_mqtt_config_fields[0]));
+    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+        s_config_fields_registered = true;
+        return ESP_OK;
+    }
+    return err;
+}
+
+static uint32_t mqtt_presence_effective_heartbeat_interval_s(void)
+{
+    tele_config_value_t value = {0};
+    bool from_nvs = false;
+    esp_err_t err = tele_config_get_effective(MQTT_CONFIG_ID_HEARTBEAT_INTERVAL,
+                                              &value,
+                                              NULL,
+                                              0,
+                                              &from_nvs);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG,
+                 "Heartbeat MQTT efetivo: %" PRIu32 "s (%s)",
+                 value.u32,
+                 from_nvs ? "nvs" : "default");
+        return value.u32;
+    }
+
+    ESP_LOGW(TAG,
+             "Falha ao ler heartbeat MQTT efetivo (%s); usando default %" PRIu32 "s",
+             esp_err_to_name(err),
+             (uint32_t)CONFIG_MQTT_HEARTBEAT_INTERVAL_S);
+    return CONFIG_MQTT_HEARTBEAT_INTERVAL_S;
 }
 
 static cJSON *mqtt_presence_build_state(void *ctx)
@@ -458,6 +797,9 @@ static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *fie
         esp_err_t err = wifi_manager_set_sta_max_retry((int)value->u32);
         return err == ESP_ERR_INVALID_STATE ? ESP_OK : err;
     }
+    if (strcmp(field->id, MQTT_CONFIG_ID_HEARTBEAT_INTERVAL) == 0) {
+        return tele_mqtt_set_heartbeat_interval_s(value->u32);
+    }
 
     return ESP_OK;
 }
@@ -549,6 +891,11 @@ esp_err_t mqtt_presence_start(void)
         ESP_LOGE(TAG, "Falha ao registrar configuracoes MQTT: %s", esp_err_to_name(err));
         return err;
     }
+    err = mqtt_presence_register_config_fields();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao registrar configuracoes do MQTT presence: %s", esp_err_to_name(err));
+        return err;
+    }
     err = tele_config_set_apply_handler(DEVICE_CONFIG_ID_PROVISIONING_SSID,
                                         mqtt_presence_apply_config_field,
                                         NULL);
@@ -563,6 +910,15 @@ esp_err_t mqtt_presence_start(void)
         ESP_LOGE(TAG, "Falha ao registrar apply handler para retry STA: %s", esp_err_to_name(err));
         return err;
     }
+    err = tele_config_set_apply_handler(MQTT_CONFIG_ID_HEARTBEAT_INTERVAL,
+                                        mqtt_presence_apply_config_field,
+                                        NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao registrar apply handler para heartbeat MQTT: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    config.heartbeat_interval_s = mqtt_presence_effective_heartbeat_interval_s();
 
     err = mqtt_presence_register_status_fields();
     if (err != ESP_OK) {

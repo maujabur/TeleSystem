@@ -94,7 +94,8 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 - Aba Status:
   - mostra cards genericos de conectividade, runtime, heartbeat, energia, memoria, manifesto e erros
   - renderiza `meta/status` em `Status declarado`, agrupado por `group`, usando `label` e `description`
-  - separa `Diagnostico tecnico` do payload `get_technical_status`
+  - separa campos com flag `technical` em `Status tecnico declarado`
+  - mantem `Snapshot tecnico` para o payload detalhado de `get_technical_status`
   - mantem area `Raw/debug` com campos brutos de `state`, `get_state` e `status_tecnico`
   - botoes `get_state` e `status_tecnico` para atualizacao ativa
   - auto-update configuravel para `status_tecnico` com default de 3 segundos

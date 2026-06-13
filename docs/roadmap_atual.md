@@ -30,8 +30,6 @@ componentes.
 
 - Evoluir `components/tele_config` com adaptadores genericos para MQTT e web,
   conforme [tele_config.md](tele_config.md).
-- Persistir `mqtt.heartbeat_interval_s` via `tele_config`, caso o ajuste remoto
-  por MQTT deva sobreviver a reboot.
 - Decidir se valores do namespace NVS legado `provisioning` devem ser migrados
   manualmente; migracao automatica pode transformar defaults antigos em
   overrides permanentes.

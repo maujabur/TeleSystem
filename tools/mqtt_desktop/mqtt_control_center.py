@@ -107,6 +107,34 @@ def _validate_command_arg_limits(arg_id: str, spec: Dict[str, Any], value: Any) 
             raise ValueError(f"{arg_id}: texto longo demais")
 
 
+def status_manifest_field_has_flag(field: Dict[str, Any], flag_name: str) -> bool:
+    flags = field.get("flags")
+    if not isinstance(flags, list):
+        return False
+    for item in flags:
+        if isinstance(item, dict) and item.get("flag") == flag_name:
+            return True
+        if item == flag_name:
+            return True
+    return False
+
+
+def split_status_manifest_fields(fields: Any) -> Tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
+    general: list[Dict[str, Any]] = []
+    technical: list[Dict[str, Any]] = []
+    if not isinstance(fields, list):
+        return general, technical
+
+    for field in fields:
+        if not isinstance(field, dict) or not field.get("id"):
+            continue
+        if status_manifest_field_has_flag(field, "technical"):
+            technical.append(field)
+        else:
+            general.append(field)
+    return general, technical
+
+
 @dataclass
 class MessageSnapshot:
     timestamp: datetime
@@ -297,6 +325,8 @@ class App(ctk.CTk):
         self.status_display_values: Dict[str, str] = {}
         self.status_manifest_labels: Dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel]] = {}
         self.status_manifest_signature: tuple[str, ...] = ()
+        self.status_technical_manifest_labels: Dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel, ctk.CTkLabel]] = {}
+        self.status_technical_manifest_signature: tuple[str, ...] = ()
         self.status_technical_labels: Dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel]] = {}
         self.status_technical_signature: tuple[str, ...] = ()
         self.status_raw_text_value = ""
@@ -1019,7 +1049,19 @@ class App(ctk.CTk):
         self.status_manifest_frame.grid_columnconfigure(3, weight=3)
 
         row += 1
-        ctk.CTkLabel(self.status_body, text="Diagnostico tecnico", font=ctk.CTkFont(size=14, weight="bold")).grid(
+        ctk.CTkLabel(self.status_body, text="Status tecnico declarado", font=ctk.CTkFont(size=14, weight="bold")).grid(
+            row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(12, 4)
+        )
+        row += 1
+        self.status_technical_manifest_frame = ctk.CTkFrame(self.status_body)
+        self.status_technical_manifest_frame.grid(row=row, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
+        self.status_technical_manifest_frame.grid_columnconfigure(0, weight=2)
+        self.status_technical_manifest_frame.grid_columnconfigure(1, weight=1)
+        self.status_technical_manifest_frame.grid_columnconfigure(2, weight=2)
+        self.status_technical_manifest_frame.grid_columnconfigure(3, weight=3)
+
+        row += 1
+        ctk.CTkLabel(self.status_body, text="Snapshot tecnico", font=ctk.CTkFont(size=14, weight="bold")).grid(
             row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(12, 4)
         )
         row += 1
@@ -1192,7 +1234,17 @@ class App(ctk.CTk):
         if hasattr(self, "status_technical_frame"):
             self._render_technical_diagnostics({})
         if clear_manifest and hasattr(self, "status_manifest_frame"):
-            self._clear_status_manifest_view()
+            self._clear_status_manifest_section(
+                "status_manifest_frame",
+                "status_manifest_labels",
+                "status_manifest_signature",
+            )
+        if clear_manifest and hasattr(self, "status_technical_manifest_frame"):
+            self._clear_status_manifest_section(
+                "status_technical_manifest_frame",
+                "status_technical_manifest_labels",
+                "status_technical_manifest_signature",
+            )
 
     def _set_status_label(self, key: str, value: Any):
         label = self.status_value_labels.get(key)
@@ -1366,11 +1418,12 @@ class App(ctk.CTk):
             ("VBAT", tech.get("vbat") if isinstance(tech.get("vbat"), dict) else {}),
         ]
 
-    def _clear_status_manifest_view(self):
-        for child in self.status_manifest_frame.winfo_children():
+    def _clear_status_manifest_section(self, frame_attr: str, labels_attr: str, signature_attr: str):
+        frame = getattr(self, frame_attr)
+        for child in frame.winfo_children():
             child.destroy()
-        self.status_manifest_labels = {}
-        self.status_manifest_signature = ()
+        setattr(self, labels_attr, {})
+        setattr(self, signature_attr, ())
 
     def _render_status_manifest_view(
         self,
@@ -1386,7 +1439,11 @@ class App(ctk.CTk):
         fields = manifest.get("fields") if isinstance(manifest, dict) else None
         if not isinstance(fields, list) or not fields:
             if self.status_manifest_signature != ("__empty__",):
-                self._clear_status_manifest_view()
+                self._clear_status_manifest_section(
+                    "status_manifest_frame",
+                    "status_manifest_labels",
+                    "status_manifest_signature",
+                )
                 ctk.CTkLabel(
                     self.status_manifest_frame,
                     text="Sem meta/status recebido ainda.",
@@ -1394,16 +1451,85 @@ class App(ctk.CTk):
                     text_color=("gray45", "gray65"),
                 ).grid(row=0, column=0, columnspan=4, sticky="ew", padx=8, pady=8)
                 self.status_manifest_signature = ("__empty__",)
+            if self.status_technical_manifest_signature != ("__empty__",):
+                self._clear_status_manifest_section(
+                    "status_technical_manifest_frame",
+                    "status_technical_manifest_labels",
+                    "status_technical_manifest_signature",
+                )
+                ctk.CTkLabel(
+                    self.status_technical_manifest_frame,
+                    text="Sem meta/status tecnico recebido ainda.",
+                    anchor="w",
+                    text_color=("gray45", "gray65"),
+                ).grid(row=0, column=0, columnspan=4, sticky="ew", padx=8, pady=8)
+                self.status_technical_manifest_signature = ("__empty__",)
             return
 
-        status_items = [field for field in fields if isinstance(field, dict) and field.get("id")]
+        general_items, technical_items = split_status_manifest_fields(fields)
+        general_count = self._render_status_manifest_section(
+            "status_manifest_frame",
+            "status_manifest_labels",
+            "status_manifest_signature",
+            "Sem campos operacionais em meta/status.",
+            general_items,
+            heartbeat,
+            state_topic,
+            get_state,
+            technical_status,
+        )
+        technical_count = self._render_status_manifest_section(
+            "status_technical_manifest_frame",
+            "status_technical_manifest_labels",
+            "status_technical_manifest_signature",
+            "Sem campos tecnicos declarados em meta/status.",
+            technical_items,
+            heartbeat,
+            state_topic,
+            get_state,
+            technical_status,
+        )
+
+        self._set_status_label("card.manifest.value", f"{general_count + technical_count} campos")
+        revision = manifest.get("registry_revision", "-") if isinstance(manifest, dict) else "-"
+        self._set_status_label("card.manifest.detail", f"{general_count} status | {technical_count} tecnicos | rev {revision}")
+
+    def _render_status_manifest_section(
+        self,
+        frame_attr: str,
+        labels_attr: str,
+        signature_attr: str,
+        empty_text: str,
+        status_items: list[Dict[str, Any]],
+        heartbeat: Dict[str, Any],
+        state_topic: Dict[str, Any],
+        get_state: Dict[str, Any],
+        technical_status: Dict[str, Any],
+    ) -> int:
+        frame = getattr(self, frame_attr)
+        labels_by_id = getattr(self, labels_attr)
+        current_signature = getattr(self, signature_attr)
+
         signature = tuple(
             f"{field.get('group') or 'general'}|{field.get('id')}"
             for field in status_items
         )
-        if signature != self.status_manifest_signature:
-            self._clear_status_manifest_view()
-            self.status_manifest_signature = signature
+        if not signature:
+            if current_signature != ("__empty__",):
+                self._clear_status_manifest_section(frame_attr, labels_attr, signature_attr)
+                ctk.CTkLabel(
+                    frame,
+                    text=empty_text,
+                    anchor="w",
+                    text_color=("gray45", "gray65"),
+                ).grid(row=0, column=0, columnspan=4, sticky="ew", padx=8, pady=8)
+                setattr(self, signature_attr, ("__empty__",))
+            return 0
+
+        if signature != current_signature:
+            self._clear_status_manifest_section(frame_attr, labels_attr, signature_attr)
+            labels_by_id = getattr(self, labels_attr)
+            setattr(self, signature_attr, signature)
             row = 0
             current_group = None
             for field in sorted(status_items, key=lambda item: (str(item.get("group") or "general"), str(item.get("id") or ""))):
@@ -1411,7 +1537,7 @@ class App(ctk.CTk):
                 group = str(field.get("group") or "general")
                 if group != current_group:
                     ctk.CTkLabel(
-                        self.status_manifest_frame,
+                        frame,
                         text=self._group_label(group),
                         anchor="w",
                         font=ctk.CTkFont(weight="bold"),
@@ -1422,7 +1548,7 @@ class App(ctk.CTk):
                 row_labels = []
                 for col in range(4):
                     label = ctk.CTkLabel(
-                        self.status_manifest_frame,
+                        frame,
                         text="--",
                         anchor="w",
                         justify="left",
@@ -1431,7 +1557,7 @@ class App(ctk.CTk):
                     label.grid(row=row, column=col, sticky="ew", padx=8, pady=2)
                     self._bind_delayed_tooltip(label, lambda item=field: self._status_field_tooltip_text(item))
                     row_labels.append(label)
-                self.status_manifest_labels[field_id] = tuple(row_labels)
+                labels_by_id[field_id] = tuple(row_labels)
                 row += 1
 
         values = self._manifest_value_sources(heartbeat, state_topic, get_state, technical_status)
@@ -1447,7 +1573,7 @@ class App(ctk.CTk):
             type_text = str(field.get("type") or "-")
             flags_text = self._format_manifest_flags(field.get("flags"))
             label_text = str(field.get("label") or field_id)
-            labels = self.status_manifest_labels.get(field_id)
+            labels = labels_by_id.get(field_id)
             if not labels:
                 continue
 
@@ -1455,9 +1581,7 @@ class App(ctk.CTk):
                 if label.cget("text") != text:
                     label.configure(text=text)
 
-        self._set_status_label("card.manifest.value", f"{len(signature)} campos")
-        revision = manifest.get("registry_revision", "-") if isinstance(manifest, dict) else "-"
-        self._set_status_label("card.manifest.detail", f"revision {revision}")
+        return len(signature)
 
     def _manifest_value_sources(
         self,

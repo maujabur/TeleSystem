@@ -52,7 +52,7 @@ static const tele_status_field_t fields[] = {
         .description = "Tempo desde o boot em segundos.",
         .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
         .read.u32 = u32_value,
         .ctx = &(uint32_t) {123},
     },
@@ -120,6 +120,7 @@ int main(void)
     assert(strstr(text, "\"id\":\"uptime_s\"") != NULL);
     assert(strstr(text, "\"group\":\"runtime\"") != NULL);
     assert(strstr(text, "\"type\":\"u32\"") != NULL);
+    assert(strstr(text, "\"flag\":\"technical\"") != NULL);
     assert(strstr(text, "\"id\":\"ip\"") != NULL);
     assert(strstr(text, "\"type\":\"string\"") != NULL);
     cJSON_free(text);

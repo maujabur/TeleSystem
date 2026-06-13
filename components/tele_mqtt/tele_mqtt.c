@@ -25,6 +25,9 @@
 #define TELE_MQTT_CMD_ID_SIZE 64
 #define TELE_MQTT_CMD_DEDUP_WINDOW 16
 #define TELE_MQTT_CMD_IN_PAYLOAD_BUF_SIZE 1024
+#define TELE_MQTT_HEARTBEAT_INTERVAL_MIN_S 15
+#define TELE_MQTT_HEARTBEAT_INTERVAL_MAX_S 3600
+#define TELE_MQTT_CONFIG_ID_HEARTBEAT_INTERVAL "mqtt.heartbeat_interval_s"
 #define TELE_MQTT_SESSION_ID_SIZE 48
 #define TELE_MQTT_START_RETRY_DELAY_MS 1000
 
@@ -767,20 +770,26 @@ static void handle_command_payload(const char *payload)
             return;
         }
 
-        if (interval->valuedouble < 15 || interval->valuedouble > 3600) {
+        if (interval->valuedouble < TELE_MQTT_HEARTBEAT_INTERVAL_MIN_S ||
+            interval->valuedouble > TELE_MQTT_HEARTBEAT_INTERVAL_MAX_S) {
             cJSON_Delete(root);
             publish_command_reply(cmd_id, false, "heartbeat_interval_out_of_range", NULL);
             return;
         }
 
-        s_heartbeat_interval_s = (uint32_t)interval->valuedouble;
-        cmd_id_remember(cmd_id);
-
-        result = cJSON_CreateObject();
-        if (result) {
-            cJSON_AddNumberToObject(result, "heartbeat_interval_s", (double)s_heartbeat_interval_s);
+        {
+            tele_config_value_t value = {.u32 = (uint32_t)interval->valuedouble};
+            tele_config_update_result_t update = {0};
+            esp_err_t err = tele_config_update_value(TELE_MQTT_CONFIG_ID_HEARTBEAT_INTERVAL, &value, &update);
+            result = build_config_update_result(TELE_MQTT_CONFIG_ID_HEARTBEAT_INTERVAL, &update);
+            if (result) {
+                cJSON_AddNumberToObject(result, "heartbeat_interval_s", (double)s_heartbeat_interval_s);
+            }
+            if (err == ESP_OK) {
+                cmd_id_remember(cmd_id);
+            }
+            publish_command_reply(cmd_id, err == ESP_OK, err == ESP_OK ? NULL : "heartbeat_config_update_failed", result);
         }
-        publish_command_reply(cmd_id, true, NULL, result);
         cJSON_Delete(result);
         cJSON_Delete(root);
         return;
@@ -1303,6 +1312,16 @@ esp_err_t tele_mqtt_start(const tele_mqtt_config_t *config)
 uint32_t tele_mqtt_get_heartbeat_interval_s(void)
 {
     return s_heartbeat_interval_s;
+}
+
+esp_err_t tele_mqtt_set_heartbeat_interval_s(uint32_t interval_s)
+{
+    if (interval_s < TELE_MQTT_HEARTBEAT_INTERVAL_MIN_S ||
+        interval_s > TELE_MQTT_HEARTBEAT_INTERVAL_MAX_S) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    s_heartbeat_interval_s = interval_s;
+    return ESP_OK;
 }
 
 bool tele_mqtt_is_connected(void)
