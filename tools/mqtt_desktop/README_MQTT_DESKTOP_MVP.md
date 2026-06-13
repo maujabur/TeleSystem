@@ -68,6 +68,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - botao `Atualizar config` envia `config/get` e mostra o manifesto devolvido pelo device
   - renderiza `meta/config` em modo read-only, com indicacao de campos `runtime_apply` e `reboot_required`
   - permite enviar atualizacao generica por campo usando `config/set`
+  - permite remover override por campo usando `config/reset`
   - botao `Salvar heartbeat` envia `set_heartbeat_interval`
   - botao `Apply + reboot` envia `apply_and_reboot`
   - botao `Limpar retained` publica payload vazio retido nos topicos do device para remover ghosts

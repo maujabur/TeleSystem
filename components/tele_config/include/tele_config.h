@@ -85,6 +85,7 @@ esp_err_t tele_config_apply_value(const char *id, const tele_config_value_t *val
 esp_err_t tele_config_update_value(const char *id,
                                    const tele_config_value_t *value,
                                    tele_config_update_result_t *out_result);
+esp_err_t tele_config_reset_value(const char *id, tele_config_update_result_t *out_result);
 esp_err_t tele_config_get_effective(const char *id,
                                     tele_config_value_t *out_value,
                                     char *string_buffer,

@@ -43,6 +43,8 @@ compatibilidade com o portal e com os pontos de leitura de configuracao, mas
 agora elas chamam `tele_config` internamente. Fluxos de atualizacao MQTT usam o
 comando generico `config/set`, que chama `tele_config_update_value()`: valida,
 aplica callback opcional de runtime e persiste o override.
+O comando `config/reset` remove o override e reaplica o default quando existe
+callback de runtime.
 
 ## Decisoes abertas
 

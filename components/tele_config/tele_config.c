@@ -21,6 +21,8 @@ typedef struct {
 static tele_config_registry_entry_t s_entries[TELE_CONFIG_MAX_REGISTERED_FIELDS];
 static size_t s_field_count;
 
+esp_err_t tele_config_reset_override(const char *id);
+
 static tele_config_registry_entry_t *find_entry(const char *id)
 {
     if (!id) {
@@ -451,6 +453,57 @@ esp_err_t tele_config_update_value(const char *id,
     return ESP_OK;
 }
 
+esp_err_t tele_config_reset_value(const char *id, tele_config_update_result_t *out_result)
+{
+    tele_config_registry_entry_t *entry = find_entry(id);
+    tele_config_update_result_t result = {0};
+    tele_config_value_t default_value = {0};
+    char default_string[TELE_CONFIG_STRING_MAX_LEN + 1] = {0};
+
+    if (out_result) {
+        *out_result = result;
+    }
+    if (!entry || !entry->field) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if ((entry->field->flags & TELE_CONFIG_FLAG_READ_ONLY) != 0) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    result.requires_reboot = (entry->field->flags & TELE_CONFIG_FLAG_REBOOT_REQUIRED) != 0;
+
+    esp_err_t err = tele_config_reset_override(entry->field->id);
+    if (err != ESP_OK) {
+        if (out_result) {
+            *out_result = result;
+        }
+        return err;
+    }
+
+    if (entry->apply_cb) {
+        err = field_default_value(entry->field, &default_value, default_string, sizeof(default_string));
+        if (err != ESP_OK) {
+            if (out_result) {
+                *out_result = result;
+            }
+            return err;
+        }
+        err = entry->apply_cb(entry->field, &default_value, entry->apply_ctx);
+        if (err != ESP_OK) {
+            if (out_result) {
+                *out_result = result;
+            }
+            return err;
+        }
+        result.applied = true;
+    }
+
+    if (out_result) {
+        *out_result = result;
+    }
+    return ESP_OK;
+}
+
 esp_err_t tele_config_get_effective(const char *id,
                                     tele_config_value_t *out_value,
                                     char *string_buffer,
@@ -642,7 +695,7 @@ esp_err_t tele_config_reset_override(const char *id)
     }
 
 #ifdef TELE_CONFIG_HOST_TEST
-    return ESP_ERR_NOT_SUPPORTED;
+    return ESP_OK;
 #else
     char key[TELE_CONFIG_NVS_KEY_MAX_LEN + 1] = {0};
     esp_err_t err = copy_nvs_key(field, key, sizeof(key));

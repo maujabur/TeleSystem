@@ -676,6 +676,51 @@ static void handle_command_payload(const char *payload)
         return;
     }
 
+    if (strcmp(cmd_name, "config/reset") == 0) {
+        cJSON *field_id_item = cJSON_IsObject(args) ?
+                               cJSON_GetObjectItemCaseSensitive(args, "id") : NULL;
+        const tele_config_field_t *field = NULL;
+        tele_config_update_result_t update = {0};
+        esp_err_t err = ESP_OK;
+
+        if (reject_duplicate_mutating_command(cmd_id)) {
+            cJSON_Delete(root);
+            return;
+        }
+
+        if (!cJSON_IsObject(args)) {
+            cJSON_Delete(root);
+            publish_command_reply(cmd_id, false, "missing_args_object", NULL);
+            return;
+        }
+
+        if (!cJSON_IsString(field_id_item) || !field_id_item->valuestring || field_id_item->valuestring[0] == '\0') {
+            cJSON_Delete(root);
+            publish_command_reply(cmd_id, false, "missing_config_id", NULL);
+            return;
+        }
+
+        field = tele_config_find_field(field_id_item->valuestring);
+        if (!field || (field->flags & TELE_CONFIG_FLAG_MQTT) == 0) {
+            cJSON_Delete(root);
+            publish_command_reply(cmd_id, false, "config_field_not_found", NULL);
+            return;
+        }
+
+        err = tele_config_reset_value(field->id, &update);
+        result = build_config_update_result(field->id, &update);
+        if (err == ESP_OK) {
+            cmd_id_remember(cmd_id);
+            publish_command_reply(cmd_id, true, NULL, result);
+            publish_config_manifest();
+        } else {
+            publish_command_reply(cmd_id, false, "config_reset_failed", result);
+        }
+        cJSON_Delete(result);
+        cJSON_Delete(root);
+        return;
+    }
+
     if (strcmp(cmd_name, "apply_and_reboot") == 0) {
         cJSON *delay_item = cJSON_IsObject(args) ? cJSON_GetObjectItemCaseSensitive(args, "delay_ms") : NULL;
         uint32_t delay_ms = 800;

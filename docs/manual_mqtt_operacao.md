@@ -164,7 +164,7 @@ default, valor efetivo, limites e flags de cada campo exposto por MQTT.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.10 TeleCafezinho config get/set",
+  "fw": "0.3.11 TeleCafezinho config reset",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -194,7 +194,7 @@ Eventos discretos de firmware.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.5 TeleCafezinho status manifest",
+  "fw": "0.3.11 TeleCafezinho config reset",
   "session_id": "20260609T120000Z-5112D0",
   "event": "boot",
   "message": "mqtt_online",
@@ -230,7 +230,7 @@ Resposta base:
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.5 TeleCafezinho status manifest",
+  "fw": "0.3.11 TeleCafezinho config reset",
   "session_id": "20260609T120000Z-5112D0",
   "cmd_id": "c1",
   "ok": true,
@@ -320,6 +320,38 @@ Regras:
 - campos com `reboot_required` sao persistidos como override e entram em vigor no proximo boot ou apos comando de reboot;
 - apos sucesso, o firmware republica `meta/config` retido;
 - comandos mutaveis usam deduplicacao por `cmd_id`.
+
+### config/reset
+
+Remove o override NVS de um campo e volta ao default efetivo. Se o campo tiver
+callback `runtime_apply`, o default tambem e aplicado em runtime.
+
+```json
+{
+  "cmd_id": "cfg-reset-1",
+  "name": "config/reset",
+  "args": {
+    "id": "wifi.sta_max_retry"
+  }
+}
+```
+
+Resposta bem-sucedida:
+
+```json
+{
+  "cmd_id": "cfg-reset-1",
+  "ok": true,
+  "result": {
+    "id": "wifi.sta_max_retry",
+    "stored": false,
+    "applied": true,
+    "requires_reboot": false
+  }
+}
+```
+
+Depois de sucesso, o firmware republica `meta/config` retido.
 
 ### apply_and_reboot
 
