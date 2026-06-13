@@ -2896,6 +2896,11 @@ class App(ctk.CTk):
                     if isinstance(result, dict) and payload_obj.get("ok") is True:
                         device.last_technical_status_result = result
                         device.last_technical_status_at = effective_ts
+            else:
+                self._append_log(
+                    f"cmd/out sem comando pendente correspondente: device={device_id} cmd_id={cmd_id or '-'}",
+                    tag="warn",
+                )
 
         if (
             message_type == "cmd/out"

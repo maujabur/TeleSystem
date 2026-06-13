@@ -500,6 +500,8 @@ static void publish_command_reply(const char *cmd_id, bool ok, const char *error
 {
     char ts[TELE_MQTT_TS_BUF_SIZE] = {0};
     cJSON *root = cJSON_CreateObject();
+    char *payload = NULL;
+    int msg_id = -1;
 
     if (!root) {
         return;
@@ -520,7 +522,31 @@ static void publish_command_reply(const char *cmd_id, bool ok, const char *error
         }
     }
 
-    publish_json(s_topic_cmd_out, root, qos_critical(), 0);
+    payload = cJSON_PrintUnformatted(root);
+    if (!payload) {
+        ESP_LOGE(TAG, "Falha ao serializar resposta de comando | cmd_id=%s", cmd_id ? cmd_id : "unknown");
+        cJSON_Delete(root);
+        return;
+    }
+
+    msg_id = publish_if_connected(s_topic_cmd_out, payload, qos_critical(), 0);
+    if (msg_id < 0) {
+        ESP_LOGE(TAG,
+                 "Falha ao publicar cmd/out | cmd_id=%s | ok=%d | len=%u | rc=%d",
+                 cmd_id ? cmd_id : "unknown",
+                 ok,
+                 (unsigned)strlen(payload),
+                 msg_id);
+    } else {
+        ESP_LOGI(TAG,
+                 "cmd/out publicado | cmd_id=%s | ok=%d | len=%u | msg_id=%d",
+                 cmd_id ? cmd_id : "unknown",
+                 ok,
+                 (unsigned)strlen(payload),
+                 msg_id);
+    }
+
+    cJSON_free(payload);
     cJSON_Delete(root);
 }
 
@@ -680,6 +706,7 @@ static void handle_command_payload(const char *payload)
     }
     cmd_name = name_item->valuestring;
     args = cJSON_GetObjectItemCaseSensitive(root, "args");
+    ESP_LOGI(TAG, "Comando MQTT recebido | name=%s | cmd_id=%s", cmd_name, cmd_id);
 
     if (strcmp(cmd_name, "ping") == 0) {
         result = build_ping_result();
