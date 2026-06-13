@@ -70,12 +70,15 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - botao `commands/get` solicita o manifesto de comandos do device
   - renderiza `meta/commands` agrupado por `group`, usando `label` e `description`
   - gera entradas simples e botao `Enviar` para comandos descobertos no manifesto
+  - comandos `config/set` e `config/reset` usam selecao de campos a partir de `meta/config`
+  - ao selecionar um campo em `config/set`, o valor atual editavel e carregado automaticamente
 - Settings via MQTT:
   - botao `Atualizar config` envia `config/get` e mostra o manifesto devolvido pelo device
-  - renderiza `meta/config` em modo read-only, com indicacao de campos `runtime_apply` e `reboot_required`
-  - permite enviar atualizacao generica por campo usando `config/set`
-  - permite remover override por campo usando `config/reset`
-  - botao `Salvar heartbeat` envia `set_heartbeat_interval`
+  - renderiza `meta/config` como formulario agrupado por namespace/grupo
+  - mostra valor atual, default, origem, aplicacao, limites e tipo de cada campo
+  - campos booleanos usam switch; demais tipos usam entrada textual validada
+  - cada campo editavel pode ser salvo com `config/set` ou resetado com `config/reset`
+  - `mqtt.heartbeat_interval_s` e configurado como campo normal de Settings
   - botao `Apply + reboot` envia `apply_and_reboot`
   - botao `Limpar retained` publica payload vazio retido nos topicos do device para remover ghosts
   - area de log e redimensionavel com mouse (splitter vertical)

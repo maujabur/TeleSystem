@@ -21,6 +21,7 @@ APP_DIR = Path(__file__).resolve().parent
 PRESENCE_MESSAGE_TYPES = {"availability", "seen", "heartbeat", "state", "event"}
 PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
+COMMAND_OPTION_PLACEHOLDER = "selecione..."
 
 
 def command_args_from_inputs(arg_specs: list[Dict[str, Any]], values: Dict[str, str]) -> Dict[str, Any]:
@@ -368,7 +369,6 @@ class App(ctk.CTk):
         self.technical_auto_update_var = ctk.BooleanVar(value=True)
         self.technical_update_interval_var = StringVar(value="3")
         self.conn_state_var = StringVar(value="Starting...")
-        self.hb_interval_var = StringVar(value="60")
         self.status_panel_built = False
         self.commands_panel_built = False
         self.settings_panel_built = False
@@ -618,12 +618,12 @@ class App(ctk.CTk):
 
         frame = ctk.CTkFrame(parent)
         frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
-        for col in range(7):
+        for col in range(6):
             frame.grid_columnconfigure(col, weight=0)
-        frame.grid_columnconfigure(7, weight=1)
+        frame.grid_columnconfigure(6, weight=1)
 
         ctk.CTkLabel(frame, text="Comandos rapidos", font=ctk.CTkFont(size=16, weight="bold")).grid(
-            row=0, column=0, columnspan=7, sticky="w", padx=8, pady=(6, 2)
+            row=0, column=0, columnspan=6, sticky="w", padx=8, pady=(6, 2)
         )
         ctk.CTkButton(frame, text="ping", width=68, command=lambda: self._send_cmd("ping")).grid(
             row=1, column=0, sticky="w", padx=(8, 3), pady=(2, 6)
@@ -642,15 +642,6 @@ class App(ctk.CTk):
         )
         ctk.CTkButton(frame, text="reboot", width=72, command=lambda: self._send_cmd("apply_and_reboot")).grid(
             row=1, column=5, sticky="w", padx=3, pady=(2, 6)
-        )
-        hb_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        hb_frame.grid(row=1, column=6, sticky="w", padx=(8, 8), pady=(2, 6))
-        hb_frame.grid_columnconfigure(0, weight=0)
-        hb_frame.grid_columnconfigure(1, weight=0)
-        ctk.CTkLabel(hb_frame, text="Heartbeat").grid(row=0, column=0, sticky="e", padx=(0, 4))
-        ctk.CTkEntry(hb_frame, textvariable=self.hb_interval_var, width=52).grid(row=0, column=1, sticky="e")
-        ctk.CTkButton(hb_frame, text="salvar", width=68, command=self._send_set_heartbeat).grid(
-            row=0, column=2, sticky="e", padx=(4, 0)
         )
 
         ctk.CTkLabel(parent, text="Comandos descobertos", font=ctk.CTkFont(size=14, weight="bold")).grid(
@@ -696,10 +687,11 @@ class App(ctk.CTk):
             return
 
         normalized = [cmd for cmd in commands if isinstance(cmd, dict) and cmd.get("name")]
+        config_option_signature = ",".join(self._config_command_field_options())
         signature = tuple(
             f"{cmd.get('name')}|{json.dumps(cmd.get('args', []), sort_keys=True, ensure_ascii=True)}"
             for cmd in normalized
-        )
+        ) + (f"config_options|{config_option_signature}",)
         if signature != self.command_manifest_signature:
             self._clear_commands_manifest_view()
             self.command_manifest_signature = signature
@@ -780,6 +772,7 @@ class App(ctk.CTk):
                     args_frame.grid(row=0, column=1, sticky="ew", padx=(8, 0))
                     args_frame.grid_columnconfigure(1, weight=1)
 
+                    arg_widgets: Dict[str, Any] = {}
                     for input_row, arg in enumerate(arg for arg in arg_specs if isinstance(arg, dict) and arg.get("id")):
                         arg_id = str(arg.get("id"))
                         input_vars[arg_id] = StringVar(value="")
@@ -787,14 +780,27 @@ class App(ctk.CTk):
                         arg_label = ctk.CTkLabel(args_frame, text=f"{arg_id}{required_mark}", anchor="w")
                         arg_label.grid(row=input_row, column=0, sticky="w", padx=(0, 6), pady=1)
                         self._bind_delayed_tooltip(arg_label, lambda spec=arg: self._command_arg_tooltip_text(spec))
-                        entry = ctk.CTkEntry(
-                            args_frame,
-                            textvariable=input_vars[arg_id],
-                            placeholder_text=self._command_arg_placeholder(arg),
-                            height=26,
-                        )
+                        option_values = self._command_arg_options(command, arg)
+                        if option_values:
+                            input_vars[arg_id].set(COMMAND_OPTION_PLACEHOLDER)
+                            entry = ctk.CTkOptionMenu(
+                                args_frame,
+                                variable=input_vars[arg_id],
+                                values=[COMMAND_OPTION_PLACEHOLDER, *option_values],
+                                height=26,
+                            )
+                        else:
+                            entry = ctk.CTkEntry(
+                                args_frame,
+                                textvariable=input_vars[arg_id],
+                                placeholder_text=self._command_arg_placeholder(arg),
+                                height=26,
+                            )
                         entry.grid(row=input_row, column=1, sticky="ew", pady=1)
                         self._bind_delayed_tooltip(entry, lambda spec=arg: self._command_arg_tooltip_text(spec))
+                        arg_widgets[arg_id] = entry
+
+                    self._wire_config_set_command_inputs(name, input_vars, arg_widgets)
 
                     send_button = ctk.CTkButton(
                         command_frame,
@@ -819,6 +825,92 @@ class App(ctk.CTk):
             group = str(command.get("group") or "general")
             grouped.setdefault(group, []).append(command)
         return [(group, grouped[group]) for group in sorted(grouped.keys(), key=str.casefold)]
+
+    def _command_arg_options(self, command: Dict[str, Any], arg: Dict[str, Any]) -> list[str]:
+        command_name = str(command.get("name") or "")
+        arg_id = str(arg.get("id") or "")
+        if command_name in {"config/set", "config/reset"} and arg_id == "id":
+            return self._config_command_field_options()
+        return []
+
+    def _config_command_field_options(self) -> list[str]:
+        if not self.selected_device:
+            return []
+        device = self.devices.get(self.selected_device)
+        if not device:
+            return []
+        manifest = self._payload_for(device, "meta/config")
+        fields = manifest.get("fields") if isinstance(manifest, dict) else None
+        if not isinstance(fields, list):
+            return []
+        field_ids = []
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            field_id = str(field.get("id") or "")
+            if not field_id or self._config_has_flag(field, "read_only"):
+                continue
+            field_ids.append(field_id)
+        return sorted(field_ids, key=str.casefold)
+
+    def _wire_config_set_command_inputs(self, command_name: str, input_vars: Dict[str, StringVar], arg_widgets: Dict[str, Any]):
+        if command_name != "config/set":
+            return
+        id_var = input_vars.get("id")
+        id_widget = arg_widgets.get("id")
+        value_widget = arg_widgets.get("value")
+        if not id_var or not id_widget or not value_widget:
+            return
+
+        def update_value_hint(_selected: Optional[str] = None):
+            field_id = id_var.get()
+            placeholder = self._config_value_placeholder(field_id)
+            current_value = self._config_current_value_for_input(field_id)
+            try:
+                value_widget.configure(placeholder_text=placeholder)
+                if value_widget.get() != current_value:
+                    value_widget.delete(0, END)
+                    if current_value:
+                        value_widget.insert(0, current_value)
+            except TclError:
+                pass
+
+        try:
+            id_widget.configure(command=update_value_hint)
+        except TclError:
+            return
+        update_value_hint()
+
+    def _config_value_placeholder(self, field_id: str) -> str:
+        if field_id == COMMAND_OPTION_PLACEHOLDER:
+            return "escolha um campo"
+        field = self._config_manifest_field(field_id)
+        if not field:
+            return "valor"
+
+        field_type = str(field.get("type") or "any")
+        current = self._format_config_value(field, "value")
+        limits = self._format_config_limits(field)
+        parts = [field_type]
+        if limits != "-":
+            parts.append(limits)
+        if current != "-":
+            parts.append(f"atual {current}")
+        return " | ".join(parts)
+
+    def _config_current_value_for_input(self, field_id: str) -> str:
+        field = self._config_manifest_field(field_id)
+        if not field or field.get("value_hidden") is True:
+            return ""
+
+        value = field.get("value")
+        if value is None or value == "":
+            return ""
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=True)
+        return str(value)
 
     def _command_display_name(self, command: Dict[str, Any]) -> str:
         return str(command.get("label") or command.get("name") or "-")
@@ -900,7 +992,7 @@ class App(ctk.CTk):
         arg_specs = widget_data.get("arg_specs", [])
         input_vars = widget_data.get("input_vars", {})
         values = {
-            arg_id: var.get()
+            arg_id: "" if var.get() == COMMAND_OPTION_PLACEHOLDER else var.get()
             for arg_id, var in input_vars.items()
             if isinstance(var, StringVar)
         }
@@ -948,9 +1040,6 @@ class App(ctk.CTk):
         ctk.CTkButton(actions, text="Atualizar config", command=self._request_config_get).grid(
             row=0, column=0, sticky="ew", padx=4, pady=4
         )
-        ctk.CTkButton(actions, text="Salvar heartbeat", command=self._send_set_heartbeat).grid(
-            row=0, column=1, sticky="ew", padx=4, pady=4
-        )
         ctk.CTkButton(actions, text="Apply + reboot", command=lambda: self._send_cmd("apply_and_reboot")).grid(
             row=0, column=2, sticky="e", padx=4, pady=4
         )
@@ -960,7 +1049,7 @@ class App(ctk.CTk):
 
         self.settings_config_frame = ctk.CTkScrollableFrame(parent)
         self.settings_config_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
-        for col in range(9):
+        for col in range(8):
             self.settings_config_frame.grid_columnconfigure(col, weight=1 if col in (0, 1, 6) else 0)
 
         self.settings_raw_text = ctk.CTkTextbox(parent, height=180, wrap="none")
@@ -2030,25 +2119,42 @@ class App(ctk.CTk):
                     text="Sem meta/config recebido ainda.",
                     anchor="w",
                     text_color=("gray45", "gray65"),
-                ).grid(row=0, column=0, columnspan=9, sticky="ew", padx=8, pady=8)
+                ).grid(row=0, column=0, columnspan=8, sticky="ew", padx=8, pady=8)
                 self.settings_config_signature = ("__empty__",)
             return
 
-        signature = tuple(str(field.get("id") or "") for field in fields if isinstance(field, dict) and field.get("id"))
+        valid_fields = [field for field in fields if isinstance(field, dict) and field.get("id")]
+        sorted_fields = sorted(valid_fields, key=self._config_field_sort_key)
+        signature = tuple(self._config_field_signature(field) for field in sorted_fields)
         if signature != self.settings_config_signature:
             self._clear_config_manifest_view()
             self.settings_config_signature = signature
-            headers = ("Campo", "Valor", "Origem", "Aplicacao", "Tipo", "Limites", "Novo valor", "Enviar", "Reset")
-            for col, header in enumerate(headers):
-                ctk.CTkLabel(
-                    self.settings_config_frame,
-                    text=header,
-                    anchor="w",
-                    font=ctk.CTkFont(weight="bold"),
-                    text_color=("gray35", "gray75"),
-                ).grid(row=0, column=col, sticky="ew", padx=8, pady=(8, 4))
+            headers = ("Campo", "Atual", "Default", "Origem", "Aplicacao", "Limites", "Novo valor", "Acoes")
+            current_group = None
+            row = 0
+            for field in sorted_fields:
+                group = self._config_field_group(field)
+                if group != current_group:
+                    current_group = group
+                    ctk.CTkLabel(
+                        self.settings_config_frame,
+                        text=self._group_label(group),
+                        anchor="w",
+                        font=ctk.CTkFont(size=14, weight="bold"),
+                        text_color=("gray35", "gray75"),
+                    ).grid(row=row, column=0, columnspan=8, sticky="ew", padx=8, pady=(10, 2))
+                    row += 1
+                    for col, header in enumerate(headers):
+                        ctk.CTkLabel(
+                            self.settings_config_frame,
+                            text=header,
+                            anchor="w",
+                            font=ctk.CTkFont(weight="bold"),
+                            text_color=("gray40", "gray70"),
+                        ).grid(row=row, column=col, sticky="ew", padx=8, pady=(2, 4))
+                    row += 1
 
-            for row, field_id in enumerate(signature, start=1):
+                field_id = str(field.get("id") or "")
                 row_labels = []
                 for col in range(6):
                     label = ctk.CTkLabel(
@@ -2056,34 +2162,42 @@ class App(ctk.CTk):
                         text="--",
                         anchor="w",
                         justify="left",
-                        wraplength=240 if col in (0, 1) else 150,
+                        wraplength=260 if col == 0 else 170,
                     )
                     label.grid(row=row, column=col, sticky="ew", padx=8, pady=2)
                     row_labels.append(label)
-                entry = ctk.CTkEntry(self.settings_config_frame, width=180)
-                entry.grid(row=row, column=6, sticky="ew", padx=8, pady=2)
+
+                input_widget, input_var = self._create_settings_input_widget(field)
+                input_widget.grid(row=row, column=6, sticky="ew", padx=8, pady=2)
+
+                actions = ctk.CTkFrame(self.settings_config_frame, fg_color="transparent")
+                actions.grid(row=row, column=7, sticky="ew", padx=8, pady=2)
+                actions.grid_columnconfigure((0, 1), weight=1)
                 set_button = ctk.CTkButton(
-                    self.settings_config_frame,
-                    text="Enviar",
-                    width=72,
+                    actions,
+                    text="Salvar",
+                    width=70,
                     command=lambda fid=field_id: self._send_config_set_from_field(fid),
                 )
-                set_button.grid(row=row, column=7, sticky="ew", padx=8, pady=2)
+                set_button.grid(row=0, column=0, sticky="ew", padx=(0, 3))
                 reset_button = ctk.CTkButton(
-                    self.settings_config_frame,
+                    actions,
                     text="Reset",
                     width=64,
                     command=lambda fid=field_id: self._send_config_reset_from_field(fid),
                 )
-                reset_button.grid(row=row, column=8, sticky="ew", padx=8, pady=2)
+                reset_button.grid(row=0, column=1, sticky="ew", padx=(3, 0))
                 self.settings_config_widgets[field_id] = {
                     "labels": tuple(row_labels),
-                    "entry": entry,
+                    "input": input_widget,
+                    "input_var": input_var,
                     "set_button": set_button,
                     "reset_button": reset_button,
+                    "last_loaded_value": None,
                 }
+                row += 1
 
-        for field in fields:
+        for field in sorted_fields:
             if not isinstance(field, dict):
                 continue
             field_id = str(field.get("id") or "")
@@ -2093,21 +2207,22 @@ class App(ctk.CTk):
             if not widgets:
                 continue
             labels = widgets.get("labels")
-            entry = widgets.get("entry")
+            input_widget = widgets.get("input")
             set_button = widgets.get("set_button")
             reset_button = widgets.get("reset_button")
 
             value_text = self._format_config_value(field, "value")
+            default_text = self._format_config_value(field, "default")
             source_text = str(field.get("source") or "-")
             apply_text = self._format_config_application(field)
-            type_text = str(field.get("type") or "-")
             limits_text = self._format_config_limits(field)
-            texts = (field_id, value_text, source_text, apply_text, type_text, limits_text)
+            field_text = f"{field_id} ({field.get('type') or 'any'})"
+            texts = (field_text, value_text, default_text, source_text, apply_text, limits_text)
 
             for index, (label, text) in enumerate(zip(labels, texts)):
                 if label.cget("text") != text:
                     label.configure(text=text)
-                if index == 3:
+                if index == 4:
                     if "reboot" in text:
                         label.configure(text_color="#d9822b")
                     elif "runtime" in text:
@@ -2116,23 +2231,117 @@ class App(ctk.CTk):
                         label.configure(text_color=("gray10", "gray90"))
 
             editable = not self._config_has_flag(field, "read_only") and not field.get("value_hidden")
-            if entry and set_button and reset_button:
-                placeholder = value_text if value_text != "-" else ""
-                if entry.cget("placeholder_text") != placeholder:
-                    entry.configure(placeholder_text=placeholder)
-                state = "normal" if editable else "disabled"
-                if entry.cget("state") != state:
-                    entry.configure(state=state)
-                if set_button.cget("state") != state:
-                    set_button.configure(state=state)
-                if reset_button.cget("state") != state:
-                    reset_button.configure(state=state)
+            if input_widget and set_button and reset_button:
+                self._sync_settings_input_widget(field, widgets, editable)
+                button_state = "normal" if editable else "disabled"
+                if set_button.cget("state") != button_state:
+                    set_button.configure(state=button_state)
+                reset_state = "normal" if not self._config_has_flag(field, "read_only") else "disabled"
+                if reset_button.cget("state") != reset_state:
+                    reset_button.configure(state=reset_state)
 
         if hasattr(self, "settings_status_label"):
             revision = manifest.get("registry_revision", "-") if isinstance(manifest, dict) else "-"
             self.settings_status_label.configure(
                 text=f"meta/config: {len(signature)} campos | revision {revision} | device: {self.selected_device}"
             )
+
+    def _config_field_signature(self, field: Dict[str, Any]) -> str:
+        field_id = str(field.get("id") or "")
+        field_type = str(field.get("type") or "any")
+        flags = field.get("flags")
+        flag_names = []
+        if isinstance(flags, list):
+            for item in flags:
+                if isinstance(item, dict):
+                    flag_names.append(str(item.get("flag") or ""))
+                else:
+                    flag_names.append(str(item))
+        return "|".join(
+            (
+                self._config_field_group(field),
+                field_id,
+                field_type,
+                ",".join(sorted(flag for flag in flag_names if flag)),
+                "hidden" if field.get("value_hidden") else "visible",
+            )
+        )
+
+    def _config_field_sort_key(self, field: Dict[str, Any]) -> Tuple[str, str]:
+        return (self._config_field_group(field).casefold(), str(field.get("id") or "").casefold())
+
+    def _config_field_group(self, field: Dict[str, Any]) -> str:
+        group = str(field.get("group") or "").strip()
+        if group:
+            return group
+        field_id = str(field.get("id") or "")
+        if "." in field_id:
+            return field_id.split(".", 1)[0]
+        return "general"
+
+    def _create_settings_input_widget(self, field: Dict[str, Any]) -> Tuple[Any, Any]:
+        field_type = str(field.get("type") or "")
+        if field_type == "bool":
+            var = ctk.BooleanVar(value=False)
+            widget = ctk.CTkSwitch(self.settings_config_frame, text="", variable=var, width=44)
+            return widget, var
+
+        var = StringVar(value="")
+        widget = ctk.CTkEntry(self.settings_config_frame, textvariable=var, width=220)
+        self._bind_delayed_tooltip(widget, lambda current_field=field: self._settings_input_tooltip(current_field))
+        return widget, var
+
+    def _settings_input_tooltip(self, field: Dict[str, Any]) -> str:
+        parts = [
+            f"tipo: {field.get('type') or 'any'}",
+            f"default: {self._format_config_value(field, 'default')}",
+            f"limites: {self._format_config_limits(field)}",
+            f"aplicacao: {self._format_config_application(field)}",
+        ]
+        return " | ".join(parts)
+
+    def _sync_settings_input_widget(self, field: Dict[str, Any], widgets: Dict[str, Any], editable: bool):
+        input_widget = widgets.get("input")
+        input_var = widgets.get("input_var")
+        if not input_widget or input_var is None:
+            return
+
+        field_type = str(field.get("type") or "")
+        desired_value = self._config_value_for_input(field)
+        state = "normal" if editable else "disabled"
+        if input_widget.cget("state") != state:
+            input_widget.configure(state=state)
+
+        if field_type == "bool":
+            desired_bool = str(desired_value).lower() in {"true", "1", "sim", "yes", "on"}
+            if bool(input_var.get()) != desired_bool:
+                input_var.set(desired_bool)
+            widgets["last_loaded_value"] = "true" if desired_bool else "false"
+            return
+
+        placeholder = "<secret>" if field.get("value_hidden") else desired_value
+        if hasattr(input_widget, "cget") and input_widget.cget("placeholder_text") != placeholder:
+            input_widget.configure(placeholder_text=placeholder)
+
+        current_text = input_var.get()
+        last_loaded = widgets.get("last_loaded_value")
+        should_load = current_text == "" or current_text == last_loaded
+        if should_load and current_text != desired_value:
+            input_var.set(desired_value)
+            widgets["last_loaded_value"] = desired_value
+
+    def _config_value_for_input(self, field: Dict[str, Any]) -> str:
+        if field.get("value_hidden") is True:
+            return ""
+
+        value = field.get("value")
+        if value is None or value == "":
+            return ""
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=True)
+        return str(value)
 
     def _format_config_value(self, field: Dict[str, Any], key: str) -> str:
         if field.get(f"{key}_hidden") is True:
@@ -2220,23 +2429,36 @@ class App(ctk.CTk):
             return
         field = self._config_manifest_field(field_id)
         widgets = self.settings_config_widgets.get(field_id)
-        entry = widgets.get("entry") if widgets else None
-        if not field or not entry:
+        if not field or not widgets:
             self._append_log(f"Campo de config indisponivel: {field_id}", tag="warn")
             return
         if self._config_has_flag(field, "read_only"):
             self._append_log(f"Campo read_only nao pode ser alterado: {field_id}", tag="warn")
             return
 
-        ok, value, error = self._parse_config_entry_value(field, entry.get())
+        raw_value = self._settings_widget_text_value(field, widgets)
+        ok, value, error = self._parse_config_entry_value(field, raw_value)
         if not ok:
             self._append_log(f"{field_id}: {error}", tag="error")
             return
 
         self._send_cmd("config/set", {"id": field_id, "value": value})
-        entry.delete(0, END)
+        widgets["last_loaded_value"] = self._config_value_for_input(field)
         if hasattr(self, "settings_status_label"):
             self.settings_status_label.configure(text=f"config/set enviado para {field_id}; aguardando ACK...")
+
+    def _settings_widget_text_value(self, field: Dict[str, Any], widgets: Dict[str, Any]) -> str:
+        field_type = str(field.get("type") or "")
+        input_var = widgets.get("input_var")
+        input_widget = widgets.get("input")
+
+        if field_type == "bool" and input_var is not None:
+            return "true" if bool(input_var.get()) else "false"
+        if input_var is not None:
+            return str(input_var.get())
+        if input_widget is not None and hasattr(input_widget, "get"):
+            return str(input_widget.get())
+        return ""
 
     def _send_config_reset_from_field(self, field_id: str):
         if not self.selected_device:
@@ -2761,17 +2983,6 @@ class App(ctk.CTk):
             self._append_log(f"Cmd {command} enviado para {device_id}", tag="info")
         self.pending_cmd_by_id[payload["cmd_id"]] = PendingCommand(device_id=device_id, command=command, sent_at=now)
         return payload["cmd_id"]
-
-    def _send_set_heartbeat(self):
-        try:
-            interval = int(self.hb_interval_var.get().strip())
-            if interval <= 0:
-                raise ValueError
-        except ValueError:
-            self._append_log("Heartbeat interval must be a positive integer", tag="error")
-            return
-
-        self._send_cmd("set_heartbeat_interval", {"heartbeat_interval_s": interval})
 
     def _clear_retained_for_device(self):
         device_id = self.clear_retained_device_var.get().strip() or (self.selected_device or "")
