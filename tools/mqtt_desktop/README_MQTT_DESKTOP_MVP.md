@@ -73,9 +73,12 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - comandos `config/set` e `config/reset` usam selecao de campos a partir de `meta/config`
   - ao selecionar um campo em `config/set`, o valor atual editavel e carregado automaticamente
 - Settings via MQTT:
-  - botao `Atualizar config` envia `config/get` e mostra o manifesto devolvido pelo device
-  - renderiza `meta/config` como formulario agrupado por namespace/grupo
-  - mostra valor atual, default, origem, aplicacao, limites e tipo de cada campo
+  - botao `Atualizar config` envia `config/get`, recarrega o manifesto do device e descarta edicoes locais nao salvas
+  - atualizacoes automaticas preservam edicoes locais ainda nao salvas
+  - renderiza `meta/config` como formulario compacto agrupado por namespace/grupo
+  - mostra na tela apenas nome do campo, entrada, `Salvar` e `Reset`
+  - marca campos modificados localmente com `alterado` ate salvar ou recarregar
+  - mostra valor atual, default, origem, aplicacao, limites, tipo e flags por mouse over
   - campos booleanos usam switch; demais tipos usam entrada textual validada
   - cada campo editavel pode ser salvo com `config/set` ou resetado com `config/reset`
   - `mqtt.heartbeat_interval_s` e configurado como campo normal de Settings
