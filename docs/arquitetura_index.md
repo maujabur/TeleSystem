@@ -14,9 +14,10 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 4. [manual_mqtt_operacao.md](manual_mqtt_operacao.md)
 5. [tele_config.md](tele_config.md)
 6. [tele_status.md](tele_status.md)
-7. [status_led_system.md](status_led_system.md)
-8. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
-9. [roadmap_atual.md](roadmap_atual.md)
+7. [tele_commands.md](tele_commands.md)
+8. [status_led_system.md](status_led_system.md)
+9. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
+10. [roadmap_atual.md](roadmap_atual.md)
 
 ## Guias complementares
 
@@ -34,6 +35,8 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
   e persistencia de overrides em NVS.
 - `components/tele_status` contem o registro read-only de campos observaveis,
   usado inicialmente pelos payloads MQTT de `state` e `heartbeat`.
+- `components/tele_commands` contem o registro de comandos remotos e gera o
+  manifesto MQTT `meta/commands`.
 - `components/tele_presence` adapta a presenca MQTT para os dados atuais do
   firmware.
 - `components/status_led` contem o driver/stub de LED de status reutilizavel.

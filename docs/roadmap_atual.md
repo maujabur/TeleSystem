@@ -41,8 +41,9 @@ componentes.
   topico/broker.
 - Avaliar evolucao do componente externo `manifest_file_updater` para modo
   streaming antes de usa-lo no OTA remoto de firmware.
-- Evoluir `tools/mqtt_desktop` para consumir manifests `tele_config` e
-  `tele_status`, reduzindo os campos especificos herdados do projeto anterior.
+- Evoluir `tools/mqtt_desktop` para usar os manifests `tele_config`,
+  `tele_status` e `tele_commands` tambem na criacao de formularios e acoes
+  mais ricas, reduzindo os campos especificos herdados do projeto anterior.
 
 ## Evolucoes futuras
 

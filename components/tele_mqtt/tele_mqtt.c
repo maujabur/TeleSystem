@@ -15,6 +15,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mqtt_client.h"
+#include "tele_commands.h"
 #include "tele_config.h"
 
 #define TELE_MQTT_TOPIC_BUF_SIZE 128
@@ -52,6 +53,7 @@ static char s_topic_state[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_event[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_meta_config[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_meta_status[TELE_MQTT_TOPIC_BUF_SIZE];
+static char s_topic_meta_commands[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_cmd_in[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_cmd_out[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_cmd_in_payload_buf[TELE_MQTT_CMD_IN_PAYLOAD_BUF_SIZE];
@@ -59,6 +61,126 @@ static char s_recent_mutating_cmd_ids[TELE_MQTT_CMD_DEDUP_WINDOW][TELE_MQTT_CMD_
 static size_t s_recent_mutating_cmd_index;
 
 static void publish_config_manifest(void);
+static void publish_commands_manifest(void);
+
+static const tele_command_arg_t s_cmd_config_field_args[] = {
+    {
+        .id = "id",
+        .type = TELE_COMMAND_ARG_STRING,
+        .required = true,
+        .min_len = 1,
+        .max_len = TELE_CONFIG_ID_MAX_LEN,
+    },
+};
+
+static const tele_command_arg_t s_cmd_config_set_args[] = {
+    {
+        .id = "id",
+        .type = TELE_COMMAND_ARG_STRING,
+        .required = true,
+        .min_len = 1,
+        .max_len = TELE_CONFIG_ID_MAX_LEN,
+    },
+    {
+        .id = "value",
+        .type = TELE_COMMAND_ARG_ANY,
+        .required = true,
+    },
+};
+
+static const tele_command_arg_t s_cmd_heartbeat_args[] = {
+    {
+        .id = "heartbeat_interval_s",
+        .type = TELE_COMMAND_ARG_U32,
+        .required = true,
+        .min.u32 = 15,
+        .max.u32 = 3600,
+    },
+};
+
+static const tele_command_arg_t s_cmd_reboot_args[] = {
+    {
+        .id = "delay_ms",
+        .type = TELE_COMMAND_ARG_U32,
+        .required = false,
+        .min.u32 = 100,
+        .max.u32 = 10000,
+    },
+};
+
+static const tele_command_t s_builtin_commands[] = {
+    {
+        .name = "ping",
+        .label = "Ping",
+        .description = "Solicita uma resposta imediata do equipamento.",
+        .group = "system",
+        .flags = TELE_COMMAND_FLAG_MQTT,
+    },
+    {
+        .name = "get_state",
+        .label = "Ler estado",
+        .description = "Solicita um snapshot curto de estado/conectividade.",
+        .group = "status",
+        .flags = TELE_COMMAND_FLAG_MQTT,
+    },
+    {
+        .name = "get_technical_status",
+        .label = "Status tecnico",
+        .description = "Solicita diagnostico detalhado de runtime, energia e sensores.",
+        .group = "status",
+        .flags = TELE_COMMAND_FLAG_MQTT,
+    },
+    {
+        .name = "config/get",
+        .label = "Ler configuracao",
+        .description = "Solicita o manifesto de configuracao atual.",
+        .group = "config",
+        .flags = TELE_COMMAND_FLAG_MQTT,
+    },
+    {
+        .name = "commands/get",
+        .label = "Ler comandos",
+        .description = "Solicita o manifesto de comandos suportados.",
+        .group = "system",
+        .flags = TELE_COMMAND_FLAG_MQTT,
+    },
+    {
+        .name = "config/set",
+        .label = "Salvar configuracao",
+        .description = "Atualiza um campo configuravel exposto por MQTT.",
+        .group = "config",
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
+        .args = s_cmd_config_set_args,
+        .arg_count = 2,
+    },
+    {
+        .name = "config/reset",
+        .label = "Resetar configuracao",
+        .description = "Remove o override de um campo e volta ao default.",
+        .group = "config",
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
+        .args = s_cmd_config_field_args,
+        .arg_count = 1,
+    },
+    {
+        .name = "set_heartbeat_interval",
+        .label = "Intervalo heartbeat",
+        .description = "Altera o intervalo de heartbeat em runtime.",
+        .group = "status",
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
+        .args = s_cmd_heartbeat_args,
+        .arg_count = 1,
+    },
+    {
+        .name = "apply_and_reboot",
+        .label = "Aplicar e reiniciar",
+        .description = "Agenda um reboot curto depois do ACK.",
+        .group = "system",
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
+        .args = s_cmd_reboot_args,
+        .arg_count = 1,
+    },
+};
 
 static const char *str_or_empty(const char *value)
 {
@@ -277,6 +399,11 @@ static void build_topics(void)
     snprintf(s_topic_event, sizeof(s_topic_event), "%s/%s/event", topic_namespace(), s_device_id);
     snprintf(s_topic_meta_config, sizeof(s_topic_meta_config), "%s/%s/meta/config", topic_namespace(), s_device_id);
     snprintf(s_topic_meta_status, sizeof(s_topic_meta_status), "%s/%s/meta/status", topic_namespace(), s_device_id);
+    snprintf(s_topic_meta_commands,
+             sizeof(s_topic_meta_commands),
+             "%s/%s/meta/commands",
+             topic_namespace(),
+             s_device_id);
     snprintf(s_topic_cmd_in, sizeof(s_topic_cmd_in), "%s/%s/cmd/in", topic_namespace(), s_device_id);
     snprintf(s_topic_cmd_out, sizeof(s_topic_cmd_out), "%s/%s/cmd/out", topic_namespace(), s_device_id);
 }
@@ -578,6 +705,17 @@ static void handle_command_payload(const char *payload)
         return;
     }
 
+    if (strcmp(cmd_name, "commands/get") == 0) {
+        result = cJSON_CreateObject();
+        if (result) {
+            (void)tele_commands_add_manifest_to_json(result, TELE_COMMAND_FLAG_MQTT);
+        }
+        publish_command_reply(cmd_id, result != NULL, result ? NULL : "commands_unavailable", result);
+        cJSON_Delete(result);
+        cJSON_Delete(root);
+        return;
+    }
+
     if (strcmp(cmd_name, "get_technical_status") == 0) {
         result = s_config.build_technical_status ?
                  s_config.build_technical_status(s_config.ctx) : cJSON_CreateObject();
@@ -833,6 +971,19 @@ static void publish_config_manifest(void)
     cJSON_Delete(payload);
 }
 
+static void publish_commands_manifest(void)
+{
+    cJSON *payload = cJSON_CreateObject();
+    if (!payload) {
+        return;
+    }
+
+    if (tele_commands_add_manifest_to_json(payload, TELE_COMMAND_FLAG_MQTT) == ESP_OK) {
+        publish_json_with_common(s_topic_meta_commands, payload, qos_critical(), 1);
+    }
+    cJSON_Delete(payload);
+}
+
 static void publish_seen(const char *reason)
 {
     char ts[TELE_MQTT_TS_BUF_SIZE] = {0};
@@ -922,6 +1073,7 @@ static void mqtt_event_handler(void *handler_args,
         publish_availability("online", "mqtt_connected");
         publish_config_manifest();
         publish_status_manifest();
+        publish_commands_manifest();
         publish_state_snapshot();
         publish_heartbeat();
         (void)tele_mqtt_publish_event("boot", "mqtt_online");
@@ -1080,6 +1232,12 @@ esp_err_t tele_mqtt_start(const tele_mqtt_config_t *config)
 
     s_config = *config;
     s_heartbeat_interval_s = config->heartbeat_interval_s > 0 ? config->heartbeat_interval_s : 60;
+    esp_err_t commands_err = tele_commands_register(s_builtin_commands,
+                                                    sizeof(s_builtin_commands) / sizeof(s_builtin_commands[0]));
+    if (commands_err != ESP_OK && commands_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGE(TAG, "Falha ao registrar comandos MQTT: %s", esp_err_to_name(commands_err));
+        return commands_err;
+    }
     generate_device_id();
     build_topics();
 

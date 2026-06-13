@@ -1,15 +1,16 @@
-#include "tele_status.h"
+#include "tele_commands.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define TELE_STATUS_MAX_REGISTERED_FIELDS 64
-#define TELE_STATUS_REGISTRY_REVISION 1
+#define TELE_COMMANDS_MAX_REGISTERED 32
+#define TELE_COMMANDS_MAX_ARGS 8
+#define TELE_COMMANDS_REGISTRY_REVISION 1
 
-static const tele_status_field_t *s_fields[TELE_STATUS_MAX_REGISTERED_FIELDS];
-static size_t s_field_count;
+static const tele_command_t *s_commands[TELE_COMMANDS_MAX_REGISTERED];
+static size_t s_command_count;
 
 static cJSON *add_object_to_array(cJSON *array)
 {
@@ -24,189 +25,165 @@ static cJSON *add_object_to_array(cJSON *array)
     return object;
 }
 
-static const char *type_name(tele_status_type_t type)
+static const char *arg_type_name(tele_command_arg_type_t type)
 {
     switch (type) {
-    case TELE_STATUS_TYPE_BOOL:
+    case TELE_COMMAND_ARG_ANY:
+        return "any";
+    case TELE_COMMAND_ARG_BOOL:
         return "bool";
-    case TELE_STATUS_TYPE_I32:
+    case TELE_COMMAND_ARG_I32:
         return "i32";
-    case TELE_STATUS_TYPE_U32:
+    case TELE_COMMAND_ARG_U32:
         return "u32";
-    case TELE_STATUS_TYPE_STRING:
+    case TELE_COMMAND_ARG_STRING:
         return "string";
+    case TELE_COMMAND_ARG_OBJECT:
+        return "object";
     default:
         return "unknown";
     }
 }
 
-static void add_flag_if_set(cJSON *flags, uint32_t field_flags, uint32_t flag, const char *name)
+static bool command_is_valid(const tele_command_t *command)
 {
-    if ((field_flags & flag) == flag) {
-        cJSON *entry = add_object_to_array(flags);
-        if (entry) {
-            cJSON_AddStringToObject(entry, "flag", name);
+    if (!command || !command->name || command->name[0] == '\0' ||
+        strlen(command->name) > TELE_COMMAND_NAME_MAX_LEN) {
+        return false;
+    }
+    if (command->arg_count > TELE_COMMANDS_MAX_ARGS) {
+        return false;
+    }
+    if (command->arg_count > 0 && !command->args) {
+        return false;
+    }
+
+    for (size_t i = 0; i < command->arg_count; ++i) {
+        const tele_command_arg_t *arg = &command->args[i];
+        if (!arg->id || arg->id[0] == '\0' || strlen(arg->id) > TELE_COMMAND_ARG_ID_MAX_LEN) {
+            return false;
         }
     }
+    return true;
 }
 
-static bool field_has_reader(const tele_status_field_t *field)
+esp_err_t tele_commands_register(const tele_command_t *commands, size_t command_count)
 {
-    if (!field) {
-        return false;
-    }
-
-    switch (field->type) {
-    case TELE_STATUS_TYPE_BOOL:
-        return field->read.boolean != NULL;
-    case TELE_STATUS_TYPE_I32:
-        return field->read.i32 != NULL;
-    case TELE_STATUS_TYPE_U32:
-        return field->read.u32 != NULL;
-    case TELE_STATUS_TYPE_STRING:
-        return field->read.string != NULL;
-    default:
-        return false;
-    }
-}
-
-esp_err_t tele_status_register_fields(const tele_status_field_t *fields, size_t field_count)
-{
-    if (!fields || field_count == 0) {
+    if (!commands || command_count == 0) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (s_field_count + field_count > TELE_STATUS_MAX_REGISTERED_FIELDS) {
+    if (s_command_count + command_count > TELE_COMMANDS_MAX_REGISTERED) {
         return ESP_ERR_NO_MEM;
     }
 
-    for (size_t i = 0; i < field_count; ++i) {
-        const tele_status_field_t *field = &fields[i];
-        if (!field->id || field->id[0] == '\0' || strlen(field->id) > TELE_STATUS_ID_MAX_LEN) {
+    for (size_t i = 0; i < command_count; ++i) {
+        if (!command_is_valid(&commands[i])) {
             return ESP_ERR_INVALID_ARG;
         }
-        if (!field_has_reader(field)) {
-            return ESP_ERR_INVALID_ARG;
-        }
-        if (tele_status_find_field(field->id)) {
+        if (tele_commands_find(commands[i].name)) {
             return ESP_ERR_INVALID_STATE;
         }
     }
 
-    for (size_t i = 0; i < field_count; ++i) {
-        s_fields[s_field_count++] = &fields[i];
+    for (size_t i = 0; i < command_count; ++i) {
+        s_commands[s_command_count++] = &commands[i];
     }
     return ESP_OK;
 }
 
-const tele_status_field_t *tele_status_find_field(const char *id)
+const tele_command_t *tele_commands_find(const char *name)
 {
-    if (!id) {
+    if (!name) {
         return NULL;
     }
 
-    for (size_t i = 0; i < s_field_count; ++i) {
-        if (s_fields[i] && s_fields[i]->id && strcmp(s_fields[i]->id, id) == 0) {
-            return s_fields[i];
+    for (size_t i = 0; i < s_command_count; ++i) {
+        if (s_commands[i] && s_commands[i]->name && strcmp(s_commands[i]->name, name) == 0) {
+            return s_commands[i];
         }
     }
-
     return NULL;
 }
 
-esp_err_t tele_status_add_fields_to_json(cJSON *root, uint32_t required_flags)
+esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flags)
 {
-    if (!root) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    for (size_t i = 0; i < s_field_count; ++i) {
-        const tele_status_field_t *field = s_fields[i];
-        if (!field || (field->flags & required_flags) != required_flags) {
-            continue;
-        }
-
-        switch (field->type) {
-        case TELE_STATUS_TYPE_BOOL:
-            cJSON_AddBoolToObject(root, field->id, field->read.boolean(field->ctx));
-            break;
-        case TELE_STATUS_TYPE_I32:
-            cJSON_AddNumberToObject(root, field->id, (double)field->read.i32(field->ctx));
-            break;
-        case TELE_STATUS_TYPE_U32:
-            cJSON_AddNumberToObject(root, field->id, (double)field->read.u32(field->ctx));
-            break;
-        case TELE_STATUS_TYPE_STRING: {
-            const char *value = field->read.string(field->ctx);
-            cJSON_AddStringToObject(root, field->id, value ? value : "");
-            break;
-        }
-        default:
-            return ESP_ERR_INVALID_ARG;
-        }
-    }
-
-    return ESP_OK;
-}
-
-esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_flags)
-{
-    cJSON *fields = NULL;
+    cJSON *commands = NULL;
 
     if (!root) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    cJSON_AddNumberToObject(root, "registry_revision", TELE_STATUS_REGISTRY_REVISION);
-    fields = cJSON_AddArrayToObject(root, "fields");
-    if (!fields) {
+    cJSON_AddNumberToObject(root, "registry_revision", TELE_COMMANDS_REGISTRY_REVISION);
+    commands = cJSON_AddArrayToObject(root, "commands");
+    if (!commands) {
         return ESP_ERR_NO_MEM;
     }
 
-    for (size_t i = 0; i < s_field_count; ++i) {
-        const tele_status_field_t *field = s_fields[i];
+    for (size_t i = 0; i < s_command_count; ++i) {
+        const tele_command_t *command = s_commands[i];
         cJSON *item = NULL;
-        cJSON *flags = NULL;
+        cJSON *args = NULL;
 
-        if (!field || (field->flags & required_flags) != required_flags) {
+        if (!command || (command->flags & required_flags) != required_flags) {
             continue;
         }
 
-        item = add_object_to_array(fields);
+        item = add_object_to_array(commands);
         if (!item) {
             return ESP_ERR_NO_MEM;
         }
 
-        cJSON_AddStringToObject(item, "id", field->id);
-        if (field->label && field->label[0] != '\0') {
-            cJSON_AddStringToObject(item, "label", field->label);
+        cJSON_AddStringToObject(item, "name", command->name);
+        if (command->label && command->label[0] != '\0') {
+            cJSON_AddStringToObject(item, "label", command->label);
         }
-        if (field->description && field->description[0] != '\0') {
-            cJSON_AddStringToObject(item, "description", field->description);
+        if (command->description && command->description[0] != '\0') {
+            cJSON_AddStringToObject(item, "description", command->description);
         }
-        if (field->group && field->group[0] != '\0') {
-            cJSON_AddStringToObject(item, "group", field->group);
+        if (command->group && command->group[0] != '\0') {
+            cJSON_AddStringToObject(item, "group", command->group);
         }
-        cJSON_AddStringToObject(item, "type", type_name(field->type));
-        if (field->unit && field->unit[0] != '\0') {
-            cJSON_AddStringToObject(item, "unit", field->unit);
-        }
+        cJSON_AddBoolToObject(item, "mutating", (command->flags & TELE_COMMAND_FLAG_MUTATING) != 0);
+        cJSON_AddBoolToObject(item, "reboot_required", (command->flags & TELE_COMMAND_FLAG_REBOOT_REQUIRED) != 0);
+        cJSON_AddBoolToObject(item, "internal", (command->flags & TELE_COMMAND_FLAG_INTERNAL) != 0);
 
-        flags = cJSON_AddArrayToObject(item, "flags");
-        if (!flags) {
+        args = cJSON_AddArrayToObject(item, "args");
+        if (!args) {
             return ESP_ERR_NO_MEM;
         }
-        add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_STATE, "state");
-        add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_HEARTBEAT, "heartbeat");
-        add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_TECHNICAL, "technical");
-        add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_MQTT, "mqtt");
-        add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_WEB, "web");
-        add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_SENSITIVE, "sensitive");
+
+        for (size_t arg_index = 0; arg_index < command->arg_count; ++arg_index) {
+            const tele_command_arg_t *arg = &command->args[arg_index];
+            cJSON *arg_item = add_object_to_array(args);
+            if (!arg_item) {
+                return ESP_ERR_NO_MEM;
+            }
+
+            cJSON_AddStringToObject(arg_item, "id", arg->id);
+            cJSON_AddStringToObject(arg_item, "type", arg_type_name(arg->type));
+            cJSON_AddBoolToObject(arg_item, "required", arg->required);
+
+            if (arg->type == TELE_COMMAND_ARG_I32) {
+                cJSON_AddNumberToObject(arg_item, "min", (double)arg->min.i32);
+                cJSON_AddNumberToObject(arg_item, "max", (double)arg->max.i32);
+            } else if (arg->type == TELE_COMMAND_ARG_U32) {
+                cJSON_AddNumberToObject(arg_item, "min", (double)arg->min.u32);
+                cJSON_AddNumberToObject(arg_item, "max", (double)arg->max.u32);
+            } else if (arg->type == TELE_COMMAND_ARG_STRING) {
+                if (arg->min_len > 0) {
+                    cJSON_AddNumberToObject(arg_item, "min_len", (double)arg->min_len);
+                }
+                if (arg->max_len > 0) {
+                    cJSON_AddNumberToObject(arg_item, "max_len", (double)arg->max_len);
+                }
+            }
+        }
     }
 
     return ESP_OK;
 }
 
-#ifdef TELE_STATUS_HOST_TEST
+#ifdef TELE_COMMANDS_HOST_TEST
 typedef enum {
     HOST_JSON_ARRAY,
     HOST_JSON_BOOL,
@@ -216,7 +193,7 @@ typedef enum {
 } host_json_type_t;
 
 typedef struct {
-    char name[TELE_STATUS_ID_MAX_LEN + 1];
+    char name[TELE_COMMAND_NAME_MAX_LEN + 1];
     host_json_type_t type;
     bool boolean;
     double number;
@@ -225,7 +202,7 @@ typedef struct {
 } host_json_pair_t;
 
 struct cJSON {
-    host_json_pair_t pairs[TELE_STATUS_MAX_REGISTERED_FIELDS];
+    host_json_pair_t pairs[TELE_COMMANDS_MAX_REGISTERED + TELE_COMMANDS_MAX_ARGS + 8];
     size_t count;
     bool is_array;
 };
@@ -237,7 +214,7 @@ cJSON *cJSON_CreateObject(void)
 
 cJSON *cJSON_AddArrayToObject(cJSON *object, const char *name)
 {
-    if (!object || !name || object->count >= TELE_STATUS_MAX_REGISTERED_FIELDS) {
+    if (!object || !name || object->count >= (sizeof(object->pairs) / sizeof(object->pairs[0]))) {
         return NULL;
     }
     cJSON *array = calloc(1, sizeof(cJSON));
@@ -254,7 +231,7 @@ cJSON *cJSON_AddArrayToObject(cJSON *object, const char *name)
 
 bool cJSON_AddItemToArray(cJSON *array, cJSON *item)
 {
-    if (!array || !array->is_array || !item || array->count >= TELE_STATUS_MAX_REGISTERED_FIELDS) {
+    if (!array || !array->is_array || !item || array->count >= (sizeof(array->pairs) / sizeof(array->pairs[0]))) {
         return false;
     }
     host_json_pair_t *pair = &array->pairs[array->count++];
@@ -265,7 +242,7 @@ bool cJSON_AddItemToArray(cJSON *array, cJSON *item)
 
 bool cJSON_AddBoolToObject(cJSON *object, const char *name, bool value)
 {
-    if (!object || !name || object->count >= TELE_STATUS_MAX_REGISTERED_FIELDS) {
+    if (!object || !name || object->count >= (sizeof(object->pairs) / sizeof(object->pairs[0]))) {
         return false;
     }
     host_json_pair_t *pair = &object->pairs[object->count++];
@@ -277,7 +254,7 @@ bool cJSON_AddBoolToObject(cJSON *object, const char *name, bool value)
 
 double cJSON_AddNumberToObject(cJSON *object, const char *name, double value)
 {
-    if (!object || !name || object->count >= TELE_STATUS_MAX_REGISTERED_FIELDS) {
+    if (!object || !name || object->count >= (sizeof(object->pairs) / sizeof(object->pairs[0]))) {
         return 0;
     }
     host_json_pair_t *pair = &object->pairs[object->count++];
@@ -289,7 +266,7 @@ double cJSON_AddNumberToObject(cJSON *object, const char *name, double value)
 
 bool cJSON_AddStringToObject(cJSON *object, const char *name, const char *value)
 {
-    if (!object || !name || object->count >= TELE_STATUS_MAX_REGISTERED_FIELDS) {
+    if (!object || !name || object->count >= (sizeof(object->pairs) / sizeof(object->pairs[0]))) {
         return false;
     }
     host_json_pair_t *pair = &object->pairs[object->count++];

@@ -47,6 +47,9 @@ typedef union {
 
 typedef struct {
     const char *id;
+    const char *label;
+    const char *description;
+    const char *group;
     tele_status_type_t type;
     const char *unit;
     uint32_t flags;

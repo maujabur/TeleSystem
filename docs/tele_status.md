@@ -17,6 +17,10 @@ leitura.
 Cada campo tem:
 
 - `id`: nome estavel usado em JSON e, futuramente, em manifests;
+- `label`: nome curto para exibicao;
+- `description`: texto de ajuda para ferramentas e hover;
+- `group`: agrupamento livre definido pelo projeto, como `network`, `runtime`,
+  `power`, `memory` ou grupos de dominio;
 - `type`: `bool`, `i32`, `u32` ou `string`;
 - `unit`: unidade opcional, como `dBm`, `mV`, `bytes` ou `s`;
 - `flags`: indica onde o campo deve aparecer, como `STATE`, `HEARTBEAT`,
@@ -40,10 +44,10 @@ Cada campo tem:
 
 `state` e `heartbeat` sao montados a partir do registry. O firmware tambem
 publica `meta/status` retained com os metadados dos campos expostos por MQTT,
-incluindo tipo, unidade opcional e flags.
+incluindo label, description, group, tipo, unidade opcional e flags.
 
-O Control Center ja consome esse manifesto para renderizar uma tabela read-only
-dos campos conhecidos e seus valores atuais, usando os payloads `heartbeat`,
+O Control Center ja consome esse manifesto para renderizar campos read-only
+agrupados e seus valores atuais, usando os payloads `heartbeat`,
 `state`, `get_state` e `get_technical_status` como fontes de valor.
 
 ## Fora de escopo por enquanto

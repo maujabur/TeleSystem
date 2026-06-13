@@ -38,6 +38,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `{base_topic}/+/state`
   - `{base_topic}/+/meta/config`
   - `{base_topic}/+/meta/status`
+  - `{base_topic}/+/meta/commands`
   - `{base_topic}/+/event`
   - `{base_topic}/+/cmd/out`
 - Lista de dispositivos com visao compacta:
@@ -61,9 +62,14 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `ping`
   - `get_state`
   - `config/get`
+  - `commands/get`
   - `get_technical_status`
   - `apply_and_reboot`
   - `set_heartbeat_interval`
+- Comandos via MQTT:
+  - botao `commands/get` solicita o manifesto de comandos do device
+  - renderiza `meta/commands` agrupado por `group`, usando `label` e `description`
+  - gera entradas simples e botao `Enviar` para comandos descobertos no manifesto
 - Settings via MQTT:
   - botao `Atualizar config` envia `config/get` e mostra o manifesto devolvido pelo device
   - renderiza `meta/config` em modo read-only, com indicacao de campos `runtime_apply` e `reboot_required`
@@ -87,7 +93,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - com auto-probe ligado, o app envia `get_state` para devices conhecidos sem live recente
 - Aba Status:
   - mostra cards genericos de conectividade, runtime, heartbeat, energia, memoria, manifesto e erros
-  - renderiza `meta/status` como manifesto read-only dos campos de status publicados pelo device
+  - renderiza `meta/status` agrupado por `group`, usando `label` e `description`
   - mantem tabela de campos brutos do payload de `state`, do resultado de `get_state` e do status tecnico
   - botoes `get_state` e `status_tecnico` para atualizacao ativa
   - auto-update configuravel para `status_tecnico` com default de 3 segundos

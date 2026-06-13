@@ -23,6 +23,90 @@ PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
 
 
+def command_args_from_inputs(arg_specs: list[Dict[str, Any]], values: Dict[str, str]) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+
+    for spec in arg_specs:
+        if not isinstance(spec, dict):
+            continue
+        arg_id = str(spec.get("id", "")).strip()
+        if not arg_id:
+            continue
+
+        raw_value = str(values.get(arg_id, "")).strip()
+        required = bool(spec.get("required"))
+        if raw_value == "":
+            if required:
+                raise ValueError(f"{arg_id}: valor obrigatorio")
+            continue
+
+        arg_type = str(spec.get("type", "any")).strip().lower()
+        value = _parse_command_arg_value(arg_id, arg_type, raw_value)
+        _validate_command_arg_limits(arg_id, spec, value)
+        result[arg_id] = value
+
+    return result
+
+
+def _parse_command_arg_value(arg_id: str, arg_type: str, raw_value: str) -> Any:
+    if arg_type == "bool":
+        lowered = raw_value.lower()
+        if lowered in {"true", "1", "sim", "yes", "on"}:
+            return True
+        if lowered in {"false", "0", "nao", "não", "no", "off"}:
+            return False
+        raise ValueError(f"{arg_id}: booleano invalido")
+
+    if arg_type == "u32":
+        try:
+            value = int(raw_value, 10)
+        except ValueError as exc:
+            raise ValueError(f"{arg_id}: inteiro invalido") from exc
+        if value < 0:
+            raise ValueError(f"{arg_id}: deve ser >= 0")
+        return value
+
+    if arg_type == "i32":
+        try:
+            return int(raw_value, 10)
+        except ValueError as exc:
+            raise ValueError(f"{arg_id}: inteiro invalido") from exc
+
+    if arg_type == "string":
+        return raw_value
+
+    if arg_type == "object":
+        try:
+            value = json.loads(raw_value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{arg_id}: JSON invalido") from exc
+        if not isinstance(value, dict):
+            raise ValueError(f"{arg_id}: objeto JSON esperado")
+        return value
+
+    if arg_type == "any":
+        try:
+            return json.loads(raw_value)
+        except json.JSONDecodeError:
+            return raw_value
+
+    return raw_value
+
+
+def _validate_command_arg_limits(arg_id: str, spec: Dict[str, Any], value: Any) -> None:
+    if isinstance(value, int) and not isinstance(value, bool):
+        if spec.get("min") is not None and value < int(spec["min"]):
+            raise ValueError(f"{arg_id}: abaixo do minimo {spec['min']}")
+        if spec.get("max") is not None and value > int(spec["max"]):
+            raise ValueError(f"{arg_id}: acima do maximo {spec['max']}")
+
+    if isinstance(value, str):
+        if spec.get("min_len") is not None and len(value) < int(spec["min_len"]):
+            raise ValueError(f"{arg_id}: texto curto demais")
+        if spec.get("max_len") is not None and len(value) > int(spec["max_len"]):
+            raise ValueError(f"{arg_id}: texto longo demais")
+
+
 @dataclass
 class MessageSnapshot:
     timestamp: datetime
@@ -218,6 +302,9 @@ class App(ctk.CTk):
         self.settings_raw_text_value = ""
         self.settings_config_widgets: Dict[str, Dict[str, Any]] = {}
         self.settings_config_signature: tuple[str, ...] = ()
+        self.command_manifest_labels: Dict[str, tuple[ctk.CTkLabel, ...]] = {}
+        self.command_manifest_widgets: Dict[str, Dict[str, Any]] = {}
+        self.command_manifest_signature: tuple[str, ...] = ()
         self.pending_cmd_by_id: Dict[str, PendingCommand] = {}
         self.log_line_count = 0
         self.mousewheel_scroll_frames: list[Any] = []
@@ -486,67 +573,327 @@ class App(ctk.CTk):
         self.settings_panel_built = True
 
     def _build_commands_panel(self, parent):
-        parent.grid_rowconfigure(1, weight=1)
+        parent.grid_rowconfigure(0, weight=0)
+        parent.grid_rowconfigure(1, weight=0)
+        parent.grid_rowconfigure(2, weight=1)
         parent.grid_columnconfigure(0, weight=1)
 
         frame = ctk.CTkFrame(parent)
-        frame.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
-        frame.grid_columnconfigure(0, weight=1)
+        frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
+        for col in range(7):
+            frame.grid_columnconfigure(col, weight=0)
+        frame.grid_columnconfigure(7, weight=1)
 
         ctk.CTkLabel(frame, text="Comandos rapidos", font=ctk.CTkFont(size=16, weight="bold")).grid(
-            row=0, column=0, sticky="w", padx=8, pady=(4, 6)
+            row=0, column=0, columnspan=7, sticky="w", padx=8, pady=(6, 2)
+        )
+        ctk.CTkButton(frame, text="ping", width=68, command=lambda: self._send_cmd("ping")).grid(
+            row=1, column=0, sticky="w", padx=(8, 3), pady=(2, 6)
+        )
+        ctk.CTkButton(frame, text="state", width=68, command=lambda: self._send_cmd("get_state")).grid(
+            row=1, column=1, sticky="w", padx=3, pady=(2, 6)
+        )
+        ctk.CTkButton(frame, text="config", width=72, command=self._request_config_get).grid(
+            row=1, column=2, sticky="w", padx=3, pady=(2, 6)
+        )
+        ctk.CTkButton(frame, text="status", width=72, command=lambda: self._send_cmd("get_technical_status")).grid(
+            row=1, column=3, sticky="w", padx=3, pady=(2, 6)
+        )
+        ctk.CTkButton(frame, text="comandos", width=92, command=lambda: self._send_cmd("commands/get")).grid(
+            row=1, column=4, sticky="w", padx=3, pady=(2, 6)
+        )
+        ctk.CTkButton(frame, text="reboot", width=72, command=lambda: self._send_cmd("apply_and_reboot")).grid(
+            row=1, column=5, sticky="w", padx=3, pady=(2, 6)
+        )
+        hb_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        hb_frame.grid(row=1, column=6, sticky="w", padx=(8, 8), pady=(2, 6))
+        hb_frame.grid_columnconfigure(0, weight=0)
+        hb_frame.grid_columnconfigure(1, weight=0)
+        ctk.CTkLabel(hb_frame, text="Heartbeat").grid(row=0, column=0, sticky="e", padx=(0, 4))
+        ctk.CTkEntry(hb_frame, textvariable=self.hb_interval_var, width=52).grid(row=0, column=1, sticky="e")
+        ctk.CTkButton(hb_frame, text="salvar", width=68, command=self._send_set_heartbeat).grid(
+            row=0, column=2, sticky="e", padx=(4, 0)
         )
 
-        row_a = ctk.CTkFrame(frame)
-        row_a.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 8))
-        row_a.grid_columnconfigure((0, 1, 2, 3), weight=1)
-        ctk.CTkButton(row_a, text="ping", command=lambda: self._send_cmd("ping")).grid(row=0, column=0, sticky="ew", padx=4, pady=4)
-        ctk.CTkButton(row_a, text="get_state", command=lambda: self._send_cmd("get_state")).grid(row=0, column=1, sticky="ew", padx=4, pady=4)
-        ctk.CTkButton(row_a, text="config/get", command=self._request_config_get).grid(row=0, column=2, sticky="ew", padx=4, pady=4)
-        ctk.CTkButton(row_a, text="status_tecnico", command=lambda: self._send_cmd("get_technical_status")).grid(
-            row=0, column=3, sticky="ew", padx=4, pady=4
+        ctk.CTkLabel(parent, text="Comandos descobertos", font=ctk.CTkFont(size=14, weight="bold")).grid(
+            row=1, column=0, sticky="w", padx=8, pady=(4, 4)
         )
+        self.commands_manifest_frame = ctk.CTkScrollableFrame(parent)
+        self.commands_manifest_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        self.commands_manifest_frame.grid_columnconfigure(0, weight=2)
+        self.commands_manifest_frame.grid_columnconfigure(1, weight=1)
+        self.commands_manifest_frame.grid_columnconfigure(2, weight=3)
+        self.commands_manifest_frame.grid_columnconfigure(3, weight=4)
+        self.commands_manifest_frame.grid_columnconfigure(4, weight=0)
+        self._refresh_commands_panel()
 
-        row_b = ctk.CTkFrame(frame)
-        row_b.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 8))
-        row_b.grid_columnconfigure((0, 1), weight=1)
-        ctk.CTkButton(row_b, text="apply_and_reboot", command=lambda: self._send_cmd("apply_and_reboot")).grid(
-            row=0, column=0, sticky="ew", padx=4, pady=4
-        )
+    def _clear_commands_manifest_view(self):
+        if not hasattr(self, "commands_manifest_frame"):
+            return
+        for child in self.commands_manifest_frame.winfo_children():
+            child.destroy()
+        self.command_manifest_labels = {}
+        self.command_manifest_widgets = {}
+        self.command_manifest_signature = ()
 
-        hb_frame = ctk.CTkFrame(row_b, fg_color="transparent")
-        hb_frame.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
-        hb_frame.grid_columnconfigure(0, weight=1)
-        hb_entry = ctk.CTkEntry(hb_frame, textvariable=self.hb_interval_var)
-        hb_entry.grid(row=0, column=0, sticky="ew", pady=(0, 4))
-        ctk.CTkButton(hb_frame, text="set_heartbeat_interval", command=self._send_set_heartbeat).grid(
-            row=1, column=0, sticky="ew"
-        )
+    def _refresh_commands_panel(self):
+        if not hasattr(self, "commands_manifest_frame"):
+            return
 
-        row_c = ctk.CTkFrame(frame)
-        row_c.grid(row=3, column=0, sticky="ew", padx=8, pady=(0, 8))
-        row_c.grid_columnconfigure(0, weight=1)
-        row_c.grid_columnconfigure(1, weight=0)
-        ctk.CTkEntry(
-            row_c,
-            textvariable=self.clear_retained_device_var,
-            placeholder_text="device_id para limpar retained (vazio usa selecionado)",
-        ).grid(row=0, column=0, sticky="ew", padx=4, pady=4)
-        ctk.CTkButton(row_c, text="Limpar retained", command=self._clear_retained_for_device).grid(
-            row=0, column=1, sticky="ew", padx=4, pady=4
-        )
+        manifest: Dict[str, Any] = {}
+        if self.selected_device and self.selected_device in self.devices:
+            manifest = self._payload_for(self.devices[self.selected_device], "meta/commands")
+        commands = manifest.get("commands") if isinstance(manifest, dict) else None
 
-        info = ctk.CTkTextbox(parent, height=120)
-        info.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
-        info.insert(
-            END,
-            "Comandos desta aba sao enviados para o dispositivo selecionado na lista.\n"
-            "- use get_state para atualizar a aba Status/State\n"
-            "- use status_tecnico para consultar os dados da pagina de status tecnico\n"
-            "- use config/get para atualizar o manifesto de configuracao\n"
-            "- Limpar retained remove snapshots antigos do broker\n",
+        if not isinstance(commands, list) or not commands:
+            if self.command_manifest_signature != ("__empty__",):
+                self._clear_commands_manifest_view()
+                ctk.CTkLabel(
+                    self.commands_manifest_frame,
+                    text="Sem meta/commands recebido ainda.",
+                    anchor="w",
+                    text_color=("gray45", "gray65"),
+                ).grid(row=0, column=0, columnspan=4, sticky="ew", padx=8, pady=8)
+                self.command_manifest_signature = ("__empty__",)
+            return
+
+        normalized = [cmd for cmd in commands if isinstance(cmd, dict) and cmd.get("name")]
+        signature = tuple(
+            f"{cmd.get('name')}|{json.dumps(cmd.get('args', []), sort_keys=True, ensure_ascii=True)}"
+            for cmd in normalized
         )
-        info.configure(state="disabled")
+        if signature != self.command_manifest_signature:
+            self._clear_commands_manifest_view()
+            self.command_manifest_signature = signature
+            readonly_commands = [cmd for cmd in normalized if not bool(cmd.get("mutating"))]
+            mutable_commands = [cmd for cmd in normalized if bool(cmd.get("mutating"))]
+            row = 0
+
+            if readonly_commands:
+                ctk.CTkLabel(
+                    self.commands_manifest_frame,
+                    text="Read-only",
+                    anchor="w",
+                    font=ctk.CTkFont(size=12, weight="bold"),
+                ).grid(row=row, column=0, columnspan=5, sticky="ew", padx=6, pady=(4, 3))
+                row += 1
+
+                for group, group_commands in self._commands_by_group(readonly_commands):
+                    ctk.CTkLabel(
+                        self.commands_manifest_frame,
+                        text=self._group_label(group),
+                        anchor="w",
+                        text_color=("gray35", "gray70"),
+                    ).grid(row=row, column=0, columnspan=5, sticky="ew", padx=6, pady=(2, 1))
+                    row += 1
+                    readonly_frame = ctk.CTkFrame(self.commands_manifest_frame, fg_color="transparent")
+                    readonly_frame.grid(row=row, column=0, columnspan=5, sticky="ew", padx=6, pady=(0, 6))
+                    for col in range(4):
+                        readonly_frame.grid_columnconfigure(col, weight=1)
+
+                    for index, command in enumerate(group_commands):
+                        name = str(command.get("name", ""))
+                        button = ctk.CTkButton(
+                            readonly_frame,
+                            text=self._command_display_name(command),
+                            height=28,
+                            command=lambda cmd=command: self._send_manifest_command(cmd),
+                        )
+                        button.grid(row=index // 4, column=index % 4, sticky="ew", padx=3, pady=3)
+                        self._bind_delayed_tooltip(button, lambda cmd=command: self._command_tooltip_text(cmd))
+                        self.command_manifest_widgets[name] = {
+                            "command": command,
+                            "arg_specs": [],
+                            "input_vars": {},
+                            "send_button": button,
+                        }
+                    row += 1
+
+            if mutable_commands:
+                ctk.CTkLabel(
+                    self.commands_manifest_frame,
+                    text="Mutaveis",
+                    anchor="w",
+                    font=ctk.CTkFont(size=12, weight="bold"),
+                ).grid(row=row, column=0, columnspan=5, sticky="ew", padx=6, pady=(4, 3))
+                row += 1
+
+            for group, group_commands in self._commands_by_group(mutable_commands):
+                ctk.CTkLabel(
+                    self.commands_manifest_frame,
+                    text=self._group_label(group),
+                    anchor="w",
+                    text_color=("gray35", "gray70"),
+                ).grid(row=row, column=0, columnspan=5, sticky="ew", padx=6, pady=(2, 1))
+                row += 1
+
+                for command in group_commands:
+                    name = str(command.get("name", ""))
+                    args = command.get("args")
+                    arg_specs = args if isinstance(args, list) else []
+
+                    command_frame = ctk.CTkFrame(self.commands_manifest_frame, fg_color="transparent")
+                    command_frame.grid(row=row, column=0, columnspan=5, sticky="ew", padx=6, pady=3)
+                    command_frame.grid_columnconfigure(0, weight=0)
+                    command_frame.grid_columnconfigure(1, weight=1)
+
+                    input_vars: Dict[str, StringVar] = {}
+                    args_frame = ctk.CTkFrame(command_frame, fg_color="transparent")
+                    args_frame.grid(row=0, column=1, sticky="ew", padx=(8, 0))
+                    args_frame.grid_columnconfigure(1, weight=1)
+
+                    for input_row, arg in enumerate(arg for arg in arg_specs if isinstance(arg, dict) and arg.get("id")):
+                        arg_id = str(arg.get("id"))
+                        input_vars[arg_id] = StringVar(value="")
+                        required_mark = "*" if bool(arg.get("required")) else ""
+                        arg_label = ctk.CTkLabel(args_frame, text=f"{arg_id}{required_mark}", anchor="w")
+                        arg_label.grid(row=input_row, column=0, sticky="w", padx=(0, 6), pady=1)
+                        self._bind_delayed_tooltip(arg_label, lambda spec=arg: self._command_arg_tooltip_text(spec))
+                        entry = ctk.CTkEntry(
+                            args_frame,
+                            textvariable=input_vars[arg_id],
+                            placeholder_text=self._command_arg_placeholder(arg),
+                            height=26,
+                        )
+                        entry.grid(row=input_row, column=1, sticky="ew", pady=1)
+                        self._bind_delayed_tooltip(entry, lambda spec=arg: self._command_arg_tooltip_text(spec))
+
+                    send_button = ctk.CTkButton(
+                        command_frame,
+                        text=self._command_display_name(command),
+                        width=150,
+                        height=28,
+                        command=lambda cmd=command: self._send_manifest_command(cmd),
+                    )
+                    send_button.grid(row=0, column=0, sticky="nw")
+                    self._bind_delayed_tooltip(send_button, lambda cmd=command: self._command_tooltip_text(cmd))
+                    self.command_manifest_widgets[name] = {
+                        "command": command,
+                        "arg_specs": arg_specs,
+                        "input_vars": input_vars,
+                        "send_button": send_button,
+                    }
+                    row += 1
+
+    def _commands_by_group(self, commands: list[Dict[str, Any]]) -> list[tuple[str, list[Dict[str, Any]]]]:
+        grouped: Dict[str, list[Dict[str, Any]]] = {}
+        for command in commands:
+            group = str(command.get("group") or "general")
+            grouped.setdefault(group, []).append(command)
+        return [(group, grouped[group]) for group in sorted(grouped.keys(), key=str.casefold)]
+
+    def _command_display_name(self, command: Dict[str, Any]) -> str:
+        return str(command.get("label") or command.get("name") or "-")
+
+    def _group_label(self, group: str) -> str:
+        labels = {
+            "config": "Configuracao",
+            "general": "Geral",
+            "memory": "Memoria",
+            "network": "Rede",
+            "power": "Energia",
+            "runtime": "Runtime",
+            "status": "Status",
+            "system": "Sistema",
+            "time": "Tempo",
+        }
+        return labels.get(group, group)
+
+    def _command_meta_text(self, command: Dict[str, Any]) -> str:
+        parts = []
+        if bool(command.get("mutating")):
+            parts.append("mutavel")
+        else:
+            parts.append("read-only")
+        if bool(command.get("reboot_required")):
+            parts.append("reboot")
+        return " | ".join(parts)
+
+    def _command_tooltip_text(self, command: Dict[str, Any]) -> str:
+        name = str(command.get("name", "-"))
+        label = str(command.get("label") or name)
+        description = str(command.get("description") or "")
+        args_text = self._format_command_args(command.get("args"))
+        parts = [label, name, self._command_meta_text(command), f"grupo: {self._group_label(str(command.get('group') or 'general'))}"]
+        if description:
+            parts.append(description)
+        parts.append(f"args: {args_text}")
+        return " | ".join(parts)
+
+    def _command_arg_tooltip_text(self, arg: Dict[str, Any]) -> str:
+        arg_id = str(arg.get("id", "-"))
+        arg_type = str(arg.get("type", "any"))
+        required = "obrigatorio" if bool(arg.get("required")) else "opcional"
+        details = [f"{arg_id}: {arg_type}", required]
+        if "min" in arg or "max" in arg:
+            details.append(f"limite {arg.get('min', '-')}..{arg.get('max', '-')}")
+        if "min_len" in arg or "max_len" in arg:
+            details.append(f"tamanho {arg.get('min_len', '-')}..{arg.get('max_len', '-')}")
+        if arg_type in {"any", "object"}:
+            details.append("aceita JSON")
+        return " | ".join(details)
+
+    def _command_arg_placeholder(self, arg: Dict[str, Any]) -> str:
+        arg_type = str(arg.get("type", "any"))
+        if arg_type == "bool":
+            return "true/false"
+        if arg_type in {"i32", "u32"}:
+            suffix = ""
+            if "min" in arg or "max" in arg:
+                suffix = f" ({arg.get('min', '-')}-{arg.get('max', '-')})"
+            return f"{arg_type}{suffix}"
+        if arg_type == "object":
+            return '{"chave": "valor"}'
+        if arg_type == "any":
+            return "JSON ou texto"
+        return "texto"
+
+    def _send_manifest_command(self, command: Dict[str, Any]):
+        if not self.selected_device:
+            self._append_log("Selecione um dispositivo para enviar comando", tag="warn")
+            return
+
+        name = str(command.get("name", "")).strip()
+        if not name:
+            self._append_log("Comando sem nome no manifesto", tag="warn")
+            return
+
+        widget_data = self.command_manifest_widgets.get(name, {})
+        arg_specs = widget_data.get("arg_specs", [])
+        input_vars = widget_data.get("input_vars", {})
+        values = {
+            arg_id: var.get()
+            for arg_id, var in input_vars.items()
+            if isinstance(var, StringVar)
+        }
+
+        try:
+            args = command_args_from_inputs(arg_specs, values)
+        except ValueError as exc:
+            self._append_log(f"Argumento invalido para {name}: {exc}", tag="error")
+            return
+
+        self._send_cmd(name, args if args else None)
+
+    def _format_command_args(self, args: Any) -> str:
+        if not isinstance(args, list) or not args:
+            return "-"
+
+        parts = []
+        for arg in args:
+            if not isinstance(arg, dict):
+                continue
+            arg_id = str(arg.get("id", "-"))
+            arg_type = str(arg.get("type", "any"))
+            required = "obrigatorio" if bool(arg.get("required")) else "opcional"
+            limits = []
+            if "min" in arg or "max" in arg:
+                limits.append(f"{arg.get('min', '-')}-{arg.get('max', '-')}")
+            if "min_len" in arg or "max_len" in arg:
+                limits.append(f"len {arg.get('min_len', 0)}-{arg.get('max_len', '-')}")
+            suffix = f" ({', '.join(limits)})" if limits else ""
+            parts.append(f"{arg_id}: {arg_type}, {required}{suffix}")
+        return " | ".join(parts) if parts else "-"
 
     def _build_settings_panel(self, parent):
         parent.grid_columnconfigure(0, weight=1)
@@ -941,21 +1288,29 @@ class App(ctk.CTk):
                 self.status_manifest_signature = ("__empty__",)
             return
 
-        signature = tuple(str(field.get("id") or "") for field in fields if isinstance(field, dict) and field.get("id"))
+        status_items = [field for field in fields if isinstance(field, dict) and field.get("id")]
+        signature = tuple(
+            f"{field.get('group') or 'general'}|{field.get('id')}"
+            for field in status_items
+        )
         if signature != self.status_manifest_signature:
             self._clear_status_manifest_view()
             self.status_manifest_signature = signature
-            headers = ("Campo", "Tipo", "Valor", "Flags")
-            for col, header in enumerate(headers):
-                ctk.CTkLabel(
-                    self.status_manifest_frame,
-                    text=header,
-                    anchor="w",
-                    font=ctk.CTkFont(weight="bold"),
-                    text_color=("gray35", "gray75"),
-                ).grid(row=0, column=col, sticky="ew", padx=8, pady=(8, 4))
-
-            for row, field_id in enumerate(signature, start=1):
+            row = 0
+            current_group = None
+            for field in sorted(status_items, key=lambda item: (str(item.get("group") or "general"), str(item.get("id") or ""))):
+                field_id = str(field.get("id") or "")
+                group = str(field.get("group") or "general")
+                if group != current_group:
+                    ctk.CTkLabel(
+                        self.status_manifest_frame,
+                        text=self._group_label(group),
+                        anchor="w",
+                        font=ctk.CTkFont(weight="bold"),
+                        text_color=("gray35", "gray75"),
+                    ).grid(row=row, column=0, columnspan=4, sticky="ew", padx=8, pady=(8, 2))
+                    row += 1
+                    current_group = group
                 row_labels = []
                 for col in range(4):
                     label = ctk.CTkLabel(
@@ -966,11 +1321,13 @@ class App(ctk.CTk):
                         wraplength=260 if col in (0, 3) else 180,
                     )
                     label.grid(row=row, column=col, sticky="ew", padx=8, pady=2)
+                    self._bind_delayed_tooltip(label, lambda item=field: self._status_field_tooltip_text(item))
                     row_labels.append(label)
                 self.status_manifest_labels[field_id] = tuple(row_labels)
+                row += 1
 
         values = self._manifest_value_sources(heartbeat, state_topic, get_state, technical_status)
-        for field in fields:
+        for field in status_items:
             if not isinstance(field, dict):
                 continue
             field_id = str(field.get("id") or "")
@@ -981,11 +1338,12 @@ class App(ctk.CTk):
             value_text = self._format_manifest_value(value, unit)
             type_text = str(field.get("type") or "-")
             flags_text = self._format_manifest_flags(field.get("flags"))
+            label_text = str(field.get("label") or field_id)
             labels = self.status_manifest_labels.get(field_id)
             if not labels:
                 continue
 
-            for label, text in zip(labels, (field_id, type_text, value_text, flags_text)):
+            for label, text in zip(labels, (label_text, type_text, value_text, flags_text)):
                 if label.cget("text") != text:
                     label.configure(text=text)
 
@@ -1005,6 +1363,20 @@ class App(ctk.CTk):
             if isinstance(payload, dict):
                 values.update(self._flatten_dict(payload))
         return values
+
+    def _status_field_tooltip_text(self, field: Dict[str, Any]) -> str:
+        field_id = str(field.get("id") or "-")
+        label = str(field.get("label") or field_id)
+        description = str(field.get("description") or "")
+        group = self._group_label(str(field.get("group") or "general"))
+        field_type = str(field.get("type") or "-")
+        unit = str(field.get("unit") or "")
+        parts = [label, field_id, f"grupo: {group}", f"tipo: {field_type}"]
+        if unit:
+            parts.append(f"unidade: {unit}")
+        if description:
+            parts.append(description)
+        return " | ".join(parts)
 
     def _format_manifest_value(self, value: Any, unit: str) -> str:
         if value is None or value == "":
@@ -1201,6 +1573,7 @@ class App(ctk.CTk):
             ("Heartbeat payload", "heartbeat_payload"),
             ("Config manifest payload", "config_manifest_payload"),
             ("Status manifest payload", "status_manifest_payload"),
+            ("Commands manifest payload", "commands_manifest_payload"),
         ]
 
         for index, (label, key) in enumerate(rows, start=1):
@@ -1998,6 +2371,7 @@ class App(ctk.CTk):
         self._update_settings_selection_status()
         self._refresh_device_details()
         self._refresh_status_panel()
+        self._refresh_commands_panel()
         self._refresh_settings_panel()
         if hasattr(self, "tabs"):
             self.tabs.set(tab_name)
@@ -2021,6 +2395,7 @@ class App(ctk.CTk):
         current_tab = self.tabs.get() if hasattr(self, "tabs") else ""
         if current_tab == "Comandos":
             self._ensure_commands_panel()
+            self._refresh_commands_panel()
         elif current_tab == "Settings":
             self._ensure_settings_panel()
             self._refresh_settings_panel()
@@ -2167,6 +2542,7 @@ class App(ctk.CTk):
             self._base_topic(device_id, "event"),
             self._base_topic(device_id, "meta", "config"),
             self._base_topic(device_id, "meta", "status"),
+            self._base_topic(device_id, "meta", "commands"),
             self._base_topic(device_id, "cmd", "out"),
             self._base_topic(device_id, "cmd", "in"),
         ]
@@ -2204,6 +2580,20 @@ class App(ctk.CTk):
         self._send_cmd("config/get")
         if hasattr(self, "settings_status_label"):
             self.settings_status_label.configure(text="config/get: aguardando resposta...")
+
+    def _apply_commands_get_result(self, commands_result: Dict[str, Any], device_id: Optional[str] = None):
+        target_device_id = device_id or self.selected_device
+        if target_device_id:
+            device = self.devices.get(target_device_id)
+            if device:
+                topic = self._base_topic(target_device_id, "meta", "commands")
+                device.last_messages["meta/commands"] = MessageSnapshot(
+                    timestamp=datetime.now(),
+                    topic=topic,
+                    payload_obj=commands_result,
+                    payload_raw=json.dumps(commands_result, ensure_ascii=True),
+                )
+        self._refresh_commands_panel()
 
     def _apply_config_get_result(self, config_result: Dict[str, Any], device_id: Optional[str] = None):
         self.settings_loaded_device_id = device_id or self.selected_device
@@ -2398,6 +2788,17 @@ class App(ctk.CTk):
         if (
             message_type == "cmd/out"
             and self.selected_device == device_id
+            and cmd_result_command == "commands/get"
+            and isinstance(payload_obj, dict)
+            and payload_obj.get("ok") is True
+            and isinstance(payload_obj.get("result"), dict)
+        ):
+            result = payload_obj.get("result")
+            self._apply_commands_get_result(result, device_id=device_id)
+
+        if (
+            message_type == "cmd/out"
+            and self.selected_device == device_id
             and cmd_result_command in {"config/set", "config/reset"}
             and isinstance(payload_obj, dict)
             and hasattr(self, "settings_status_label")
@@ -2419,6 +2820,7 @@ class App(ctk.CTk):
         if self.selected_device == device_id:
             self._refresh_device_details()
             self._refresh_status_panel()
+            self._refresh_commands_panel()
             self._refresh_settings_panel()
 
     def _check_offline_devices(self):
@@ -2441,6 +2843,7 @@ class App(ctk.CTk):
             if self.selected_device:
                 self._refresh_device_details()
                 self._refresh_status_panel()
+                self._refresh_commands_panel()
 
         self.after(1000, self._check_offline_devices)
 
@@ -2738,6 +3141,7 @@ class App(ctk.CTk):
         seen = self._payload_for(device, "seen")
         config_manifest = self._payload_for(device, "meta/config")
         status_manifest = self._payload_for(device, "meta/status")
+        commands_manifest = self._payload_for(device, "meta/commands")
         event = self._payload_for(device, "event")
         cmd_out = self._payload_for(device, "cmd/out")
         ssid, ip, _rssi = self._device_network_info(device)
@@ -2773,6 +3177,7 @@ class App(ctk.CTk):
         self._set_detail("heartbeat_payload", self._compact_json(heartbeat))
         self._set_detail("config_manifest_payload", self._compact_json(config_manifest))
         self._set_detail("status_manifest_payload", self._compact_json(status_manifest))
+        self._set_detail("commands_manifest_payload", self._compact_json(commands_manifest))
 
         cmd_ok_text = self.detail_value_labels["cmd_ok"].cget("text")
         if cmd_ok_text == "True":
@@ -2953,6 +3358,8 @@ class App(ctk.CTk):
             return device_id, "meta/config"
         if tail == ["meta", "status"]:
             return device_id, "meta/status"
+        if tail == ["meta", "commands"]:
+            return device_id, "meta/commands"
         if len(tail) == 1 and tail[0] in {"availability", "seen", "heartbeat", "state", "event"}:
             return device_id, tail[0]
         return None, None

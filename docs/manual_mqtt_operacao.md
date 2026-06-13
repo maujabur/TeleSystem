@@ -48,6 +48,7 @@ v1/telecafezinho/{device_id}/heartbeat
 v1/telecafezinho/{device_id}/event
 v1/telecafezinho/{device_id}/meta/config
 v1/telecafezinho/{device_id}/meta/status
+v1/telecafezinho/{device_id}/meta/commands
 v1/telecafezinho/{device_id}/cmd/in
 v1/telecafezinho/{device_id}/cmd/out
 ```
@@ -61,7 +62,7 @@ Payload retido para online/offline. O mesmo topico e usado como LWT.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.5 TeleCafezinho status manifest",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
   "session_id": "20260609T120000Z-5112D0",
   "status": "online",
   "reason": "mqtt_connected",
@@ -78,7 +79,7 @@ sem gravar nada em NVS/flash.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.5 TeleCafezinho status manifest",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "last_seen_ts": "2026-06-09T12:01:00Z",
@@ -93,7 +94,7 @@ Snapshot retido com conectividade, bateria e dados tecnicos curtos.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.5 TeleCafezinho status manifest",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "wifi_state": "sta_connected",
@@ -116,7 +117,7 @@ Telemetria periodica, sem retenção.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.5 TeleCafezinho status manifest",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "uptime_s": 60,
@@ -129,20 +130,23 @@ Telemetria periodica, sem retenção.
 
 ### meta/status
 
-Manifesto retido dos campos de status conhecidos pelo firmware. Nesta fase, o
-Control Center apenas reconhece e guarda o payload; a renderizacao dinamica vem
-em etapa posterior.
+Manifesto retido dos campos de status conhecidos pelo firmware. O Control
+Center usa `group`, `label` e `description` para organizar a exibicao e mostrar
+ajuda por hover.
 
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.5 TeleCafezinho status manifest",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
   "fields": [
     {
       "id": "rssi",
+      "label": "RSSI",
+      "description": "Intensidade do sinal Wi-Fi.",
+      "group": "network",
       "type": "i32",
       "unit": "dBm",
       "flags": [
@@ -164,7 +168,7 @@ default, valor efetivo, limites e flags de cada campo exposto por MQTT.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.11 TeleCafezinho config reset",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -187,6 +191,37 @@ default, valor efetivo, limites e flags de cada campo exposto por MQTT.
 }
 ```
 
+### meta/commands
+
+Manifesto retido dos comandos remotos conhecidos pelo firmware. O Control
+Center usa este payload para descobrir comandos, argumentos e se o comando e
+mutavel ou relacionado a reboot.
+
+```json
+{
+  "device_id": "TeleCafezinho-5112D0",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "session_id": "20260609T120000Z-5112D0",
+  "ts": "2026-06-09T12:00:00Z",
+  "registry_revision": 1,
+  "commands": [
+    {
+      "name": "config/set",
+      "label": "Salvar configuracao",
+      "description": "Atualiza um campo configuravel exposto por MQTT.",
+      "group": "config",
+      "mutating": true,
+      "reboot_required": false,
+      "internal": false,
+      "args": [
+        {"id": "id", "type": "string", "required": true, "min_len": 1, "max_len": 48},
+        {"id": "value", "type": "any", "required": true}
+      ]
+    }
+  ]
+}
+```
+
 ### event
 
 Eventos discretos de firmware.
@@ -194,7 +229,7 @@ Eventos discretos de firmware.
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.11 TeleCafezinho config reset",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
   "session_id": "20260609T120000Z-5112D0",
   "event": "boot",
   "message": "mqtt_online",
@@ -230,7 +265,7 @@ Resposta base:
 ```json
 {
   "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.11 TeleCafezinho config reset",
+  "fw": "0.3.13 TeleCafezinho manifest groups",
   "session_id": "20260609T120000Z-5112D0",
   "cmd_id": "c1",
   "ok": true,
@@ -260,6 +295,15 @@ Retorna o manifesto de configuracao equivalente ao payload retido de
 
 ```json
 {"cmd_id":"cfg-get-1","name":"config/get"}
+```
+
+### commands/get
+
+Retorna o manifesto de comandos equivalente ao payload retido de
+`meta/commands`.
+
+```json
+{"cmd_id":"cmds-get-1","name":"commands/get"}
 ```
 
 ### get_technical_status

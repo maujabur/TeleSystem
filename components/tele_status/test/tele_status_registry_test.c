@@ -30,18 +30,27 @@ static const char *string_value(void *ctx)
 static const tele_status_field_t fields[] = {
     {
         .id = "wifi_ready",
+        .label = "Wi-Fi pronto",
+        .description = "Indica se a rede Wi-Fi esta pronta para uso.",
+        .group = "network",
         .type = TELE_STATUS_TYPE_BOOL,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
         .read.boolean = bool_value,
     },
     {
         .id = "rssi",
+        .label = "RSSI",
+        .description = "Sinal Wi-Fi recebido.",
+        .group = "network",
         .type = TELE_STATUS_TYPE_I32,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
         .read.i32 = i32_value,
     },
     {
         .id = "uptime_s",
+        .label = "Uptime",
+        .description = "Tempo desde o boot em segundos.",
+        .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
         .flags = TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
         .read.u32 = u32_value,
@@ -49,6 +58,9 @@ static const tele_status_field_t fields[] = {
     },
     {
         .id = "ip",
+        .label = "IP",
+        .description = "Endereco IPv4 atual.",
+        .group = "network",
         .type = TELE_STATUS_TYPE_STRING,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
         .read.string = string_value,
@@ -98,11 +110,15 @@ int main(void)
     assert(strstr(text, "\"registry_revision\":1") != NULL);
     assert(strstr(text, "\"fields\"") != NULL);
     assert(strstr(text, "\"id\":\"wifi_ready\"") != NULL);
+    assert(strstr(text, "\"label\":\"Wi-Fi pronto\"") != NULL);
+    assert(strstr(text, "\"description\":\"Indica se a rede Wi-Fi esta pronta para uso.\"") != NULL);
+    assert(strstr(text, "\"group\":\"network\"") != NULL);
     assert(strstr(text, "\"type\":\"bool\"") != NULL);
     assert(strstr(text, "\"flag\":\"state\"") != NULL);
     assert(strstr(text, "\"id\":\"rssi\"") != NULL);
     assert(strstr(text, "\"type\":\"i32\"") != NULL);
     assert(strstr(text, "\"id\":\"uptime_s\"") != NULL);
+    assert(strstr(text, "\"group\":\"runtime\"") != NULL);
     assert(strstr(text, "\"type\":\"u32\"") != NULL);
     assert(strstr(text, "\"id\":\"ip\"") != NULL);
     assert(strstr(text, "\"type\":\"string\"") != NULL);
