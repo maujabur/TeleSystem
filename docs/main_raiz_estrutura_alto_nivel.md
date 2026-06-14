@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-A raiz `main` conecta os subsistemas do firmware TeleCafezinho. O projeto atual
+A raiz `main` conecta os subsistemas do firmware TeleSystem. O projeto atual
 mantem conectividade, portal, OTA, VBAT, power-good, LED de status e MQTT de
 presenca. O dominio especifico de produto ainda sera adicionado em etapa
 posterior.
@@ -81,7 +81,7 @@ Adaptador de presenca MQTT:
 - registra campos comuns em `components/tele_status`;
 - injeta estado de Wi-Fi, NTP, VBAT, POWER_GOOD e versao;
 - aplica configuracoes remotas de conectividade;
-- reserva os callbacks de comando para o dominio TeleCafezinho.
+- reserva os callbacks de comando para o dominio TeleSystem.
 
 ### `components/tele_status`
 
@@ -102,7 +102,7 @@ Componente reutilizavel para LED WS28xx:
 
 ## Direcao de evolucao
 
-Adicionar o modulo TeleCafezinho de dominio como camada separada, consumindo:
+Adicionar o modulo TeleSystem de dominio como camada separada, consumindo:
 
 - conectividade;
 - MQTT via callbacks;

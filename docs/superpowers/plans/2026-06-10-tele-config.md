@@ -106,13 +106,13 @@ static void test_string_length_validation(void)
     tele_config_field_t field = {
         .id = "wifi.provisioning_ssid",
         .type = TELE_CONFIG_TYPE_STRING,
-        .default_value.string = "TeleCafezinho",
+        .default_value.string = "TeleSystem",
         .min_len = 1,
         .max_len = 32,
     };
     tele_config_value_t value = {.string = ""};
     assert(tele_config_validate_value(&field, &value) == ESP_ERR_INVALID_ARG);
-    value.string = "TeleCafezinho";
+    value.string = "TeleSystem";
     assert(tele_config_validate_value(&field, &value) == ESP_OK);
     value.string = "123456789012345678901234567890123";
     assert(tele_config_validate_value(&field, &value) == ESP_ERR_INVALID_SIZE);
@@ -402,7 +402,7 @@ When `tele_config_get_effective()` does not find NVS key, return the Kconfig def
 Run:
 
 ```bash
-env XDG_CACHE_HOME=/tmp/telecafezinho-cache CCACHE_DIR=/tmp/telecafezinho-ccache idf.py build
+env XDG_CACHE_HOME=/tmp/telesystem-cache CCACHE_DIR=/tmp/telesystem-ccache idf.py build
 ```
 
 Expected: build passes.
@@ -489,7 +489,7 @@ ESP_ERROR_CHECK(device_config_store_register_fields());
 Run:
 
 ```bash
-env XDG_CACHE_HOME=/tmp/telecafezinho-cache CCACHE_DIR=/tmp/telecafezinho-ccache idf.py build
+env XDG_CACHE_HOME=/tmp/telesystem-cache CCACHE_DIR=/tmp/telesystem-ccache idf.py build
 ```
 
 Expected: build passes.
@@ -529,7 +529,7 @@ Return existing error strings for compatibility.
 Run:
 
 ```bash
-env XDG_CACHE_HOME=/tmp/telecafezinho-cache CCACHE_DIR=/tmp/telecafezinho-ccache idf.py build
+env XDG_CACHE_HOME=/tmp/telesystem-cache CCACHE_DIR=/tmp/telesystem-ccache idf.py build
 ```
 
 Expected: build passes.
@@ -562,7 +562,7 @@ and call `tele_config_reset_override()`.
 Run:
 
 ```bash
-env XDG_CACHE_HOME=/tmp/telecafezinho-cache CCACHE_DIR=/tmp/telecafezinho-ccache idf.py build
+env XDG_CACHE_HOME=/tmp/telesystem-cache CCACHE_DIR=/tmp/telesystem-ccache idf.py build
 ```
 
 Expected: build passes.
@@ -603,7 +603,7 @@ Add `tele_config` to the component list and link `docs/tele_config.md`.
 Run:
 
 ```bash
-env XDG_CACHE_HOME=/tmp/telecafezinho-cache CCACHE_DIR=/tmp/telecafezinho-ccache idf.py build
+env XDG_CACHE_HOME=/tmp/telesystem-cache CCACHE_DIR=/tmp/telesystem-ccache idf.py build
 ```
 
 Expected: build passes.

@@ -3,7 +3,7 @@
 ## Objetivo
 
 Este arquivo aponta para os documentos ainda relevantes depois da limpeza do
-TeleCafezinho. Documentos do projeto anterior foram removidos para evitar que o
+TeleSystem. Documentos do projeto anterior foram removidos para evitar que o
 codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 
 ## Leitura recomendada
@@ -14,12 +14,13 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 4. [manual_mqtt_operacao.md](manual_mqtt_operacao.md)
 5. [plano_nucleo_mqtt_generico.md](plano_nucleo_mqtt_generico.md)
 6. [exemplo_integracao_mqtt_generico.md](exemplo_integracao_mqtt_generico.md)
-7. [tele_config.md](tele_config.md)
-8. [tele_status.md](tele_status.md)
-9. [tele_commands.md](tele_commands.md)
-10. [status_led_system.md](status_led_system.md)
-11. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
-12. [roadmap_atual.md](roadmap_atual.md)
+7. [estrategia_component_manager.md](estrategia_component_manager.md)
+8. [tele_config.md](tele_config.md)
+9. [tele_status.md](tele_status.md)
+10. [tele_commands.md](tele_commands.md)
+11. [status_led_system.md](status_led_system.md)
+12. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
+13. [roadmap_atual.md](roadmap_atual.md)
 
 ## Guias complementares
 
@@ -32,7 +33,7 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 - `components/tele_wifi` contem Wi-Fi, provisionamento, credenciais, botao de
   boot e NTP como base reutilizavel.
 - `components/tele_mqtt` contem o cliente MQTT reutilizavel, sem depender do
-  dominio TeleCafezinho.
+  dominio TeleSystem.
 - `components/tele_config` contem o registro de campos configuraveis, validacao
   e persistencia de overrides em NVS.
 - `components/tele_status` contem o registro read-only de campos observaveis,

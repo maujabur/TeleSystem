@@ -5,7 +5,7 @@
 O firmware publica presenca, estado e telemetria via MQTT e aceita comandos
 remotos simples. A implementacao reutilizavel vive em `components/tele_mqtt`; o
 adaptador `components/tele_presence/mqtt_presence.c` injeta os dados atuais do
-TeleCafezinho.
+TeleSystem.
 
 ## API publica de integracao
 

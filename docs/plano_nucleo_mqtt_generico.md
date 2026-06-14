@@ -1,14 +1,14 @@
-# Plano do Nucleo MQTT Generico
+# Plano do Nucleo de Operacao Generico
 
-Este documento consolida o plano para transformar a base MQTT do TeleCafezinho
-em um nucleo reutilizavel em outros projetos ESP32, sem carregar historico de
-projetos anteriores.
+Este documento consolida o plano para transformar a base de operacao do
+TeleSystem em um nucleo reutilizavel em outros projetos ESP32, sem carregar
+historico de projetos anteriores. MQTT e o primeiro adaptador implementado, mas
+os contratos principais nao devem ficar confinados a MQTT.
 
 ## Objetivo
 
-Criar um contrato generico entre firmware ESP32 e ferramentas externas de
-operacao, especialmente o `tools/mqtt_desktop`, permitindo que cada produto
-declare dinamicamente:
+Criar um contrato generico entre firmware ESP32 e interfaces de operacao,
+permitindo que cada produto declare dinamicamente:
 
 - presenca e ultima atividade;
 - status operacional e tecnico;
@@ -18,12 +18,14 @@ declare dinamicamente:
 
 O firmware deve continuar pequeno e previsivel. O Control Center deve ser
 dinamico, dirigido por manifests, sem telas especificas por produto no nucleo.
+Outros adaptadores, como web/HTTP, console serial, BLE ou CAN bus, podem
+consumir os mesmos registries.
 
 ## Componentes
 
 ### `tele_mqtt`
 
-Responsavel pelo transporte MQTT:
+Adaptador responsavel por expor os contratos via MQTT:
 
 - conexao, LWT e availability;
 - topicos baseados em `base_topic` configuravel;
@@ -98,6 +100,18 @@ Cliente generico para operacao:
   `config/reset`, da aba principal de Comandos;
 - usa `config/set` e `config/reset` internamente na aba Settings.
 
+### Outros Adaptadores
+
+O mesmo nucleo pode ser exposto por outros meios:
+
+- `tele_portal`, via HTTP/web;
+- console serial, para diagnostico local;
+- BLE, para provisionamento ou operacao de campo;
+- CAN bus, com framing compacto e fragmentacao propria.
+
+Esses adaptadores devem consumir `tele_config`, `tele_status` e
+`tele_commands`, nao duplicar regras de settings, status e comandos.
+
 ## Contrato de Topicos
 
 Formato base:
@@ -152,7 +166,7 @@ Ja implementado:
 - builders genericos de `state`, `heartbeat`, `meta/config` e `meta/status`
   como defaults internos de `tele_mqtt`;
 - `tele_presence` reduzido para registrar campos e fornecer apenas integracao
-  especifica do TeleCafezinho, como status tecnico de energia.
+  especifica do TeleSystem, como status tecnico de energia.
 
 ## Proximas Fatias
 
@@ -205,13 +219,13 @@ Concluido:
   por `cmd/in`/`cmd/out` e a diferenca entre command e setting.
 
 Resultado esperado: outro projeto consegue implementar ou consumir o protocolo
-sem ler o codigo do TeleCafezinho.
+sem ler o codigo do TeleSystem.
 
 ### 4. Preparar extracao futura
 
 Quando o nucleo estiver estavel:
 
-- separar nomes especificos de TeleCafezinho: concluido nos defaults genericos
+- separar nomes especificos de TeleSystem: concluido nos defaults genericos
   de MQTT, Wi-Fi e Control Center;
 - revisar Kconfig defaults: concluido, usando `CONFIG_MQTT_BASE_TOPIC`,
   `v1/device` e `ESP32-Device` como defaults neutros;
@@ -222,10 +236,20 @@ Quando o nucleo estiver estavel:
 
 Resultado esperado: nucleo reaproveitavel sem copiar uma aplicacao inteira.
 
+### 5. Distribuicao por Component Manager
+
+Documentar consumo modular dos componentes por projetos externos:
+
+- permitir usar `tele_config`, `tele_status` e `tele_commands` sem `tele_mqtt`;
+- manter `tele_mqtt` como adaptador opcional;
+- registrar CAN bus como adaptador possivel, mas com framing proprio;
+- preparar tags e metadados para ESP-IDF Component Manager.
+
+Concluido em `docs/estrategia_component_manager.md`.
+
 ## Proximo Passo Recomendado
 
-O plano de generificacao MQTT chegou ao ponto planejado dentro deste
-repositorio. O proximo passo recomendado e validar em firmware real e, depois,
-decidir entre duas trilhas: extrair `tele_mqtt`, `tele_config`, `tele_status` e
-`tele_commands` para um repositorio compartilhado, ou primeiro aplicar o mesmo
-nucleo em um segundo projeto para descobrir ajustes antes da extracao.
+O proximo passo recomendado e validar o consumo modular em um projeto externo
+minimo: primeiro `tele_config`, `tele_status` e `tele_commands` sem MQTT; depois
+o mesmo projeto adicionando `tele_mqtt`. Essa validacao deve acontecer antes de
+criar tag `lib-v0.1.0` ou mover componentes para um repositorio compartilhado.

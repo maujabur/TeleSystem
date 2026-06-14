@@ -3,7 +3,7 @@
 ## Objetivo
 
 Este arquivo substitui o `todo.txt` antigo e concentra apenas proximos passos
-que ainda fazem sentido para o TeleCafezinho depois da limpeza e extracao dos
+que ainda fazem sentido para o TeleSystem depois da limpeza e extracao dos
 componentes.
 
 ## Proximos passos imediatos
@@ -20,7 +20,7 @@ componentes.
    - SSID/IP ocultos quando configurado;
    - erros HTTP genericos;
    - MQTT sem dados sensiveis desnecessarios.
-3. Definir o primeiro modulo de dominio TeleCafezinho:
+3. Definir o primeiro modulo de dominio TeleSystem:
    - sensores e atuadores reais;
    - comandos MQTT de produto;
    - endpoints HTTP de produto;

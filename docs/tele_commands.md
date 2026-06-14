@@ -108,7 +108,7 @@ Um setting pode ser alterado pelo comando generico `config/set`, mas nao deve
 virar um comando proprio apenas para economizar UI. Isso mantem Settings
 descobrivel por `meta/config` e evita duplicar semantica.
 
-## Uso no TeleCafezinho
+## Uso no TeleSystem
 
 `components/tele_mqtt` registra os comandos base:
 

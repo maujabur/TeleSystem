@@ -1,6 +1,6 @@
-# TeleCafezinho
+# TeleSystem
 
-Firmware ESP-IDF para ESP32-S3 usado como base do produto TeleCafezinho. O projeto integra conectividade Wi-Fi com portal de provisionamento, OTA HTTP, presenca MQTT, telemetria tecnica pelo portal embarcado e base de LED WS28xx.
+Firmware ESP-IDF para ESP32-S3 usado como base do produto TeleSystem. O projeto integra conectividade Wi-Fi com portal de provisionamento, OTA HTTP, presenca MQTT, telemetria tecnica pelo portal embarcado e base de LED WS28xx.
 
 ## Visao geral
 
@@ -30,7 +30,7 @@ Configuracao atual documentada para ESP32-S3 QFN56 v0.2:
 - LED de status em GPIO 48.
 - Botao de configuracao Wi-Fi.
 
-Atualize esta secao quando o hardware final do TeleCafezinho for fechado.
+Atualize esta secao quando o hardware final do TeleSystem for fechado.
 
 ## Dependencias
 

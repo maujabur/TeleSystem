@@ -60,7 +60,7 @@ Exemplo:
   "channel": "pilot",
   "version": "0.6.10",
   "build_id": "2026-06-04T23:10:00Z-0.6.10",
-  "url": "https://updates.example.com/telecafezinho/0.1.1/TeleCafezinho.bin",
+  "url": "https://updates.example.com/telesystem/0.1.1/TeleSystem.bin",
   "sha256": "hexadecimal_sha256_do_binario",
   "size": 1286144,
   "min_version": "0.6.8",
@@ -86,7 +86,7 @@ publicos que podem servir de base ou referencia:
   `manifest_file_updater` + `ca_manager` para atualizar `artifact_type =
   "ca_bundle"`.
 
-Para o TeleCafezinho, a parte mais reaproveitavel hoje e o contrato de
+Para o TeleSystem, a parte mais reaproveitavel hoje e o contrato de
 manifesto e a validacao generica de metadados. O componente
 `manifest_file_updater` e uma boa referencia, mas no desenho atual ele baixa o
 artefato inteiro para um arquivo temporario antes de aplicar.
@@ -138,7 +138,7 @@ validacao, ou evolua o componente no repositorio de origem antes de integrar.
 A string humana atual de firmware e util para debug, mas ruim para automacao:
 
 ```text
-0.3.5 TeleCafezinho status manifest
+0.3.5 TeleSystem status manifest
 ```
 
 Para OTA remoto, o ideal e separar:
@@ -190,7 +190,7 @@ Adicionar comando remoto:
 {
   "cmd": "ota_check",
   "args": {
-    "manifest_url": "https://updates.example.com/telecafezinho/pilot/manifest.json"
+    "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json"
   }
 }
 ```
@@ -217,7 +217,7 @@ Adicionar comando:
 {
   "cmd": "ota_apply",
   "args": {
-    "manifest_url": "https://updates.example.com/telecafezinho/pilot/manifest.json"
+    "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json"
   }
 }
 ```
@@ -347,7 +347,7 @@ Eventos MQTT sugeridos:
   "ota_remote": {
     "enabled": true,
     "auto_apply_enabled": false,
-    "manifest_url": "https://updates.example.com/telecafezinho/pilot/manifest.json",
+    "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json",
     "last_check_ms": 123456,
     "last_result": "update_available",
     "current_version": "0.6.9",

@@ -84,7 +84,7 @@ O manifesto nao carrega valores. Valores chegam por `state`, `heartbeat`,
 `cmd/out` de `get_state` e, quando fizer sentido, `get_technical_status`.
 Ferramentas devem cruzar `id` do manifesto com as chaves dos payloads de valor.
 
-## Uso no TeleCafezinho
+## Uso no TeleSystem
 
 `components/tele_presence` registra os campos comuns:
 

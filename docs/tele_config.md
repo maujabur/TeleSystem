@@ -103,7 +103,7 @@ Depois de `config/set` ou `config/reset` bem-sucedido, `tele_mqtt` republica
 `meta/config`, permitindo que a UI atualize origem, valor efetivo e flags sem
 adivinhar estado interno.
 
-## Uso no TeleCafezinho
+## Uso no TeleSystem
 
 `components/tele_wifi/device_config_store.c` ja usa `tele_config` para:
 

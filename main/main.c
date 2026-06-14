@@ -57,7 +57,7 @@
 #define CONFIG_STATUS_LED_GPIO 48
 #endif
 
-static const char *TAG = "telecafezinho";
+static const char *TAG = "telesystem";
 
 static void log_startup_config_snapshot(void)
 {
