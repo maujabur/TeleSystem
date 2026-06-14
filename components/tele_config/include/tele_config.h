@@ -55,12 +55,19 @@ typedef union {
 } tele_config_value_t;
 
 typedef struct {
+    int32_t value;
+    const char *label;
+} tele_config_enum_choice_t;
+
+typedef struct {
     const char *id;
     const char *nvs_key;
     tele_config_type_t type;
     tele_config_default_value_t default_value;
     tele_config_limit_t min;
     tele_config_limit_t max;
+    const tele_config_enum_choice_t *choices;
+    size_t choice_count;
     size_t min_len;
     size_t max_len;
     uint32_t flags;

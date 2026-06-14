@@ -66,15 +66,6 @@
 #define MQTT_HEARTBEAT_INTERVAL_MIN_S 15
 #define MQTT_HEARTBEAT_INTERVAL_MAX_S 3600
 
-// TEMP: Campos apenas para validar a UI generica de Settings no Control Center.
-// Remover depois da rodada de validacao visual.
-#define MQTT_CONFIG_ID_UI_TEST_ENABLED "ui_test.enabled"
-#define MQTT_CONFIG_ID_UI_TEST_OFFSET_I32 "ui_test.offset_i32"
-#define MQTT_CONFIG_ID_UI_TEST_LEVEL_U32 "ui_test.level_u32"
-#define MQTT_CONFIG_ID_UI_TEST_LABEL "ui_test.label"
-#define MQTT_CONFIG_ID_UI_TEST_MODE "ui_test.mode"
-#define MQTT_CONFIG_ID_UI_TEST_SECRET "ui_test.secret"
-
 #ifndef CONFIG_POWER_GOOD_GPIO_ENABLED
 #define CONFIG_POWER_GOOD_GPIO_ENABLED 0
 #endif
@@ -103,58 +94,6 @@ static const tele_config_field_t s_mqtt_config_fields[] = {
         .min.u32 = MQTT_HEARTBEAT_INTERVAL_MIN_S,
         .max.u32 = MQTT_HEARTBEAT_INTERVAL_MAX_S,
         .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
-    },
-    {
-        .id = MQTT_CONFIG_ID_UI_TEST_ENABLED,
-        .nvs_key = "t_bool",
-        .type = TELE_CONFIG_TYPE_BOOL,
-        .default_value.boolean = true,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
-    },
-    {
-        .id = MQTT_CONFIG_ID_UI_TEST_OFFSET_I32,
-        .nvs_key = "t_i32",
-        .type = TELE_CONFIG_TYPE_I32,
-        .default_value.i32 = -5,
-        .min.i32 = -50,
-        .max.i32 = 50,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
-    },
-    {
-        .id = MQTT_CONFIG_ID_UI_TEST_LEVEL_U32,
-        .nvs_key = "t_u32",
-        .type = TELE_CONFIG_TYPE_U32,
-        .default_value.u32 = 42,
-        .min.u32 = 0,
-        .max.u32 = 100,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
-    },
-    {
-        .id = MQTT_CONFIG_ID_UI_TEST_LABEL,
-        .nvs_key = "t_label",
-        .type = TELE_CONFIG_TYPE_STRING,
-        .default_value.string = "teste settings",
-        .min_len = 1,
-        .max_len = 32,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
-    },
-    {
-        .id = MQTT_CONFIG_ID_UI_TEST_MODE,
-        .nvs_key = "t_mode",
-        .type = TELE_CONFIG_TYPE_ENUM,
-        .default_value.i32 = 1,
-        .min.i32 = 0,
-        .max.i32 = 2,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_REBOOT_REQUIRED,
-    },
-    {
-        .id = MQTT_CONFIG_ID_UI_TEST_SECRET,
-        .nvs_key = "t_secret",
-        .type = TELE_CONFIG_TYPE_STRING,
-        .default_value.string = "segredo",
-        .min_len = 1,
-        .max_len = 32,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_SECRET,
     },
 };
 
@@ -861,11 +800,6 @@ static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *fie
     if (strcmp(field->id, MQTT_CONFIG_ID_HEARTBEAT_INTERVAL) == 0) {
         return tele_mqtt_set_heartbeat_interval_s(value->u32);
     }
-    if (strcmp(field->id, MQTT_CONFIG_ID_UI_TEST_ENABLED) == 0 ||
-        strcmp(field->id, MQTT_CONFIG_ID_UI_TEST_OFFSET_I32) == 0) {
-        return ESP_OK;
-    }
-
     return ESP_OK;
 }
 
@@ -982,21 +916,6 @@ esp_err_t mqtt_presence_start(void)
         ESP_LOGE(TAG, "Falha ao registrar apply handler para heartbeat MQTT: %s", esp_err_to_name(err));
         return err;
     }
-    err = tele_config_set_apply_handler(MQTT_CONFIG_ID_UI_TEST_ENABLED,
-                                        mqtt_presence_apply_config_field,
-                                        NULL);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao registrar apply handler para teste bool UI: %s", esp_err_to_name(err));
-        return err;
-    }
-    err = tele_config_set_apply_handler(MQTT_CONFIG_ID_UI_TEST_OFFSET_I32,
-                                        mqtt_presence_apply_config_field,
-                                        NULL);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao registrar apply handler para teste i32 UI: %s", esp_err_to_name(err));
-        return err;
-    }
-
     config.heartbeat_interval_s = mqtt_presence_effective_heartbeat_interval_s();
 
     err = mqtt_presence_register_status_fields();

@@ -78,13 +78,17 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - renderiza `meta/config` como formulario compacto agrupado por namespace/grupo
   - mostra na tela apenas nome do campo, entrada, `Salvar` e `Reset`
   - marca campos modificados localmente com `alterado` ate salvar ou recarregar
+  - usa cores no nome do campo: verde para `runtime_apply`, laranja para `reboot_required`, cor normal para configuracao apenas armazenada
   - mostra valor atual, default, origem, aplicacao, limites, tipo e flags por mouse over
   - campos booleanos usam switch; demais tipos usam entrada textual validada
+  - campos `enum` com `choices` no manifest usam menu de selecao e enviam o valor numerico
   - cada campo editavel pode ser salvo com `config/set` ou resetado com `config/reset`
   - `mqtt.heartbeat_interval_s` e configurado como campo normal de Settings
+  - JSON cru de `meta/config` fica oculto por padrao e pode ser mostrado/ocultado por botao
   - botao `Apply + reboot` envia `apply_and_reboot`
   - botao `Limpar retained` publica payload vazio retido nos topicos do device para remover ghosts
   - area de log e redimensionavel com mouse (splitter vertical)
+  - clique direito no log permite copiar todo o log ou limpar a area
 - Presenca de device:
   - mensagens MQTT retained nao marcam o device como online
   - payload vazio usado para limpar retained remove o snapshot local e nao conta como presenca

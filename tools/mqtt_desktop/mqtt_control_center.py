@@ -334,6 +334,7 @@ class App(ctk.CTk):
         self.settings_loaded_device_id: Optional[str] = None
         self.settings_manual_config_get_device_id: Optional[str] = None
         self.settings_force_sync_device_id: Optional[str] = None
+        self.settings_raw_visible = False
         self.settings_raw_text_value = ""
         self.settings_config_widgets: Dict[str, Dict[str, Any]] = {}
         self.settings_config_signature: tuple[str, ...] = ()
@@ -1038,12 +1039,20 @@ class App(ctk.CTk):
         actions.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
         actions.grid_columnconfigure(0, weight=0)
         actions.grid_columnconfigure(1, weight=0)
-        actions.grid_columnconfigure(2, weight=1)
+        actions.grid_columnconfigure(2, weight=0)
+        actions.grid_columnconfigure(3, weight=1)
         ctk.CTkButton(actions, text="Atualizar config", command=self._request_config_get).grid(
             row=0, column=0, sticky="ew", padx=4, pady=4
         )
+        self.settings_raw_toggle_button = ctk.CTkButton(
+            actions,
+            text="Mostrar JSON",
+            width=110,
+            command=self._toggle_settings_raw_text,
+        )
+        self.settings_raw_toggle_button.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
         ctk.CTkButton(actions, text="Apply + reboot", command=lambda: self._send_cmd("apply_and_reboot")).grid(
-            row=0, column=2, sticky="e", padx=4, pady=4
+            row=0, column=3, sticky="e", padx=4, pady=4
         )
 
         self.settings_status_label = ctk.CTkLabel(parent, text="Ultima leitura: -", anchor="w")
@@ -1054,9 +1063,9 @@ class App(ctk.CTk):
         self.settings_config_frame.grid_columnconfigure(0, weight=1)
 
         self.settings_raw_text = ctk.CTkTextbox(parent, height=180, wrap="none")
-        self.settings_raw_text.grid(row=3, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.settings_raw_text.insert(END, self.settings_raw_text_value or "-")
         self.settings_raw_text.configure(state="disabled")
+        self._sync_settings_raw_visibility()
         self._refresh_settings_panel()
 
     def _build_status_panel(self, parent):
@@ -2200,6 +2209,7 @@ class App(ctk.CTk):
                     "dirty_label": dirty_label,
                     "input": input_widget,
                     "input_var": input_var,
+                    "input_kind": self._settings_input_kind(field),
                     "set_button": set_button,
                     "reset_button": reset_button,
                     "last_loaded_value": None,
@@ -2267,6 +2277,7 @@ class App(ctk.CTk):
                 field_type,
                 ",".join(sorted(flag for flag in flag_names if flag)),
                 "hidden" if field.get("value_hidden") else "visible",
+                json.dumps(field.get("choices") or [], sort_keys=True, ensure_ascii=True),
             )
         )
 
@@ -2291,15 +2302,65 @@ class App(ctk.CTk):
         return field_id
 
     def _create_settings_input_widget(self, field: Dict[str, Any], parent: Any) -> Tuple[Any, Any]:
-        field_type = str(field.get("type") or "")
-        if field_type == "bool":
+        input_kind = self._settings_input_kind(field)
+        if input_kind == "bool":
             var = ctk.BooleanVar(value=False)
             widget = ctk.CTkSwitch(parent, text="", variable=var, width=44)
+            return widget, var
+        if input_kind == "enum":
+            var = StringVar(value="")
+            widget = ctk.CTkOptionMenu(
+                parent,
+                variable=var,
+                values=self._config_enum_options(field),
+                height=28,
+            )
             return widget, var
 
         var = StringVar(value="")
         widget = ctk.CTkEntry(parent, textvariable=var, width=220)
         return widget, var
+
+    def _settings_input_kind(self, field: Dict[str, Any]) -> str:
+        field_type = str(field.get("type") or "")
+        if field_type == "bool":
+            return "bool"
+        if field_type == "enum" and self._config_enum_options(field):
+            return "enum"
+        return "entry"
+
+    def _config_enum_options(self, field: Dict[str, Any]) -> list[str]:
+        choices = field.get("choices")
+        if not isinstance(choices, list):
+            return []
+        options = []
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            if "value" not in choice:
+                continue
+            value = str(choice.get("value"))
+            label = str(choice.get("label") or value)
+            options.append(f"{label} ({value})")
+        return options
+
+    def _config_enum_value_to_option(self, field: Dict[str, Any], value: str) -> str:
+        choices = field.get("choices")
+        if isinstance(choices, list):
+            for choice in choices:
+                if not isinstance(choice, dict) or "value" not in choice:
+                    continue
+                choice_value = str(choice.get("value"))
+                if choice_value == str(value):
+                    label = str(choice.get("label") or choice_value)
+                    return f"{label} ({choice_value})"
+        return str(value)
+
+    def _config_enum_option_to_value(self, option: str) -> str:
+        text = str(option).strip()
+        if text.endswith(")") and "(" in text:
+            return text.rsplit("(", 1)[1][:-1].strip()
+        return text
 
     def _settings_field_tooltip(self, field_id: str) -> str:
         field = self._config_manifest_field(field_id)
@@ -2324,6 +2385,7 @@ class App(ctk.CTk):
             f"default: {self._format_config_value(field, 'default')}",
             f"origem: {field.get('source') or '-'}",
             f"limites: {self._format_config_limits(field)}",
+            f"opcoes: {', '.join(self._config_enum_options(field)) if self._config_enum_options(field) else '-'}",
             f"aplicacao: {self._format_config_application(field)}",
             f"flags: {', '.join(flag_names) if flag_names else '-'}",
         ]
@@ -2342,12 +2404,15 @@ class App(ctk.CTk):
             return
 
         field_type = str(field.get("type") or "")
+        input_kind = str(widgets.get("input_kind") or self._settings_input_kind(field))
         desired_value = self._config_value_for_input(field)
+        if input_kind == "enum":
+            desired_value = self._config_enum_value_to_option(field, desired_value)
         state = "normal" if editable else "disabled"
         if input_widget.cget("state") != state:
             input_widget.configure(state=state)
 
-        if field_type == "bool":
+        if input_kind == "bool":
             desired_bool = str(desired_value).lower() in {"true", "1", "sim", "yes", "on"}
             current_bool = bool(input_var.get())
             current_value = "true" if current_bool else "false"
@@ -2373,7 +2438,7 @@ class App(ctk.CTk):
             return
 
         placeholder = "<secret>" if field.get("value_hidden") else desired_value
-        if hasattr(input_widget, "cget") and input_widget.cget("placeholder_text") != placeholder:
+        if input_kind == "entry" and input_widget.cget("placeholder_text") != placeholder:
             input_widget.configure(placeholder_text=placeholder)
 
         current_text = input_var.get()
@@ -2421,6 +2486,9 @@ class App(ctk.CTk):
         field_type = str(field.get("type") or "")
         if field_type == "bool":
             current = "true" if bool(input_var.get()) else "false"
+        elif field_type == "enum" and self._config_enum_options(field):
+            current = self._config_enum_option_to_value(str(input_var.get()))
+            last_loaded = self._config_enum_option_to_value(str(last_loaded))
         else:
             current = str(input_var.get())
         return current != str(last_loaded)
@@ -2549,6 +2617,8 @@ class App(ctk.CTk):
 
         if field_type == "bool" and input_var is not None:
             return "true" if bool(input_var.get()) else "false"
+        if field_type == "enum" and input_var is not None and self._config_enum_options(field):
+            return self._config_enum_option_to_value(str(input_var.get()))
         if input_var is not None:
             return str(input_var.get())
         if input_widget is not None and hasattr(input_widget, "get"):
@@ -3190,6 +3260,22 @@ class App(ctk.CTk):
         self.settings_raw_text.delete("1.0", END)
         self.settings_raw_text.insert(END, text)
         self.settings_raw_text.configure(state="disabled")
+
+    def _toggle_settings_raw_text(self):
+        self.settings_raw_visible = not self.settings_raw_visible
+        self._sync_settings_raw_visibility()
+
+    def _sync_settings_raw_visibility(self):
+        if not hasattr(self, "settings_raw_text"):
+            return
+        if self.settings_raw_visible:
+            self.settings_raw_text.grid(row=3, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        else:
+            self.settings_raw_text.grid_remove()
+        if hasattr(self, "settings_raw_toggle_button"):
+            text = "Ocultar JSON" if self.settings_raw_visible else "Mostrar JSON"
+            if self.settings_raw_toggle_button.cget("text") != text:
+                self.settings_raw_toggle_button.configure(text=text)
 
     def _new_cmd_id(self) -> str:
         return f"cmd-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
@@ -3845,9 +3931,21 @@ class App(ctk.CTk):
             fg_color=("gray96", "gray15"),
         )
         frame.grid(row=0, column=0, sticky="nsew")
+        copy_button = ctk.CTkButton(
+            frame,
+            text="Copiar log",
+            width=116,
+            height=32,
+            corner_radius=6,
+            fg_color="transparent",
+            hover_color=("gray84", "gray28"),
+            text_color=("gray10", "gray90"),
+            command=self._copy_log_from_context_menu,
+        )
+        copy_button.grid(row=0, column=0, padx=5, pady=(5, 2))
         clear_button = ctk.CTkButton(
             frame,
-            text="Clear log",
+            text="Limpar log",
             width=116,
             height=32,
             corner_radius=6,
@@ -3856,7 +3954,7 @@ class App(ctk.CTk):
             text_color=("gray10", "gray90"),
             command=self._clear_log_from_context_menu,
         )
-        clear_button.grid(row=0, column=0, padx=5, pady=5)
+        clear_button.grid(row=1, column=0, padx=5, pady=(2, 5))
 
         menu.update_idletasks()
         menu.geometry(f"+{event.x_root}+{event.y_root}")
@@ -3895,6 +3993,13 @@ class App(ctk.CTk):
     def _clear_log_from_context_menu(self):
         self._clear_log()
         self._hide_log_context_menu()
+
+    def _copy_log_from_context_menu(self):
+        text = self.log_box.get("1.0", "end-1c")
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self._hide_log_context_menu()
+        self._append_log("Log copiado para a area de transferencia", tag="info")
 
     def _append_log(self, text: str, tag: str = "info"):
         ts = datetime.now().strftime("%H:%M:%S")

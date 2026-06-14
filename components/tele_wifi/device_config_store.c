@@ -25,6 +25,12 @@
 
 static const char *TAG = "device-config";
 
+static const tele_config_enum_choice_t s_apsta_policy_choices[] = {
+    {.value = DEVICE_CONFIG_APSTA_ALWAYS_ON, .label = "always_on"},
+    {.value = DEVICE_CONFIG_APSTA_AUTO_TIMEOUT, .label = "auto_timeout"},
+    {.value = DEVICE_CONFIG_APSTA_STA_ONLY, .label = "sta_only"},
+};
+
 static const tele_config_field_t s_device_config_fields[] = {
     {
         .id = DEVICE_CONFIG_ID_PROVISIONING_SSID,
@@ -51,6 +57,8 @@ static const tele_config_field_t s_device_config_fields[] = {
         .default_value.i32 = CONFIG_WIFI_APSTA_POLICY,
         .min.i32 = DEVICE_CONFIG_APSTA_ALWAYS_ON,
         .max.i32 = DEVICE_CONFIG_APSTA_STA_ONLY,
+        .choices = s_apsta_policy_choices,
+        .choice_count = sizeof(s_apsta_policy_choices) / sizeof(s_apsta_policy_choices[0]),
         .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_REBOOT_REQUIRED,
     },
     {

@@ -146,6 +146,34 @@ static esp_err_t add_field_limits_to_json(cJSON *item, const tele_config_field_t
     }
 }
 
+static esp_err_t add_enum_choices_to_json(cJSON *item, const tele_config_field_t *field)
+{
+    cJSON *choices = NULL;
+
+    if (!item || !field) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (field->type != TELE_CONFIG_TYPE_ENUM || !field->choices || field->choice_count == 0) {
+        return ESP_OK;
+    }
+
+    choices = cJSON_AddArrayToObject(item, "choices");
+    if (!choices) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    for (size_t i = 0; i < field->choice_count; ++i) {
+        cJSON *choice = add_object_to_array(choices);
+        if (!choice) {
+            return ESP_ERR_NO_MEM;
+        }
+        cJSON_AddNumberToObject(choice, "value", (double)field->choices[i].value);
+        cJSON_AddStringToObject(choice, "label", field->choices[i].label ? field->choices[i].label : "");
+    }
+
+    return ESP_OK;
+}
+
 static esp_err_t validate_nvs_key(const char *nvs_key)
 {
     if (!nvs_key || nvs_key[0] == '\0') {
@@ -646,6 +674,10 @@ esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_flags)
             return err;
         }
         err = add_field_limits_to_json(item, field);
+        if (err != ESP_OK) {
+            return err;
+        }
+        err = add_enum_choices_to_json(item, field);
         if (err != ESP_OK) {
             return err;
         }

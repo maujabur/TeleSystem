@@ -163,7 +163,8 @@ ajuda por hover.
 
 Manifesto retido dos campos configuraveis conhecidos pelo firmware. Nesta
 primeira fase, o payload fica em topico unico e descreve id, tipo, origem,
-default, valor efetivo, limites e flags de cada campo exposto por MQTT.
+default, valor efetivo, limites, choices opcionais de enum e flags de cada
+campo exposto por MQTT.
 
 ```json
 {
@@ -186,10 +187,37 @@ default, valor efetivo, limites e flags de cada campo exposto por MQTT.
         {"flag": "mqtt"},
         {"flag": "runtime_apply"}
       ]
+    },
+    {
+      "id": "wifi.apsta_policy",
+      "type": "enum",
+      "source": "default",
+      "default": 1,
+      "value": 1,
+      "min": 0,
+      "max": 2,
+      "choices": [
+        {"value": 0, "label": "always_on"},
+        {"value": 1, "label": "auto_timeout"},
+        {"value": 2, "label": "sta_only"}
+      ],
+      "flags": [
+        {"flag": "web"},
+        {"flag": "mqtt"},
+        {"flag": "reboot_required"}
+      ]
     }
   ]
 }
 ```
+
+No Control Center, as flags de aplicacao tambem orientam a cor do nome do
+campo em Settings:
+
+- verde: campo com `runtime_apply`, aplicado em runtime por callback;
+- laranja: campo com `reboot_required`, salvo agora e efetivado apos reboot;
+- cor normal: campo apenas armazenado, sem callback runtime nem reboot
+  declarado.
 
 ### meta/commands
 
