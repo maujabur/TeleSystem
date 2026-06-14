@@ -15,7 +15,7 @@ chamando `tele_mqtt_start()`. O contrato minimo e:
 ```c
 tele_mqtt_config_t config = {
     .broker_uri = CONFIG_MQTT_BROKER_URI,
-    .base_topic = CONFIG_MQTT_TOPIC_NAMESPACE,
+    .base_topic = CONFIG_MQTT_BASE_TOPIC,
     .device_id_prefix = CONFIG_MQTT_DEVICE_ID_PREFIX,
     .firmware_version = APP_VERSION_STRING,
     .heartbeat_interval_s = CONFIG_MQTT_HEARTBEAT_INTERVAL_S,
@@ -62,7 +62,7 @@ O `device_id` segue o formato:
 Com os defaults atuais:
 
 ```text
-TeleCafezinho-5112D0
+ESP32-Device-5112D0
 ```
 
 Cada boot tambem gera um `session_id`, usado para diferenciar conexoes da mesma
@@ -73,28 +73,28 @@ placa ao longo do tempo.
 Base topic:
 
 ```text
-{CONFIG_MQTT_TOPIC_NAMESPACE}/{device_id}
+{CONFIG_MQTT_BASE_TOPIC}/{device_id}
 ```
 
 Default atual:
 
 ```text
-v1/telecafezinho/{device_id}
+v1/device/{device_id}
 ```
 
 Topicos usados:
 
 ```text
-v1/telecafezinho/{device_id}/availability
-v1/telecafezinho/{device_id}/seen
-v1/telecafezinho/{device_id}/state
-v1/telecafezinho/{device_id}/heartbeat
-v1/telecafezinho/{device_id}/event
-v1/telecafezinho/{device_id}/meta/config
-v1/telecafezinho/{device_id}/meta/status
-v1/telecafezinho/{device_id}/meta/commands
-v1/telecafezinho/{device_id}/cmd/in
-v1/telecafezinho/{device_id}/cmd/out
+v1/device/{device_id}/availability
+v1/device/{device_id}/seen
+v1/device/{device_id}/state
+v1/device/{device_id}/heartbeat
+v1/device/{device_id}/event
+v1/device/{device_id}/meta/config
+v1/device/{device_id}/meta/status
+v1/device/{device_id}/meta/commands
+v1/device/{device_id}/cmd/in
+v1/device/{device_id}/cmd/out
 ```
 
 ## Publicacoes automaticas
@@ -105,8 +105,8 @@ Payload retido para online/offline. O mesmo topico e usado como LWT.
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "status": "online",
   "reason": "mqtt_connected",
@@ -122,8 +122,8 @@ sem gravar nada em NVS/flash.
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "last_seen_ts": "2026-06-09T12:01:00Z",
@@ -137,8 +137,8 @@ Snapshot retido com conectividade, bateria e dados tecnicos curtos.
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "wifi_state": "sta_connected",
@@ -160,8 +160,8 @@ Telemetria periodica, sem retenção.
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "uptime_s": 60,
@@ -180,8 +180,8 @@ ajuda por hover.
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -212,8 +212,8 @@ campo exposto por MQTT.
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -271,8 +271,8 @@ mutavel ou relacionado a reboot.
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -300,8 +300,8 @@ Eventos discretos de firmware.
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "event": "boot",
   "message": "mqtt_online",
@@ -314,13 +314,13 @@ Eventos discretos de firmware.
 Comandos entram em:
 
 ```text
-v1/telecafezinho/{device_id}/cmd/in
+v1/device/{device_id}/cmd/in
 ```
 
 Respostas saem em:
 
 ```text
-v1/telecafezinho/{device_id}/cmd/out
+v1/device/{device_id}/cmd/out
 ```
 
 Formato base:
@@ -336,8 +336,8 @@ Resposta base:
 
 ```json
 {
-  "device_id": "TeleCafezinho-5112D0",
-  "fw": "0.3.13 TeleCafezinho manifest groups",
+  "device_id": "ESP32-Device-5112D0",
+  "fw": "0.3.23 ESP32 Device",
   "session_id": "20260609T120000Z-5112D0",
   "cmd_id": "c1",
   "ok": true,

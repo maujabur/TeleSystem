@@ -37,12 +37,12 @@
 #define CONFIG_MQTT_PASSWORD ""
 #endif
 
-#ifndef CONFIG_MQTT_TOPIC_NAMESPACE
-#define CONFIG_MQTT_TOPIC_NAMESPACE "v1/telecafezinho"
+#ifndef CONFIG_MQTT_BASE_TOPIC
+#define CONFIG_MQTT_BASE_TOPIC "v1/device"
 #endif
 
 #ifndef CONFIG_MQTT_DEVICE_ID_PREFIX
-#define CONFIG_MQTT_DEVICE_ID_PREFIX "TeleCafezinho"
+#define CONFIG_MQTT_DEVICE_ID_PREFIX "ESP32-Device"
 #endif
 
 #ifndef CONFIG_MQTT_HEARTBEAT_INTERVAL_S
@@ -765,7 +765,7 @@ esp_err_t mqtt_presence_start(void)
         .broker_uri = CONFIG_MQTT_BROKER_URI,
         .username = CONFIG_MQTT_USERNAME,
         .password = CONFIG_MQTT_PASSWORD,
-        .base_topic = CONFIG_MQTT_TOPIC_NAMESPACE,
+        .base_topic = CONFIG_MQTT_BASE_TOPIC,
         .device_id_prefix = CONFIG_MQTT_DEVICE_ID_PREFIX,
         .firmware_version = APP_VERSION_STRING,
         .heartbeat_interval_s = CONFIG_MQTT_HEARTBEAT_INTERVAL_S,

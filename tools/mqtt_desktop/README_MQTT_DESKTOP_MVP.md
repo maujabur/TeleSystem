@@ -73,7 +73,7 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
 - Settings via MQTT:
   - botao `Atualizar config` envia `config/get`, recarrega o manifesto do device e descarta edicoes locais nao salvas
   - atualizacoes automaticas preservam edicoes locais ainda nao salvas
-  - renderiza `meta/config` como formulario compacto agrupado por namespace/grupo
+  - renderiza `meta/config` como formulario compacto agrupado por base topic/grupo
   - mostra na tela apenas nome do campo, entrada, `Salvar` e `Reset`
   - marca campos modificados localmente com `alterado` ate salvar ou recarregar
   - usa cores no nome do campo: verde para `runtime_apply`, laranja para `reboot_required`, cor normal para configuracao apenas armazenada
@@ -179,7 +179,7 @@ Use em `config.json`:
   "mqtt": {
     "host": "d77a33536b2143ba8d70a3abd3188ae5.s1.eu.hivemq.cloud",
     "port": 8883,
-    "base_topic": "v1/telecafezinho",
+    "base_topic": "v1/device",
     "username": "SEU_USUARIO_HIVEMQ",
     "password": "SUA_SENHA_HIVEMQ",
     "tls": true

@@ -8,7 +8,7 @@
 #include "tele_config.h"
 
 #ifndef CONFIG_WIFI_PROVISIONING_SSID
-#define CONFIG_WIFI_PROVISIONING_SSID "AiSkipsAi-999"
+#define CONFIG_WIFI_PROVISIONING_SSID "ESP32-Device"
 #endif
 
 #ifndef CONFIG_WIFI_STA_MAX_RETRY

@@ -24,10 +24,10 @@ config MQTT_PASSWORD
     depends on MQTT_PRESENCE_ENABLED
     default ""
 
-config MQTT_TOPIC_NAMESPACE
+config MQTT_BASE_TOPIC
     string "MQTT base topic"
     depends on MQTT_PRESENCE_ENABLED
-    default "v1/telecafezinho"
+    default "v1/device"
     help
         Base topic usado pelo dispositivo. O device_id sera
         anexado automaticamente.
@@ -35,7 +35,7 @@ config MQTT_TOPIC_NAMESPACE
 config MQTT_DEVICE_ID_PREFIX
     string "MQTT device ID prefix"
     depends on MQTT_PRESENCE_ENABLED
-    default "TeleCafezinho"
+    default "ESP32-Device"
     help
         Prefixo usado para montar o device_id publicado em MQTT.
 

@@ -211,16 +211,21 @@ sem ler o codigo do TeleCafezinho.
 
 Quando o nucleo estiver estavel:
 
-- separar nomes especificos de TeleCafezinho;
-- revisar Kconfig defaults;
-- manter exemplos minimos;
-- avaliar mover componentes para repositorio compartilhado.
+- separar nomes especificos de TeleCafezinho: concluido nos defaults genericos
+  de MQTT, Wi-Fi e Control Center;
+- revisar Kconfig defaults: concluido, usando `CONFIG_MQTT_BASE_TOPIC`,
+  `v1/device` e `ESP32-Device` como defaults neutros;
+- manter exemplos minimos: concluido em
+  `docs/exemplo_integracao_mqtt_generico.md`;
+- avaliar mover componentes para repositorio compartilhado: proxima decisao
+  arquitetural, depois de validar esta base em pelo menos mais um produto.
 
 Resultado esperado: nucleo reaproveitavel sem copiar uma aplicacao inteira.
 
 ## Proximo Passo Recomendado
 
-A proxima implementacao deve ser a Fatia 4: preparar a extracao futura,
-separando nomes e defaults especificos de TeleCafezinho dos componentes
-genericos, revisando Kconfig e deixando um exemplo minimo de integracao para
-copiar em novos projetos.
+O plano de generificacao MQTT chegou ao ponto planejado dentro deste
+repositorio. O proximo passo recomendado e validar em firmware real e, depois,
+decidir entre duas trilhas: extrair `tele_mqtt`, `tele_config`, `tele_status` e
+`tele_commands` para um repositorio compartilhado, ou primeiro aplicar o mesmo
+nucleo em um segundo projeto para descobrir ajustes antes da extracao.

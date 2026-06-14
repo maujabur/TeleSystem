@@ -10,7 +10,7 @@ config ESP_WIFI_PASSWORD
 
 config WIFI_PROVISIONING_SSID
     string "Wi-Fi provisioning AP SSID"
-    default "TeleCafezinho"
+    default "ESP32-Device"
 
 config WIFI_MODEM_SLEEP
     bool "Enable Wi-Fi modem sleep in station mode"

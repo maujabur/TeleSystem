@@ -29,14 +29,14 @@ static void test_string_length_validation(void)
         .id = "wifi.provisioning_ssid",
         .nvs_key = "w_pssid",
         .type = TELE_CONFIG_TYPE_STRING,
-        .default_value.string = "TeleCafezinho",
+        .default_value.string = "ESP32-Device",
         .min_len = 1,
         .max_len = 32,
     };
     tele_config_value_t value = {.string = ""};
 
     assert(tele_config_validate_value(&field, &value) == ESP_ERR_INVALID_ARG);
-    value.string = "TeleCafezinho";
+    value.string = "ESP32-Device";
     assert(tele_config_validate_value(&field, &value) == ESP_OK);
     value.string = "123456789012345678901234567890123";
     assert(tele_config_validate_value(&field, &value) == ESP_ERR_INVALID_SIZE);
