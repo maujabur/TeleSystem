@@ -24,7 +24,91 @@ O componente nao executa comandos. Ele apenas registra metadados e gera JSON.
 O dispatcher continua em `components/tele_mqtt`, que usa o registry para
 publicar `meta/commands` e responder `commands/get`.
 
-## Uso atual
+## Registro
+
+Comandos sao registrados com `tele_commands_register()`. Assim como nos outros
+registries, strings e arrays devem continuar vivos durante toda a execucao.
+
+Exemplo reduzido:
+
+```c
+static const tele_command_arg_t s_reboot_args[] = {
+    {
+        .id = "delay_ms",
+        .type = TELE_COMMAND_ARG_U32,
+        .required = false,
+        .min.u32 = 100,
+        .max.u32 = 10000,
+    },
+};
+
+static const tele_command_t s_commands[] = {
+    {
+        .name = "apply_and_reboot",
+        .label = "Aplicar e reiniciar",
+        .description = "Agenda reboot curto depois do ACK.",
+        .group = "system",
+        .flags = TELE_COMMAND_FLAG_MQTT |
+                 TELE_COMMAND_FLAG_MUTATING |
+                 TELE_COMMAND_FLAG_REBOOT_REQUIRED,
+        .args = s_reboot_args,
+        .arg_count = 1,
+    },
+};
+```
+
+## Manifesto MQTT
+
+`tele_mqtt` chama `tele_commands_add_manifest_to_json(root,
+TELE_COMMAND_FLAG_MQTT)` para publicar
+`{base_topic}/{device_id}/meta/commands`. O manifesto e retained e descreve
+comandos visiveis por MQTT.
+
+Para cada comando, o JSON inclui:
+
+- `name`, `label`, `description`, `group`;
+- `flags`, como `mqtt`, `web`, `mutating`, `reboot_required` e `internal`;
+- `args`, quando existem, com `id`, `type`, `required`, limites numericos e
+  limites de string.
+
+Comandos com flag `INTERNAL` podem aparecer no manifesto para ferramentas que
+precisam entender o contrato completo, mas UIs comuns podem oculta-los da lista
+principal. `config/set` e `config/reset`, por exemplo, sao usados internamente
+pela aba Settings do Control Center.
+
+## Execucao MQTT
+
+Comandos chegam em `{base_topic}/{device_id}/cmd/in`:
+
+```json
+{
+  "name": "get_state",
+  "cmd_id": "cmd-20260614T120000Z",
+  "args": {}
+}
+```
+
+Respostas saem em `{base_topic}/{device_id}/cmd/out` e incluem o mesmo
+`cmd_id`, sucesso ou erro, timestamp e resultado quando houver.
+
+`tele_mqtt` executa os comandos base do nucleo diretamente. Comandos de produto
+podem ser adicionados por `handle_command` e `is_mutating_command` em
+`tele_mqtt_config_t`. Ao marcar um comando como `MUTATING`, o dispatcher aplica
+deduplicacao por `cmd_id` para reduzir risco de repetir acoes causadas por
+reentrega MQTT.
+
+## Command ou setting?
+
+Use `tele_config` quando a operacao altera estado configuravel persistivel,
+como intervalo de heartbeat, politica Wi-Fi ou credenciais. Use
+`tele_commands` quando a operacao e uma acao pontual, como `ping`,
+`get_state`, diagnostico, limpeza, reboot ou start/stop de uma rotina.
+
+Um setting pode ser alterado pelo comando generico `config/set`, mas nao deve
+virar um comando proprio apenas para economizar UI. Isso mantem Settings
+descobrivel por `meta/config` e evita duplicar semantica.
+
+## Uso no TeleCafezinho
 
 `components/tele_mqtt` registra os comandos base:
 
@@ -43,7 +127,7 @@ mostrar comandos agrupados, argumentos e ajuda por hover.
 
 ## Fora de escopo por enquanto
 
-- execucao dinamica de comandos pelo registry;
+- execucao automatica de comandos apenas pelo registry;
 - validacao visual rica e widgets especificos por tipo em todos os comandos;
 - paginacao de manifesto;
 - autorizacao por comando.

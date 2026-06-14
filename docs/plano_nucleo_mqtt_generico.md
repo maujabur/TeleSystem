@@ -81,7 +81,7 @@ Camada integradora do produto atual:
 
 - registra campos comuns de config/status;
 - conecta callbacks runtime;
-- fornece builders para status, config e heartbeat;
+- fornece builders opcionais para diagnosticos especificos do produto;
 - inicia `tele_mqtt` quando rede/tempo estiverem prontos.
 
 Deve ficar pequeno e ser substituivel/adaptavel por outros projetos.
@@ -149,6 +149,10 @@ Ja implementado:
 - ocultacao de `config/set` e `config/reset` na aba Comandos;
 - JSON cru de config ocultavel;
 - copiar log pelo menu de contexto.
+- builders genericos de `state`, `heartbeat`, `meta/config` e `meta/status`
+  como defaults internos de `tele_mqtt`;
+- `tele_presence` reduzido para registrar campos e fornecer apenas integracao
+  especifica do TeleCafezinho, como status tecnico de energia.
 
 ## Proximas Fatias
 
@@ -156,11 +160,13 @@ Ja implementado:
 
 Extrair de `tele_presence` o que ja e generico para dentro dos componentes:
 
-- publicacao de `meta/config`;
-- handlers `config/get`, `config/set`, `config/reset`;
-- publicacao de `meta/status`;
-- handlers `get_state` e `get_technical_status`;
-- publicacao de `meta/commands`.
+- publicacao de `meta/config`: concluido;
+- handlers `config/get`, `config/set`, `config/reset`: ja estavam no nucleo;
+- publicacao de `meta/status`: concluido;
+- handler `get_state`: concluido via builder default;
+- handler `get_technical_status`: mantido no nucleo, com builder opcional de
+  produto;
+- publicacao de `meta/commands`: ja estava no nucleo.
 
 Resultado esperado: produtos novos registram config/status/comandos e recebem o
 contrato MQTT com pouca cola.
@@ -169,11 +175,15 @@ contrato MQTT com pouca cola.
 
 Criar uma superficie clara para projetos:
 
-- inicializar MQTT generico;
-- registrar campos de produto;
-- registrar comandos de produto;
-- declarar callbacks de readiness, timestamp e reboot;
-- declarar builders opcionais de status tecnico/produto.
+- inicializar MQTT generico: concluido via `tele_mqtt_start()`;
+- registrar campos de produto: concluido via registries `tele_config` e
+  `tele_status`;
+- registrar comandos de produto: disponivel via `tele_commands`;
+- declarar callbacks de readiness, timestamp e reboot: documentado em
+  `tele_mqtt_config_t`;
+- declarar builders opcionais de status tecnico/produto: documentado em
+  `tele_mqtt_config_t`;
+- usar `base_topic` como nome publico da raiz de topicos.
 
 Resultado esperado: `tele_presence` vira um exemplo de integracao, nao o lugar
 onde mora o nucleo.
@@ -182,6 +192,17 @@ onde mora o nucleo.
 
 Atualizar `manual_mqtt_operacao.md`, `tele_config.md`, `tele_status.md` e
 `tele_commands.md` para refletirem o contrato final.
+
+Concluido:
+
+- `manual_mqtt_operacao.md` documenta a API publica de integracao do
+  `tele_mqtt`;
+- `tele_config.md` documenta registro, callbacks, manifesto `meta/config` e
+  fluxo `config/get`, `config/set`, `config/reset`;
+- `tele_status.md` documenta registro, payloads `state`/`heartbeat` e
+  manifesto `meta/status`;
+- `tele_commands.md` documenta registro, manifesto `meta/commands`, execucao
+  por `cmd/in`/`cmd/out` e a diferenca entre command e setting.
 
 Resultado esperado: outro projeto consegue implementar ou consumir o protocolo
 sem ler o codigo do TeleCafezinho.
@@ -199,6 +220,7 @@ Resultado esperado: nucleo reaproveitavel sem copiar uma aplicacao inteira.
 
 ## Proximo Passo Recomendado
 
-A proxima implementacao deve ser a Fatia 1: extrair os handlers MQTT genericos
-de config/status/commands para componentes reutilizaveis, reduzindo
-`tele_presence` a uma camada de integracao do produto.
+A proxima implementacao deve ser a Fatia 4: preparar a extracao futura,
+separando nomes e defaults especificos de TeleCafezinho dos componentes
+genericos, revisando Kconfig e deixando um exemplo minimo de integracao para
+copiar em novos projetos.

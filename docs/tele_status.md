@@ -10,9 +10,9 @@ leitura.
 - evitar duplicacao de campos de status entre MQTT, web e futuras ferramentas;
 - permitir que projetos diferentes registrem campos proprios sem alterar o
   nucleo MQTT;
-- preparar a publicacao futura de `meta/status` para o Control Center.
+- publicar `meta/status` para ferramentas dinamicas como o Control Center.
 
-## Modelo
+## Modelo de campo
 
 Cada campo tem:
 
@@ -27,7 +27,64 @@ Cada campo tem:
   `TECHNICAL`, `MQTT`, `WEB` ou `SENSITIVE`;
 - callback de leitura.
 
-## Uso atual
+O callback e chamado no momento em que o payload e montado. Por isso ele deve
+ser rapido, nao bloquear e devolver valor seguro mesmo quando o subsistema
+observado ainda nao estiver inicializado.
+
+## Registro
+
+Projetos registram campos chamando `tele_status_register_fields()` com uma
+tabela estatica de `tele_status_field_t`. O componente nao copia strings, entao
+`id`, `label`, `description`, `group` e `unit` devem permanecer validos durante
+a execucao.
+
+Exemplo reduzido:
+
+```c
+static const tele_status_field_t s_status_fields[] = {
+    {
+        .id = "rssi",
+        .label = "RSSI",
+        .description = "Intensidade do sinal Wi-Fi.",
+        .group = "network",
+        .type = TELE_STATUS_TYPE_I32,
+        .unit = "dBm",
+        .flags = TELE_STATUS_FLAG_STATE |
+                 TELE_STATUS_FLAG_HEARTBEAT |
+                 TELE_STATUS_FLAG_MQTT,
+        .read.i32 = read_rssi,
+    },
+};
+```
+
+## Payloads MQTT
+
+`tele_mqtt` usa o registry como fonte default para:
+
+- `{base_topic}/{device_id}/state`, usando campos com flag `STATE`;
+- `{base_topic}/{device_id}/heartbeat`, usando campos com flag `HEARTBEAT`;
+- `{base_topic}/{device_id}/meta/status`, usando campos com flag `MQTT`.
+
+`state` e retained, pois representa o snapshot operacional mais recente.
+`heartbeat` nao e retained, pois e telemetria periodica. `meta/status` e
+retained, pois descreve a estrutura que ferramentas externas usam para
+renderizar os dados.
+
+## Manifesto MQTT
+
+`tele_status_add_manifest_to_json(root, TELE_STATUS_FLAG_MQTT)` gera o
+manifesto de status. Para cada campo, o JSON inclui:
+
+- `id`, `label`, `description`, `group`, `type`;
+- `unit`, quando declarada;
+- `flags`, como `state`, `heartbeat`, `technical`, `mqtt`, `web` e
+  `sensitive`.
+
+O manifesto nao carrega valores. Valores chegam por `state`, `heartbeat`,
+`cmd/out` de `get_state` e, quando fizer sentido, `get_technical_status`.
+Ferramentas devem cruzar `id` do manifesto com as chaves dos payloads de valor.
+
+## Uso no TeleCafezinho
 
 `components/tele_presence` registra os campos comuns:
 
@@ -54,5 +111,5 @@ agrupados e seus valores atuais, usando os payloads `heartbeat`,
 
 - edicao de valores, que pertence ao `tele_config`;
 - paginacao do manifesto, que so deve entrar quando o payload crescer;
-- campos aninhados complexos, como o status tecnico completo de VBAT;
+- modelagem completa de campos aninhados complexos, como diagnosticos VBAT;
 - persistencia ou configuracao remota, que pertencem ao `tele_config`.

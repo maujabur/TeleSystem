@@ -17,6 +17,7 @@
 #include "mqtt_client.h"
 #include "tele_commands.h"
 #include "tele_config.h"
+#include "tele_status.h"
 
 #define TELE_MQTT_TOPIC_BUF_SIZE 128
 #define TELE_MQTT_DEVICE_ID_SIZE 64
@@ -177,10 +178,10 @@ static const char *firmware_version(void)
            s_config.firmware_version : "unknown";
 }
 
-static const char *topic_namespace(void)
+static const char *base_topic(void)
 {
-    return s_config.topic_namespace && s_config.topic_namespace[0] != '\0' ?
-           s_config.topic_namespace : "v1/device";
+    return s_config.base_topic && s_config.base_topic[0] != '\0' ?
+           s_config.base_topic : "v1/device";
 }
 
 static int qos_critical(void)
@@ -375,21 +376,21 @@ static void build_topics(void)
     snprintf(s_topic_availability,
              sizeof(s_topic_availability),
              "%s/%s/availability",
-             topic_namespace(),
+             base_topic(),
              s_device_id);
-    snprintf(s_topic_seen, sizeof(s_topic_seen), "%s/%s/seen", topic_namespace(), s_device_id);
-    snprintf(s_topic_heartbeat, sizeof(s_topic_heartbeat), "%s/%s/heartbeat", topic_namespace(), s_device_id);
-    snprintf(s_topic_state, sizeof(s_topic_state), "%s/%s/state", topic_namespace(), s_device_id);
-    snprintf(s_topic_event, sizeof(s_topic_event), "%s/%s/event", topic_namespace(), s_device_id);
-    snprintf(s_topic_meta_config, sizeof(s_topic_meta_config), "%s/%s/meta/config", topic_namespace(), s_device_id);
-    snprintf(s_topic_meta_status, sizeof(s_topic_meta_status), "%s/%s/meta/status", topic_namespace(), s_device_id);
+    snprintf(s_topic_seen, sizeof(s_topic_seen), "%s/%s/seen", base_topic(), s_device_id);
+    snprintf(s_topic_heartbeat, sizeof(s_topic_heartbeat), "%s/%s/heartbeat", base_topic(), s_device_id);
+    snprintf(s_topic_state, sizeof(s_topic_state), "%s/%s/state", base_topic(), s_device_id);
+    snprintf(s_topic_event, sizeof(s_topic_event), "%s/%s/event", base_topic(), s_device_id);
+    snprintf(s_topic_meta_config, sizeof(s_topic_meta_config), "%s/%s/meta/config", base_topic(), s_device_id);
+    snprintf(s_topic_meta_status, sizeof(s_topic_meta_status), "%s/%s/meta/status", base_topic(), s_device_id);
     snprintf(s_topic_meta_commands,
              sizeof(s_topic_meta_commands),
              "%s/%s/meta/commands",
-             topic_namespace(),
+             base_topic(),
              s_device_id);
-    snprintf(s_topic_cmd_in, sizeof(s_topic_cmd_in), "%s/%s/cmd/in", topic_namespace(), s_device_id);
-    snprintf(s_topic_cmd_out, sizeof(s_topic_cmd_out), "%s/%s/cmd/out", topic_namespace(), s_device_id);
+    snprintf(s_topic_cmd_in, sizeof(s_topic_cmd_in), "%s/%s/cmd/in", base_topic(), s_device_id);
+    snprintf(s_topic_cmd_out, sizeof(s_topic_cmd_out), "%s/%s/cmd/out", base_topic(), s_device_id);
 }
 
 static int publish_if_connected(const char *topic, const char *payload, int qos, int retain)
@@ -581,6 +582,79 @@ static cJSON *build_ping_result(void)
     return result;
 }
 
+static cJSON *build_status_fields_payload(tele_status_flags_t flags)
+{
+    cJSON *result = cJSON_CreateObject();
+    if (!result) {
+        return NULL;
+    }
+
+    if (tele_status_add_fields_to_json(result, flags) != ESP_OK) {
+        cJSON_Delete(result);
+        return NULL;
+    }
+
+    return result;
+}
+
+static cJSON *build_default_config_manifest(void)
+{
+    cJSON *result = cJSON_CreateObject();
+    if (!result) {
+        return NULL;
+    }
+
+    if (tele_config_add_manifest_to_json(result, TELE_CONFIG_FLAG_MQTT) != ESP_OK) {
+        cJSON_Delete(result);
+        return NULL;
+    }
+
+    return result;
+}
+
+static cJSON *build_default_status_manifest(void)
+{
+    cJSON *result = cJSON_CreateObject();
+    if (!result) {
+        return NULL;
+    }
+
+    if (tele_status_add_manifest_to_json(result, TELE_STATUS_FLAG_MQTT) != ESP_OK) {
+        cJSON_Delete(result);
+        return NULL;
+    }
+
+    return result;
+}
+
+static cJSON *build_state_payload(void)
+{
+    return s_config.build_state ?
+           s_config.build_state(s_config.ctx) :
+           build_status_fields_payload(TELE_STATUS_FLAG_STATE);
+}
+
+static cJSON *build_heartbeat_payload(void)
+{
+    return s_config.build_heartbeat ?
+           s_config.build_heartbeat(s_config.ctx) :
+           build_status_fields_payload(TELE_STATUS_FLAG_HEARTBEAT);
+}
+
+static cJSON *build_config_manifest_payload(void)
+{
+    return s_config.build_config_manifest ?
+           s_config.build_config_manifest(s_config.ctx) :
+           build_default_config_manifest();
+}
+
+static cJSON *build_status_manifest_payload(void)
+{
+    return s_config.build_status_manifest ?
+           s_config.build_status_manifest(s_config.ctx) :
+           build_default_status_manifest();
+}
+
 static esp_err_t json_to_config_value(const tele_config_field_t *field,
                                       const cJSON *json_value,
                                       tele_config_value_t *out_value,
@@ -701,7 +775,7 @@ static void handle_command_payload(const char *payload)
     }
 
     if (strcmp(cmd_name, "get_state") == 0) {
-        result = s_config.build_state ? s_config.build_state(s_config.ctx) : cJSON_CreateObject();
+        result = build_state_payload();
         publish_command_reply(cmd_id, result != NULL, result ? NULL : "state_unavailable", result);
         cJSON_Delete(result);
         cJSON_Delete(root);
@@ -709,7 +783,7 @@ static void handle_command_payload(const char *payload)
     }
 
     if (strcmp(cmd_name, "config/get") == 0) {
-        result = s_config.build_config_manifest ? s_config.build_config_manifest(s_config.ctx) : cJSON_CreateObject();
+        result = build_config_manifest_payload();
         publish_command_reply(cmd_id, result != NULL, result ? NULL : "config_unavailable", result);
         cJSON_Delete(result);
         cJSON_Delete(root);
@@ -917,7 +991,7 @@ static void publish_availability(const char *status_text, const char *reason)
 
 static void publish_state_snapshot(void)
 {
-    cJSON *payload = s_config.build_state ? s_config.build_state(s_config.ctx) : NULL;
+    cJSON *payload = build_state_payload();
     if (!payload) {
         return;
     }
@@ -928,7 +1002,7 @@ static void publish_state_snapshot(void)
 
 static void publish_status_manifest(void)
 {
-    cJSON *payload = s_config.build_status_manifest ? s_config.build_status_manifest(s_config.ctx) : NULL;
+    cJSON *payload = build_status_manifest_payload();
     if (!payload) {
         return;
     }
@@ -939,7 +1013,7 @@ static void publish_status_manifest(void)
 
 static void publish_config_manifest(void)
 {
-    cJSON *payload = s_config.build_config_manifest ? s_config.build_config_manifest(s_config.ctx) : NULL;
+    cJSON *payload = build_config_manifest_payload();
     if (!payload) {
         return;
     }
@@ -979,7 +1053,7 @@ static void publish_seen(const char *reason)
 
 static void publish_heartbeat(void)
 {
-    cJSON *payload = s_config.build_heartbeat ? s_config.build_heartbeat(s_config.ctx) : cJSON_CreateObject();
+    cJSON *payload = build_heartbeat_payload();
     if (!payload) {
         return;
     }
@@ -1242,9 +1316,9 @@ esp_err_t tele_mqtt_start(const tele_mqtt_config_t *config)
     s_started = true;
     (void)tele_mqtt_start_client_if_ready();
     ESP_LOGI(TAG,
-             "MQTT inicializado | device_id=%s | namespace=%s | broker=%s:%" PRIu32,
+             "MQTT inicializado | device_id=%s | base_topic=%s | broker=%s:%" PRIu32,
              s_device_id,
-             topic_namespace(),
+             base_topic(),
              s_broker_host,
              s_broker_port);
     return ESP_OK;

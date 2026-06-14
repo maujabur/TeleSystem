@@ -25,11 +25,11 @@ config MQTT_PASSWORD
     default ""
 
 config MQTT_TOPIC_NAMESPACE
-    string "MQTT topic namespace"
+    string "MQTT base topic"
     depends on MQTT_PRESENCE_ENABLED
     default "v1/telecafezinho"
     help
-        Prefixo de topicos usado pelo dispositivo. O device_id sera
+        Base topic usado pelo dispositivo. O device_id sera
         anexado automaticamente.
 
 config MQTT_DEVICE_ID_PREFIX

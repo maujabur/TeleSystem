@@ -652,23 +652,6 @@ static uint32_t mqtt_presence_effective_heartbeat_interval_s(void)
     return CONFIG_MQTT_HEARTBEAT_INTERVAL_S;
 }
 
-static cJSON *mqtt_presence_build_state(void *ctx)
-{
-    cJSON *result = cJSON_CreateObject();
-    (void)ctx;
-
-    if (!result) {
-        return NULL;
-    }
-
-    if (tele_status_add_fields_to_json(result, TELE_STATUS_FLAG_STATE) != ESP_OK) {
-        cJSON_Delete(result);
-        return NULL;
-    }
-
-    return result;
-}
-
 static cJSON *mqtt_presence_build_technical_status(void *ctx)
 {
     vbat_monitor_status_t vbat_status = {0};
@@ -728,57 +711,6 @@ static cJSON *mqtt_presence_build_technical_status(void *ctx)
     return result;
 }
 
-static cJSON *mqtt_presence_build_status_manifest(void *ctx)
-{
-    cJSON *result = cJSON_CreateObject();
-    (void)ctx;
-
-    if (!result) {
-        return NULL;
-    }
-
-    if (tele_status_add_manifest_to_json(result, TELE_STATUS_FLAG_MQTT) != ESP_OK) {
-        cJSON_Delete(result);
-        return NULL;
-    }
-
-    return result;
-}
-
-static cJSON *mqtt_presence_build_config_manifest(void *ctx)
-{
-    cJSON *result = cJSON_CreateObject();
-    (void)ctx;
-
-    if (!result) {
-        return NULL;
-    }
-
-    if (tele_config_add_manifest_to_json(result, TELE_CONFIG_FLAG_MQTT) != ESP_OK) {
-        cJSON_Delete(result);
-        return NULL;
-    }
-
-    return result;
-}
-
-static cJSON *mqtt_presence_build_heartbeat(void *ctx)
-{
-    cJSON *result = cJSON_CreateObject();
-    (void)ctx;
-
-    if (!result) {
-        return NULL;
-    }
-
-    if (tele_status_add_fields_to_json(result, TELE_STATUS_FLAG_HEARTBEAT) != ESP_OK) {
-        cJSON_Delete(result);
-        return NULL;
-    }
-
-    return result;
-}
-
 static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *field,
                                                   const tele_config_value_t *value,
                                                   void *ctx)
@@ -801,30 +733,6 @@ static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *fie
         return tele_mqtt_apply_heartbeat_interval_s(value->u32);
     }
     return ESP_OK;
-}
-
-static esp_err_t mqtt_presence_handle_product_command(const char *cmd_name,
-                                                      const cJSON *args,
-                                                      cJSON **out_result,
-                                                      const char **out_error,
-                                                      void *ctx)
-{
-    (void)cmd_name;
-    (void)args;
-    (void)out_result;
-    (void)out_error;
-    (void)ctx;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-
-static bool mqtt_presence_is_mutating_product_command(const char *cmd_name,
-                                                      const cJSON *args,
-                                                      void *ctx)
-{
-    (void)cmd_name;
-    (void)args;
-    (void)ctx;
-    return false;
 }
 
 static void mqtt_presence_restart(uint32_t delay_ms, void *ctx)
@@ -857,7 +765,7 @@ esp_err_t mqtt_presence_start(void)
         .broker_uri = CONFIG_MQTT_BROKER_URI,
         .username = CONFIG_MQTT_USERNAME,
         .password = CONFIG_MQTT_PASSWORD,
-        .topic_namespace = CONFIG_MQTT_TOPIC_NAMESPACE,
+        .base_topic = CONFIG_MQTT_TOPIC_NAMESPACE,
         .device_id_prefix = CONFIG_MQTT_DEVICE_ID_PREFIX,
         .firmware_version = APP_VERSION_STRING,
         .heartbeat_interval_s = CONFIG_MQTT_HEARTBEAT_INTERVAL_S,
@@ -866,13 +774,7 @@ esp_err_t mqtt_presence_start(void)
         .qos_telemetry = CONFIG_MQTT_QOS_TELEMETRY,
         .is_ready = mqtt_presence_ready,
         .build_timestamp = mqtt_presence_build_timestamp,
-        .build_state = mqtt_presence_build_state,
-        .build_config_manifest = mqtt_presence_build_config_manifest,
-        .build_status_manifest = mqtt_presence_build_status_manifest,
         .build_technical_status = mqtt_presence_build_technical_status,
-        .build_heartbeat = mqtt_presence_build_heartbeat,
-        .is_mutating_command = mqtt_presence_is_mutating_product_command,
-        .handle_command = mqtt_presence_handle_product_command,
         .restart = mqtt_presence_restart,
     };
 

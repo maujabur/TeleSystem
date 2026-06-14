@@ -25,11 +25,37 @@ typedef esp_err_t (*tele_mqtt_command_handler_t)(const char *cmd_name,
                                                  void *ctx);
 typedef void (*tele_mqtt_restart_cb_t)(uint32_t delay_ms, void *ctx);
 
+/*
+ * Public integration contract for the generic MQTT core.
+ *
+ * Required:
+ * - broker_uri
+ *
+ * Optional identity/default fields:
+ * - base_topic: MQTT prefix used as {base_topic}/{device_id}/...
+ * - device_id_prefix: prefix used before the MAC suffix
+ * - firmware_version: string published in common payload fields
+ * - heartbeat_interval_s, keepalive_s, qos_critical, qos_telemetry
+ *
+ * Optional callbacks:
+ * - is_ready: delays MQTT startup until network/time/product prerequisites hold
+ * - build_timestamp: returns an ISO-like timestamp; fallback is Unix epoch
+ * - build_technical_status: product-specific technical diagnostics
+ * - restart: product-specific reboot hook; fallback is esp_restart()
+ * - handle_command/is_mutating_command: product-specific command extension
+ *
+ * Optional payload overrides:
+ * - build_state, build_heartbeat, build_config_manifest, build_status_manifest
+ *
+ * If payload overrides are NULL, tele_mqtt builds them from tele_status and
+ * tele_config registries. New products should prefer registry fields first and
+ * only provide overrides for genuinely product-specific payloads.
+ */
 typedef struct {
     const char *broker_uri;
     const char *username;
     const char *password;
-    const char *topic_namespace;
+    const char *base_topic;
     const char *device_id_prefix;
     const char *firmware_version;
     uint32_t heartbeat_interval_s;

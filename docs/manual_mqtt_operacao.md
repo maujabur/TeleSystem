@@ -7,6 +7,50 @@ remotos simples. A implementacao reutilizavel vive em `components/tele_mqtt`; o
 adaptador `components/tele_presence/mqtt_presence.c` injeta os dados atuais do
 TeleCafezinho.
 
+## API publica de integracao
+
+Um produto novo integra o nucleo MQTT preenchendo `tele_mqtt_config_t` e
+chamando `tele_mqtt_start()`. O contrato minimo e:
+
+```c
+tele_mqtt_config_t config = {
+    .broker_uri = CONFIG_MQTT_BROKER_URI,
+    .base_topic = CONFIG_MQTT_TOPIC_NAMESPACE,
+    .device_id_prefix = CONFIG_MQTT_DEVICE_ID_PREFIX,
+    .firmware_version = APP_VERSION_STRING,
+    .heartbeat_interval_s = CONFIG_MQTT_HEARTBEAT_INTERVAL_S,
+    .keepalive_s = CONFIG_MQTT_KEEPALIVE_S,
+    .qos_critical = CONFIG_MQTT_QOS_CRITICAL,
+    .qos_telemetry = CONFIG_MQTT_QOS_TELEMETRY,
+    .is_ready = produto_mqtt_ready,
+    .build_timestamp = produto_build_timestamp,
+    .build_technical_status = produto_build_technical_status,
+    .restart = produto_restart,
+};
+```
+
+Somente `broker_uri` e indispensavel para configurar o cliente. Na pratica,
+projetos devem informar tambem `base_topic`, `device_id_prefix` e
+`firmware_version` para manter identificacao consistente.
+
+Callbacks opcionais:
+
+- `is_ready`: atrasa o inicio do MQTT ate rede, hora ou outro prerequisito
+  estar pronto; se ausente, o nucleo tenta iniciar imediatamente;
+- `build_timestamp`: gera timestamps reais; se ausente ou falhar, o nucleo usa
+  `1970-01-01T00:00:00Z`;
+- `build_technical_status`: adiciona diagnostico especifico de produto ao
+  comando `get_technical_status`;
+- `restart`: executa reboot especifico do produto; se ausente, usa
+  `esp_restart()`;
+- `handle_command` e `is_mutating_command`: estendem o conjunto de comandos com
+  acoes especificas do produto.
+
+Os builders `build_state`, `build_heartbeat`, `build_config_manifest` e
+`build_status_manifest` tambem sao opcionais. Quando ficam `NULL`, `tele_mqtt`
+gera os payloads a partir dos registries `tele_status` e `tele_config`. Esse e
+o caminho recomendado para projetos novos.
+
 ## Identificacao do dispositivo
 
 O `device_id` segue o formato:
@@ -24,9 +68,9 @@ TeleCafezinho-5112D0
 Cada boot tambem gera um `session_id`, usado para diferenciar conexoes da mesma
 placa ao longo do tempo.
 
-## Namespace de topicos
+## Base topic
 
-Prefixo base:
+Base topic:
 
 ```text
 {CONFIG_MQTT_TOPIC_NAMESPACE}/{device_id}
