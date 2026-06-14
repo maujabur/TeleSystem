@@ -342,16 +342,6 @@ Retorna uptime, sincronismo de tempo, heap, power-good e VBAT.
 {"cmd_id":"t1","name":"get_technical_status"}
 ```
 
-### set_heartbeat_interval
-
-Altera o intervalo de heartbeat em runtime.
-
-```json
-{"cmd_id":"h1","name":"set_heartbeat_interval","args":{"heartbeat_interval_s":30}}
-```
-
-O valor aceito fica entre 15 e 3600 segundos e nao e persistido em NVS.
-
 ### config/set
 
 Atualiza um campo configuravel exposto por `meta/config`.

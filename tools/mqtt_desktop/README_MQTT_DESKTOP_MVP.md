@@ -65,13 +65,11 @@ sudo apt install -y python3 python3-venv python3-tk python3-pip
   - `commands/get`
   - `get_technical_status`
   - `apply_and_reboot`
-  - `set_heartbeat_interval`
 - Comandos via MQTT:
   - botao `commands/get` solicita o manifesto de comandos do device
   - renderiza `meta/commands` agrupado por `group`, usando `label` e `description`
   - gera entradas simples e botao `Enviar` para comandos descobertos no manifesto
-  - comandos `config/set` e `config/reset` usam selecao de campos a partir de `meta/config`
-  - ao selecionar um campo em `config/set`, o valor atual editavel e carregado automaticamente
+  - oculta `config/set` e `config/reset` da lista principal; esses comandos sao usados pela aba Settings
 - Settings via MQTT:
   - botao `Atualizar config` envia `config/get`, recarrega o manifesto do device e descarta edicoes locais nao salvas
   - atualizacoes automaticas preservam edicoes locais ainda nao salvas

@@ -91,16 +91,6 @@ static const tele_command_arg_t s_cmd_config_set_args[] = {
     },
 };
 
-static const tele_command_arg_t s_cmd_heartbeat_args[] = {
-    {
-        .id = "heartbeat_interval_s",
-        .type = TELE_COMMAND_ARG_U32,
-        .required = true,
-        .min.u32 = 15,
-        .max.u32 = 3600,
-    },
-};
-
 static const tele_command_arg_t s_cmd_reboot_args[] = {
     {
         .id = "delay_ms",
@@ -163,15 +153,6 @@ static const tele_command_t s_builtin_commands[] = {
         .group = "config",
         .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
         .args = s_cmd_config_field_args,
-        .arg_count = 1,
-    },
-    {
-        .name = "set_heartbeat_interval",
-        .label = "Intervalo heartbeat",
-        .description = "Altera o intervalo de heartbeat em runtime.",
-        .group = "status",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
-        .args = s_cmd_heartbeat_args,
         .arg_count = 1,
     },
     {
@@ -755,46 +736,6 @@ static void handle_command_payload(const char *payload)
         return;
     }
 
-    if (strcmp(cmd_name, "set_heartbeat_interval") == 0) {
-        cJSON *interval = cJSON_IsObject(args) ?
-                          cJSON_GetObjectItemCaseSensitive(args, "heartbeat_interval_s") : NULL;
-
-        if (reject_duplicate_mutating_command(cmd_id)) {
-            cJSON_Delete(root);
-            return;
-        }
-
-        if (!cJSON_IsNumber(interval)) {
-            cJSON_Delete(root);
-            publish_command_reply(cmd_id, false, "missing_heartbeat_interval_s", NULL);
-            return;
-        }
-
-        if (interval->valuedouble < TELE_MQTT_HEARTBEAT_INTERVAL_MIN_S ||
-            interval->valuedouble > TELE_MQTT_HEARTBEAT_INTERVAL_MAX_S) {
-            cJSON_Delete(root);
-            publish_command_reply(cmd_id, false, "heartbeat_interval_out_of_range", NULL);
-            return;
-        }
-
-        {
-            tele_config_value_t value = {.u32 = (uint32_t)interval->valuedouble};
-            tele_config_update_result_t update = {0};
-            esp_err_t err = tele_config_update_value(TELE_MQTT_CONFIG_ID_HEARTBEAT_INTERVAL, &value, &update);
-            result = build_config_update_result(TELE_MQTT_CONFIG_ID_HEARTBEAT_INTERVAL, &update);
-            if (result) {
-                cJSON_AddNumberToObject(result, "heartbeat_interval_s", (double)s_heartbeat_interval_s);
-            }
-            if (err == ESP_OK) {
-                cmd_id_remember(cmd_id);
-            }
-            publish_command_reply(cmd_id, err == ESP_OK, err == ESP_OK ? NULL : "heartbeat_config_update_failed", result);
-        }
-        cJSON_Delete(result);
-        cJSON_Delete(root);
-        return;
-    }
-
     if (strcmp(cmd_name, "config/set") == 0) {
         cJSON *field_id_item = cJSON_IsObject(args) ?
                                cJSON_GetObjectItemCaseSensitive(args, "id") : NULL;
@@ -1314,7 +1255,7 @@ uint32_t tele_mqtt_get_heartbeat_interval_s(void)
     return s_heartbeat_interval_s;
 }
 
-esp_err_t tele_mqtt_set_heartbeat_interval_s(uint32_t interval_s)
+esp_err_t tele_mqtt_apply_heartbeat_interval_s(uint32_t interval_s)
 {
     if (interval_s < TELE_MQTT_HEARTBEAT_INTERVAL_MIN_S ||
         interval_s > TELE_MQTT_HEARTBEAT_INTERVAL_MAX_S) {

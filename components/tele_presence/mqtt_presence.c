@@ -798,7 +798,7 @@ static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *fie
         return err == ESP_ERR_INVALID_STATE ? ESP_OK : err;
     }
     if (strcmp(field->id, MQTT_CONFIG_ID_HEARTBEAT_INTERVAL) == 0) {
-        return tele_mqtt_set_heartbeat_interval_s(value->u32);
+        return tele_mqtt_apply_heartbeat_interval_s(value->u32);
     }
     return ESP_OK;
 }

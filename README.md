@@ -148,5 +148,5 @@ Leituras uteis:
 - Use `build-dev` e `build-release` para manter caches separados.
 - Os HTMLs do portal sao embarcados via `EMBED_TXTFILES` em
   `components/tele_portal/CMakeLists.txt`.
-- `tools/mqtt_desktop` ainda carrega heranca do projeto ACR anterior; consulte
-  o roadmap antes de usar ou evoluir essa ferramenta.
+- `tools/mqtt_desktop` contem o Jabur Consulting MQTT Control Center para
+  administracao MQTT dinamica dos dispositivos.

@@ -24,9 +24,8 @@ config WIFI_MULTI_NETWORK_CREDENTIALS
     bool "Enable multi-network credentials storage (experimental)"
     default n
     help
-        Mantem suporte legado por padrao e habilita armazenamento de ate
-        8 redes com prioridade quando ativado. O formato antigo (ssid/password)
-        e migrado automaticamente para o formato novo na primeira leitura.
+        Habilita armazenamento de ate 8 redes com prioridade quando ativado.
+        Quando desativado, usa o formato simples atual com uma rede.
 
 config WIFI_STA_MAX_RETRY
     int "Max STA reconnect retries before provisioning fallback"

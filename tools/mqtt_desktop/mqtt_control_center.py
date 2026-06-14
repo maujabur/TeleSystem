@@ -22,6 +22,7 @@ PRESENCE_MESSAGE_TYPES = {"availability", "seen", "heartbeat", "state", "event"}
 PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
 COMMAND_OPTION_PLACEHOLDER = "selecione..."
+COMMANDS_HIDDEN_FROM_COMMANDS_TAB = {"config/set", "config/reset"}
 
 
 def command_args_from_inputs(arg_specs: list[Dict[str, Any]], values: Dict[str, str]) -> Dict[str, Any]:
@@ -689,7 +690,12 @@ class App(ctk.CTk):
                 self.command_manifest_signature = ("__empty__",)
             return
 
-        normalized = [cmd for cmd in commands if isinstance(cmd, dict) and cmd.get("name")]
+        normalized = [
+            cmd for cmd in commands
+            if isinstance(cmd, dict) and
+            cmd.get("name") and
+            str(cmd.get("name")) not in COMMANDS_HIDDEN_FROM_COMMANDS_TAB
+        ]
         config_option_signature = ",".join(self._config_command_field_options())
         signature = tuple(
             f"{cmd.get('name')}|{json.dumps(cmd.get('args', []), sort_keys=True, ensure_ascii=True)}"

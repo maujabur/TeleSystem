@@ -53,7 +53,7 @@ esp_err_t tele_mqtt_start(const tele_mqtt_config_t *config);
 esp_err_t tele_mqtt_start_client_if_ready(void);
 esp_err_t tele_mqtt_publish_event(const char *event_name, const char *message);
 uint32_t tele_mqtt_get_heartbeat_interval_s(void);
-esp_err_t tele_mqtt_set_heartbeat_interval_s(uint32_t interval_s);
+esp_err_t tele_mqtt_apply_heartbeat_interval_s(uint32_t interval_s);
 bool tele_mqtt_is_connected(void);
 
 #ifdef __cplusplus

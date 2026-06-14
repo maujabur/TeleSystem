@@ -12,12 +12,13 @@ codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
 2. [main_connectivity_estrutura_alto_nivel.md](main_connectivity_estrutura_alto_nivel.md)
 3. [main_portal_estrutura_alto_nivel.md](main_portal_estrutura_alto_nivel.md)
 4. [manual_mqtt_operacao.md](manual_mqtt_operacao.md)
-5. [tele_config.md](tele_config.md)
-6. [tele_status.md](tele_status.md)
-7. [tele_commands.md](tele_commands.md)
-8. [status_led_system.md](status_led_system.md)
-9. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
-10. [roadmap_atual.md](roadmap_atual.md)
+5. [plano_nucleo_mqtt_generico.md](plano_nucleo_mqtt_generico.md)
+6. [tele_config.md](tele_config.md)
+7. [tele_status.md](tele_status.md)
+8. [tele_commands.md](tele_commands.md)
+9. [status_led_system.md](status_led_system.md)
+10. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
+11. [roadmap_atual.md](roadmap_atual.md)
 
 ## Guias complementares
 

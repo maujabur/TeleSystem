@@ -28,20 +28,19 @@ componentes.
 
 ## Pendencias tecnicas
 
+- Evoluir o nucleo MQTT generico conforme
+  [plano_nucleo_mqtt_generico.md](plano_nucleo_mqtt_generico.md), com foco em
+  extrair handlers/adaptadores genericos de config, status e commands.
 - Evoluir `components/tele_config` com adaptadores genericos para MQTT e web,
   conforme [tele_config.md](tele_config.md).
-- Decidir se valores do namespace NVS legado `provisioning` devem ser migrados
-  manualmente; migracao automatica pode transformar defaults antigos em
-  overrides permanentes.
 - Avaliar NVS encryption/flash encryption para credenciais Wi-Fi e MQTT antes
   de piloto maior.
 - Definir autenticacao/autorizacao de comandos MQTT alem do isolamento por
   topico/broker.
 - Avaliar evolucao do componente externo `manifest_file_updater` para modo
   streaming antes de usa-lo no OTA remoto de firmware.
-- Evoluir `tools/mqtt_desktop` para usar os manifests `tele_config`,
-  `tele_status` e `tele_commands` tambem na criacao de formularios e acoes
-  mais ricas, reduzindo os campos especificos herdados do projeto anterior.
+- Evoluir `tools/mqtt_desktop` para consumir metadados mais ricos de manifests
+  sem adicionar telas especificas por produto ao nucleo.
 - Enriquecer o diagnostico tecnico: migrar parte de `get_technical_status` para
   manifests/metadados ou criar manifesto tecnico proprio para VBAT,
   power-good e diagnosticos aninhados.

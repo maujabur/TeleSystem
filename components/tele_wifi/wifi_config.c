@@ -140,38 +140,6 @@ static esp_err_t save_blob(nvs_handle_t handle,
     return err;
 }
 
-static esp_err_t load_legacy_single_network(nvs_handle_t handle, wifi_saved_network_t *network)
-{
-    size_t ssid_len = 0;
-    size_t password_len = 0;
-    esp_err_t err = ESP_OK;
-
-    if (!network) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    memset(network, 0, sizeof(*network));
-
-    ssid_len = sizeof(network->ssid);
-    err = nvs_get_str(handle, WIFI_KEY_SSID, network->ssid, &ssid_len);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    password_len = sizeof(network->password);
-    err = nvs_get_str(handle, WIFI_KEY_PASSWORD, network->password, &password_len);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    normalize_network(network);
-    if (network->ssid[0] == '\0') {
-        return ESP_ERR_NOT_FOUND;
-    }
-
-    network->priority = 0;
-    return ESP_OK;
-}
 #endif
 
 esp_err_t wifi_config_load(wifi_credentials_t *cfg)
@@ -347,7 +315,6 @@ esp_err_t wifi_config_load_saved_networks(wifi_saved_network_t *networks,
 #if CONFIG_WIFI_MULTI_NETWORK_CREDENTIALS
     nvs_handle_t handle = 0;
     wifi_saved_networks_blob_t *blob = NULL;
-    wifi_saved_network_t legacy = {0};
     esp_err_t err = ESP_OK;
     size_t out_count = 0;
     size_t i = 0;
@@ -396,25 +363,10 @@ esp_err_t wifi_config_load_saved_networks(wifi_saved_network_t *networks,
     }
 
     free(blob);
-
-    err = load_legacy_single_network(handle, &legacy);
-    if (err == ESP_OK) {
-        networks[0] = legacy;
-        *network_count = 1;
-        ESP_LOGW(TAG, "Migrando credencial legada para lista multi-rede: %s", legacy.ssid);
-
-        if (save_blob(handle, networks, 1) == ESP_OK) {
-            ESP_LOGI(TAG, "Credenciais Wi-Fi legadas migradas para lista de redes");
-        }
-
-        nvs_close(handle);
-        return ESP_OK;
-    }
-
     nvs_close(handle);
     return ESP_ERR_NOT_FOUND;
 #else
-    wifi_credentials_t legacy = {0};
+    wifi_credentials_t single_network = {0};
     esp_err_t err = ESP_OK;
 
     if (!networks || !network_count || max_networks == 0) {
@@ -424,13 +376,13 @@ esp_err_t wifi_config_load_saved_networks(wifi_saved_network_t *networks,
     *network_count = 0;
     memset(networks, 0, max_networks * sizeof(*networks));
 
-    err = wifi_config_load(&legacy);
+    err = wifi_config_load(&single_network);
     if (err != ESP_OK) {
         return err;
     }
 
-    snprintf(networks[0].ssid, sizeof(networks[0].ssid), "%s", legacy.ssid);
-    snprintf(networks[0].password, sizeof(networks[0].password), "%s", legacy.password);
+    snprintf(networks[0].ssid, sizeof(networks[0].ssid), "%s", single_network.ssid);
+    snprintf(networks[0].password, sizeof(networks[0].password), "%s", single_network.password);
     networks[0].priority = 0;
     *network_count = 1;
     return ESP_OK;

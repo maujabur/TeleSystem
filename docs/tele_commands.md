@@ -35,7 +35,6 @@ publicar `meta/commands` e responder `commands/get`.
 - `commands/get`;
 - `config/set`;
 - `config/reset`;
-- `set_heartbeat_interval`;
 - `apply_and_reboot`.
 
 O firmware publica `{base_topic}/{device_id}/meta/commands` como mensagem
