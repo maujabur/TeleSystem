@@ -451,6 +451,27 @@ Depois de cada fase:
 
 ## Proximo Passo Recomendado
 
+Fase 6 executada:
+
+- criado `examples/component_consumer_portal`;
+- o exemplo consome `tele_portal_core` e `tele_portal_logs`;
+- registra a rota propria `GET /api/ping`;
+- nao depende de `tele_wifi`, `tele_mqtt`, `tele_system`, `tele_status`,
+  `tele_config` ou OTA;
+- serve como prova local de consumo dos componentes de portal fora do firmware
+  TeleSystem.
+
+O proximo passo recomendado e **Fase 7: preparar consumo externo por Component
+Manager**:
+
+1. revisar `idf_component.yml` dos componentes de portal extraidos;
+2. declarar dependencias entre componentes onde ainda estiverem implicitas;
+3. padronizar `description`, `license`, `repository`, `url` e `version`;
+4. documentar blocos `git/path/version` para consumidores externos;
+5. compilar os tres exemplos consumidores apos os ajustes.
+
+Historico da recomendacao anterior:
+
 Fase 5B executada em `0.3.31 TeleSystem portal OTA adapter`:
 
 - criado `components/tele_portal_ota`;
@@ -460,7 +481,7 @@ Fase 5B executada em `0.3.31 TeleSystem portal OTA adapter`:
 - o TeleSystem conecta esses callbacks em `firmware_ota` no `main`;
 - `components/tele_portal` deixou de depender de `tele_system` e de `cJSON`.
 
-O proximo passo recomendado e criar **Fase 6: exemplo consumidor do portal**:
+O proximo passo recomendado naquele momento era criar **Fase 6: exemplo consumidor do portal**:
 
 1. adicionar `examples/component_consumer_portal`;
 2. consumir `tele_portal_core` e um conjunto pequeno de adaptadores;

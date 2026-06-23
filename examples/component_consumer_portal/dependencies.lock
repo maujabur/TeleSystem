@@ -1,0 +1,38 @@
+dependencies:
+  espressif/cjson:
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    source:
+      path: ../../managed_components/espressif__cjson
+      type: local
+    version: 1.7.19~2
+  idf:
+    source:
+      type: idf
+    version: 6.2.0
+  tele_portal_core:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_portal_core
+      type: local
+    version: 0.1.0
+  tele_portal_logs:
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    source:
+      path: ../../components/tele_portal_logs
+      type: local
+    version: 0.1.0
+direct_dependencies:
+- espressif/cjson
+- tele_portal_core
+- tele_portal_logs
+manifest_hash: d561fbf39eaf1573494b0c0e29424b49b4a603bd426b4294afa25154d5baab4a
+target: esp32
+version: 3.0.0
