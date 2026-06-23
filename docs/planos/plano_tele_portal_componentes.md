@@ -451,6 +451,32 @@ Depois de cada fase:
 
 ## Proximo Passo Recomendado
 
+Fase 3 executada em `0.3.27 TeleSystem portal status config adapters`:
+
+- criado `components/tele_portal_status`;
+- criado `components/tele_portal_config`;
+- `GET /api/status` foi movido para `tele_portal_status`;
+- `GET /api/status/meta` expõe manifesto de `tele_status` filtrado por
+  `TELE_STATUS_FLAG_WEB`;
+- `GET /api/config/meta`, `POST /api/config/set`, `POST /api/config/reset` e
+  `POST /api/config/apply-reboot` expõem `tele_config` por HTTP;
+- campos comuns de status passaram a marcar tambem `TELE_STATUS_FLAG_WEB`;
+- `components/tele_portal` continua como agregador temporario;
+- a rota antiga `GET/POST /api/device/config` permanece por compatibilidade com
+  `settings.html` ate a proxima fatia de migracao da UI;
+- `idf.py build` passou gerando `build/TeleSystem.bin`.
+
+O proximo passo recomendado e migrar `firmware_assets/web/settings.html` para as
+rotas genericas de `tele_portal_config`:
+
+1. trocar leitura de `/api/device/config` por `/api/config/meta`;
+2. trocar salvamento por `/api/config/set` e reset por `/api/config/reset`;
+3. remover `main/connectivity/device_config_routes.c` do fluxo;
+4. retirar o registro `device_config_routes_register_with_portal()` de `main`;
+5. manter a pagina visualmente equivalente, mas dirigida por manifest.
+
+Historico da recomendacao anterior para Fase 2:
+
 Fase 2 executada em `0.3.26 TeleSystem portal assets logs extraction`:
 
 - criado `components/tele_portal_assets`;
@@ -461,15 +487,6 @@ Fase 2 executada em `0.3.26 TeleSystem portal assets logs extraction`:
 - `components/tele_portal` continua como agregador temporario;
 - os Kconfigs de logs agora vivem em `tele_portal_logs`;
 - `idf.py build` passou gerando `build/TeleSystem.bin`.
-
-O proximo passo recomendado e executar somente a Fase 3:
-
-1. criar `tele_portal_status`;
-2. criar `tele_portal_config`;
-3. mover `GET /api/status` para manifest/status generico;
-4. mover APIs HTTP de config para `tele_config`;
-5. manter o portal visual igual enquanto HTTP e MQTT passam a compartilhar os
-   mesmos contratos.
 
 Historico da recomendacao anterior para Fase 1:
 

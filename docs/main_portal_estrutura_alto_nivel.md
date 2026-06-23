@@ -6,7 +6,7 @@
 componentizacao avanca:
 
 - paginas embarcadas via `components/tele_portal_assets`;
-- APIs base de status, logs, restart e Wi-Fi;
+- APIs base de status, configuracao, logs, restart e Wi-Fi;
 - captive portal HTTP/DNS;
 - utilitarios de body, JSON e arquivos via `components/tele_portal_core`;
 - buffer circular de logs via `components/tele_portal_logs`.
@@ -23,6 +23,8 @@ Componentes extraidos:
 - `tele_portal_core`: servidor HTTP, registro de rotas e helpers.
 - `tele_portal_assets`: paginas estaticas embarcadas.
 - `tele_portal_logs`: captura e endpoint de logs recentes.
+- `tele_portal_status`: `/api/status` e manifesto `/api/status/meta`.
+- `tele_portal_config`: rotas genericas HTTP sobre `tele_config`.
 
 ## Rotas base
 
@@ -38,12 +40,18 @@ Paginas:
 APIs:
 
 - `GET /api/status`
+- `GET /api/status/meta`
+- `GET /api/config/meta`
+- `POST /api/config/set`
+- `POST /api/config/reset`
+- `POST /api/config/apply-reboot`
 - `GET /api/logs`
 - `POST /api/restart`
 - `POST /api/wifi`
 - `GET /api/wifi/networks`
 - `GET/PUT/DELETE /api/wifi/saved`
 - `GET/POST /api/device/config`, registrada por `device_config_routes`
+  temporariamente para a pagina atual de settings
 - `GET/POST /api/ota/*`, registrada por `ota_portal`
 
 ## Contrato de status
@@ -57,9 +65,10 @@ APIs:
 - power-good (`components/tele_system`);
 - VBAT (`components/tele_system`).
 
-Estado de dominio futuro deve entrar em endpoint proprio, registrado via
-`web_portal_register_app_routes`, para manter o portal base sem conhecer regras
-do produto.
+O manifesto `GET /api/status/meta` vem de `tele_status` com campos marcados
+como `TELE_STATUS_FLAG_WEB`. Estado de dominio futuro deve entrar no registry
+`tele_status`, evitando endpoints especificos quando o dado puder ser descrito
+por manifesto.
 
 ## Fluxo de inicializacao
 

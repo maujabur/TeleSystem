@@ -355,7 +355,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Estado atual da conexao Wi-Fi.",
         .group = "network",
         .type = TELE_STATUS_TYPE_STRING,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.string = status_read_wifi_state,
     },
     {
@@ -364,7 +364,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se a rede esta pronta para uso.",
         .group = "network",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_wifi_ready,
     },
     {
@@ -373,7 +373,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Nome da rede Wi-Fi conectada.",
         .group = "network",
         .type = TELE_STATUS_TYPE_STRING,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.string = status_read_ssid,
     },
     {
@@ -382,7 +382,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Endereco IP atual.",
         .group = "network",
         .type = TELE_STATUS_TYPE_STRING,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.string = status_read_ip,
     },
     {
@@ -391,7 +391,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Intensidade do sinal Wi-Fi.",
         .group = "network",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "dBm",
         .read.i32 = status_read_rssi,
     },
@@ -402,7 +402,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .group = "power",
         .type = TELE_STATUS_TYPE_U32,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT |
-                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "mV",
         .read.u32 = status_read_vbat_mv,
     },
@@ -413,7 +413,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .group = "memory",
         .type = TELE_STATUS_TYPE_U32,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT |
-                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "bytes",
         .read.u32 = status_read_heap_free,
     },
@@ -424,7 +424,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT |
-                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+                 TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "s",
         .read.u32 = status_read_uptime_s,
     },
@@ -434,7 +434,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Intervalo configurado para heartbeat MQTT.",
         .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "s",
         .read.u32 = status_read_heartbeat_interval_s,
     },
@@ -444,7 +444,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se NTP/sincronismo de tempo esta pronto.",
         .group = "time",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_time_synchronized,
     },
     {
@@ -453,7 +453,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se o controle POWER_GOOD esta habilitado no firmware.",
         .group = "power",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_power_good_enabled,
     },
     {
@@ -462,7 +462,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "GPIO configurado para POWER_GOOD.",
         .group = "power",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.u32 = status_read_power_good_gpio,
     },
     {
@@ -471,7 +471,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Nivel logico ativo do POWER_GOOD.",
         .group = "power",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.u32 = status_read_power_good_active_level,
     },
     {
@@ -480,7 +480,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se o monitoramento de bateria esta habilitado.",
         .group = "power",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_vbat_enabled,
     },
     {
@@ -489,7 +489,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se o monitor VBAT foi inicializado.",
         .group = "power",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_vbat_initialized,
     },
     {
@@ -498,7 +498,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se a leitura VBAT esta usando calibracao ADC.",
         .group = "power",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_vbat_calibrated,
     },
     {
@@ -507,7 +507,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica modo de manutencao por bateria desconectada.",
         .group = "power",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_vbat_maintenance_mode,
     },
     {
@@ -516,7 +516,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "GPIO de leitura VBAT.",
         .group = "power",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.i32 = status_read_vbat_gpio,
     },
     {
@@ -525,7 +525,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Media bruta da leitura ADC de VBAT.",
         .group = "power",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.i32 = status_read_vbat_raw_avg,
     },
     {
@@ -534,7 +534,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Tensao medida diretamente no GPIO VBAT.",
         .group = "power",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "mV",
         .read.i32 = status_read_vbat_gpio_mv,
     },
@@ -544,7 +544,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Tensao estimada da bateria.",
         .group = "power",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "mV",
         .read.i32 = status_read_vbat_nested_mv,
     },
@@ -554,7 +554,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Quantidade de medicoes VBAT realizadas.",
         .group = "power",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.u32 = status_read_vbat_measurement_count,
     },
     {
@@ -563,7 +563,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se desligamento por bateria baixa esta habilitado.",
         .group = "power",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_vbat_shutdown_enabled,
     },
     {
@@ -572,7 +572,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Limiar de desligamento por bateria baixa.",
         .group = "power",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "mV",
         .read.i32 = status_read_vbat_shutdown_threshold_mv,
     },
@@ -582,7 +582,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Tempo de debounce para desligamento por bateria baixa.",
         .group = "power",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .unit = "ms",
         .read.i32 = status_read_vbat_shutdown_debounce_ms,
     },
@@ -592,7 +592,7 @@ static const tele_status_field_t s_common_status_fields[] = {
         .description = "Indica se o countdown de desligamento esta ativo.",
         .group = "power",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_vbat_shutdown_countdown_active,
     },
 };
