@@ -142,11 +142,24 @@ CAN e uma boa opcao para operacao local/industrial, mas nao deve tentar copiar
 o formato MQTT literalmente. O contrato logico e o mesmo; o framing precisa ser
 proprio para CAN.
 
+## Estado Atual
+
+- `examples/component_consumer_minimal` valida `tele_config`, `tele_status` e
+  `tele_commands` sem `tele_mqtt`.
+- `examples/component_consumer_mqtt` valida os mesmos contratos com `tele_mqtt`
+  como adaptador opcional.
+- `tele_config`, `tele_status`, `tele_commands` e `tele_mqtt` possuem
+  `idf_component.yml` proprio com metadados e dependencias externas.
+- Os exemplos usam `path:` para consumir os componentes locais e
+  `override_path:` para reaproveitar `managed_components` durante validacao
+  dentro deste repositorio.
+
 ## Proximas Acoes
 
-1. Validar que `tele_config`, `tele_status` e `tele_commands` compilam em um
-   projeto consumidor sem `tele_mqtt`.
-2. Adicionar metadados de Component Manager para os componentes publicados.
-3. Criar uma tag `lib-v0.1.0` quando a API estiver estavel o suficiente.
-4. Testar consumo em um segundo projeto antes de mover os componentes para um
+1. Revisar os metadados publicaveis dos componentes antes da primeira tag
+   (`license`, `description`, `repository`, `url`, `version`).
+2. Criar a tag `lib-v0.1.0` quando a API estiver estavel o suficiente para
+   consumo por outros projetos.
+3. Testar consumo em um segundo projeto usando os blocos `git` dos exemplos.
+4. Decidir se os componentes continuam neste repositorio ou migram para um
    repositorio compartilhado dedicado.

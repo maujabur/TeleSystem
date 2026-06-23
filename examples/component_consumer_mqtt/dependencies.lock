@@ -1,0 +1,73 @@
+dependencies:
+  espressif/cjson:
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    source:
+      path: ../../managed_components/espressif__cjson
+      type: local
+    version: 1.7.19~2
+  espressif/mqtt:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../managed_components/espressif__mqtt
+      type: local
+    version: 1.0.0
+  idf:
+    source:
+      type: idf
+    version: 6.2.0
+  tele_commands:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_commands
+      type: local
+    version: 0.1.0
+  tele_config:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_config
+      type: local
+    version: 0.1.0
+  tele_mqtt:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    - name: espressif/mqtt
+      version: '*'
+    source:
+      path: ../../components/tele_mqtt
+      type: local
+    version: 0.1.0
+  tele_status:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_status
+      type: local
+    version: 0.1.0
+direct_dependencies:
+- espressif/cjson
+- espressif/mqtt
+- tele_commands
+- tele_config
+- tele_mqtt
+- tele_status
+manifest_hash: b5224043d4bc639215439498021e33511b0f62ad241ffebc45120827fa399bf8
+target: esp32
+version: 3.0.0

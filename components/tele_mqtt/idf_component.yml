@@ -1,0 +1,10 @@
+dependencies:
+  idf: ">=5.3"
+  espressif/cjson: "^1.7.19"
+  espressif/mqtt: "*"
+
+description: MQTT transport adapter for TeleSystem config, status and command registries.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_mqtt
+version: 0.1.0

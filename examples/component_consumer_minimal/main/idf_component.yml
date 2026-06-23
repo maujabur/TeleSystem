@@ -1,0 +1,26 @@
+dependencies:
+  espressif/cjson:
+    version: "^1.7.19"
+    override_path: ../../../managed_components/espressif__cjson
+  tele_config:
+    path: ../../../components/tele_config
+  tele_status:
+    path: ../../../components/tele_status
+  tele_commands:
+    path: ../../../components/tele_commands
+
+  # Em um projeto externo, troque os paths locais por uma tag real:
+  # tele_config:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_config
+  #   version: lib-v0.1.0
+  #
+  # tele_status:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_status
+  #   version: lib-v0.1.0
+  #
+  # tele_commands:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_commands
+  #   version: lib-v0.1.0
