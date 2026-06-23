@@ -25,6 +25,7 @@ Componentes extraidos:
 - `tele_portal_logs`: captura e endpoint de logs recentes.
 - `tele_portal_status`: `/api/status` e manifesto `/api/status/meta`.
 - `tele_portal_config`: rotas genericas HTTP sobre `tele_config`.
+- `tele_portal_wifi`: rotas HTTP de credenciais, scan e redes salvas.
 
 ## Rotas base
 

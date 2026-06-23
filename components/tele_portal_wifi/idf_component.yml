@@ -1,0 +1,7 @@
+version: "0.1.0"
+description: TeleSystem reusable web portal Wi-Fi adapter
+dependencies:
+  idf: ">=5.0"
+  espressif/cjson:
+    version: "^1.7.19"
+    override_path: ../../managed_components/espressif__cjson

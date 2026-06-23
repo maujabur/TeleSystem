@@ -451,6 +451,30 @@ Depois de cada fase:
 
 ## Proximo Passo Recomendado
 
+Fase 4 executada em `0.3.29 TeleSystem portal wifi adapter`:
+
+- criado `components/tele_portal_wifi`;
+- movidas rotas `POST /api/wifi`, `GET /api/wifi/networks` e
+  `GET/PUT/DELETE /api/wifi/saved`;
+- movida a notificacao de atividade do portal para callback exposta por
+  `tele_portal_wifi`;
+- `components/tele_portal` deixou de depender diretamente de `tele_wifi`;
+- `components/tele_portal` segue como agregador temporario para assets, logs,
+  status, config, Wi-Fi, restart, captive portal e OTA.
+
+O proximo passo recomendado e decidir entre duas fatias:
+
+1. **Fase 5A: `tele_portal_captive`** - extrair `captive_portal.c`,
+   `dns_server.c` e Kconfig futuro de DNS captive.
+2. **Fase 5B: `tele_portal_ota`** - extrair OTA web por callbacks, reduzindo o
+   acoplamento com `firmware_ota`.
+
+Minha recomendacao e fazer primeiro **Fase 5A (`tele_portal_captive`)**, porque
+ela e menor e termina de tirar mais infraestrutura HTTP do agregador antes do
+recorte OTA.
+
+Historico da recomendacao anterior:
+
 Fatia pos-Fase 3 executada em `0.3.28 TeleSystem settings config manifest`:
 
 - `firmware_assets/web/settings.html` passou a ler `GET /api/config/meta`;
@@ -463,7 +487,7 @@ Fatia pos-Fase 3 executada em `0.3.28 TeleSystem settings config manifest`:
 - a pagina de settings continua visualmente equivalente, mas dirigida por
   manifesto.
 
-O proximo passo recomendado e executar somente a Fase 4:
+O passo recomendado naquele momento era executar a Fase 4:
 
 1. criar `components/tele_portal_wifi`;
 2. mover rotas `/api/wifi`, `/api/wifi/networks` e `/api/wifi/saved`;
