@@ -314,7 +314,7 @@ typedef esp_err_t (*tele_portal_ota_write_cb_t)(const void *data,
                                                 void *ctx);
 typedef esp_err_t (*tele_portal_ota_finalize_cb_t)(void *ctx);
 typedef void (*tele_portal_ota_abort_cb_t)(void *ctx);
-typedef cJSON *(*tele_portal_ota_status_cb_t)(void *ctx);
+typedef esp_err_t (*tele_portal_ota_status_cb_t)(cJSON *json, void *ctx);
 ```
 
 Resultado esperado:
@@ -451,6 +451,25 @@ Depois de cada fase:
 
 ## Proximo Passo Recomendado
 
+Fase 5B executada em `0.3.31 TeleSystem portal OTA adapter`:
+
+- criado `components/tele_portal_ota`;
+- movidos pagina `/ota` e endpoints `/api/ota/status` e `/api/ota/upload`;
+- removidos `ota_portal.c/.h` de `components/tele_portal`;
+- `tele_portal_ota` recebe callbacks de `begin/write/finalize/abort/status`;
+- o TeleSystem conecta esses callbacks em `firmware_ota` no `main`;
+- `components/tele_portal` deixou de depender de `tele_system` e de `cJSON`.
+
+O proximo passo recomendado e criar **Fase 6: exemplo consumidor do portal**:
+
+1. adicionar `examples/component_consumer_portal`;
+2. consumir `tele_portal_core` e um conjunto pequeno de adaptadores;
+3. registrar uma rota propria simples, como `GET /api/ping`;
+4. compilar o exemplo sem `tele_wifi`, sem `tele_mqtt` e sem `tele_system`;
+5. usar esse exemplo para validar a estrategia de Component Manager.
+
+Historico da recomendacao anterior:
+
 Fase 5A executada em `0.3.30 TeleSystem portal captive adapter`:
 
 - criado `components/tele_portal_captive`;
@@ -462,7 +481,7 @@ Fase 5A executada em `0.3.30 TeleSystem portal captive adapter`:
 - `components/tele_portal` segue como agregador temporario para assets, logs,
   status, config, Wi-Fi, restart e OTA.
 
-O proximo passo recomendado e executar **Fase 5B (`tele_portal_ota`)**:
+O proximo passo recomendado naquele momento era executar **Fase 5B (`tele_portal_ota`)**:
 
 1. criar `components/tele_portal_ota`;
 2. expor uma API baseada em callbacks para `begin/write/finalize/abort/status`;

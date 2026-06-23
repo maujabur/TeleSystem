@@ -8,14 +8,13 @@ componentizacao avanca:
 - paginas embarcadas via `components/tele_portal_assets`;
 - APIs base de status, configuracao, logs, restart e Wi-Fi;
 - captive portal HTTP/DNS via `components/tele_portal_captive`;
+- upload OTA via `components/tele_portal_ota`;
 - utilitarios de body, JSON e arquivos via `components/tele_portal_core`;
 - buffer circular de logs via `components/tele_portal_logs`.
 
 ## Arquivos principais
 
 - `web_portal.c/.h`: agregador temporario de rotas base e extensao por callbacks.
-- `ota_portal.c/.h`: pagina e APIs de upload OTA.
-
 Componentes extraidos:
 
 - `tele_portal_core`: servidor HTTP, registro de rotas e helpers.
@@ -25,6 +24,7 @@ Componentes extraidos:
 - `tele_portal_config`: rotas genericas HTTP sobre `tele_config`.
 - `tele_portal_wifi`: rotas HTTP de credenciais, scan e redes salvas.
 - `tele_portal_captive`: rotas de deteccao de captive portal, redirects e DNS local.
+- `tele_portal_ota`: pagina e endpoints OTA por callbacks.
 
 ## Rotas base
 
@@ -35,7 +35,7 @@ Paginas:
 - `/settings`
 - `/networks`
 - `/logs`
-- `/ota`, registrada por `ota_portal`
+- `/ota`, registrada por `tele_portal_ota`
 
 APIs:
 
@@ -50,7 +50,7 @@ APIs:
 - `POST /api/wifi`
 - `GET /api/wifi/networks`
 - `GET/PUT/DELETE /api/wifi/saved`
-- `GET/POST /api/ota/*`, registrada por `ota_portal`
+- `GET/POST /api/ota/*`, registrada por `tele_portal_ota`
 
 ## Contrato de status
 

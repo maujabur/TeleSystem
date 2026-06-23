@@ -1,0 +1,5 @@
+version: "0.1.0"
+description: TeleSystem reusable web OTA portal adapter
+dependencies:
+  idf: ">=5.0"
+  espressif/cjson: "^1.7.19"

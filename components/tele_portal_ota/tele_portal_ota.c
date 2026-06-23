@@ -1,12 +1,13 @@
 #include "cJSON.h"
 #include "esp_http_server.h"
-#include "esp_system.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
-#include "firmware_ota.h"
 #include "http_helpers.h"
-#include "web_portal.h"
+#include "tele_portal_core.h"
+#include "tele_portal_ota.h"
+
+#define TELE_PORTAL_OTA_DEFAULT_RESTART_DELAY_MS 1200
+
+static tele_portal_ota_config_t s_config;
 
 static const char *OTA_PAGE_HTML =
 "<!doctype html>"
@@ -43,11 +44,13 @@ static const char *OTA_PAGE_HTML =
 "</body>"
 "</html>";
 
-static void ota_restart_task(void *arg)
+static bool callbacks_ready(void)
 {
-    (void)arg;
-    vTaskDelay(pdMS_TO_TICKS(1200));
-    esp_restart();
+    return s_config.begin &&
+           s_config.write &&
+           s_config.finalize &&
+           s_config.abort &&
+           s_config.status;
 }
 
 static esp_err_t ota_page_get_handler(httpd_req_t *req)
@@ -58,24 +61,23 @@ static esp_err_t ota_page_get_handler(httpd_req_t *req)
 
 static esp_err_t api_ota_status_get_handler(httpd_req_t *req)
 {
-    firmware_ota_status_t status = {0};
     cJSON *json = cJSON_CreateObject();
 
     if (!json) {
         return ESP_ERR_NO_MEM;
     }
 
-    firmware_ota_get_status(&status);
-    cJSON_AddStringToObject(json, "state", firmware_ota_state_name(status.state));
-    cJSON_AddBoolToObject(json, "in_progress", status.in_progress);
-    cJSON_AddBoolToObject(json, "restart_pending", status.restart_pending);
-    cJSON_AddStringToObject(json, "current_version", status.current_version);
-    cJSON_AddStringToObject(json, "configured_url", status.url);
-    cJSON_AddStringToObject(json, "last_error", status.last_error);
-    cJSON_AddStringToObject(json, "running_partition", status.running_partition);
-    cJSON_AddStringToObject(json, "next_update_partition", status.next_update_partition);
+    esp_err_t err = ESP_ERR_INVALID_STATE;
+    if (s_config.status) {
+        err = s_config.status(json, s_config.ctx);
+    }
+    if (err != ESP_OK) {
+        cJSON_Delete(json);
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        return httpd_resp_sendstr(req, "Status OTA indisponivel");
+    }
 
-    esp_err_t err = http_helpers_send_json(req, json, 200);
+    err = http_helpers_send_json(req, json, 200);
     cJSON_Delete(json);
     return err;
 }
@@ -90,7 +92,12 @@ static esp_err_t api_ota_upload_post_handler(httpd_req_t *req)
         return httpd_resp_sendstr(req, "Body invalido");
     }
 
-    esp_err_t err = firmware_ota_upload_begin();
+    if (!callbacks_ready()) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        return httpd_resp_sendstr(req, "OTA nao configurado");
+    }
+
+    esp_err_t err = s_config.begin(s_config.ctx);
     if (err == ESP_ERR_INVALID_STATE) {
         httpd_resp_set_status(req, "409 Conflict");
         return httpd_resp_sendstr(req, "OTA ja esta em andamento");
@@ -108,14 +115,14 @@ static esp_err_t api_ota_upload_post_handler(httpd_req_t *req)
             continue;
         }
         if (received <= 0) {
-            firmware_ota_upload_abort();
+            s_config.abort(s_config.ctx);
             httpd_resp_set_status(req, "500 Internal Server Error");
             return httpd_resp_sendstr(req, "Falha durante upload do firmware");
         }
 
-        err = firmware_ota_upload_write(buffer, (size_t)received);
+        err = s_config.write(buffer, (size_t)received, s_config.ctx);
         if (err != ESP_OK) {
-            firmware_ota_upload_abort();
+            s_config.abort(s_config.ctx);
             httpd_resp_set_status(req, "500 Internal Server Error");
             return httpd_resp_sendstr(req, "Falha ao gravar particao OTA");
         }
@@ -123,14 +130,16 @@ static esp_err_t api_ota_upload_post_handler(httpd_req_t *req)
         remaining -= received;
     }
 
-    err = firmware_ota_upload_finalize();
+    err = s_config.finalize(s_config.ctx);
     if (err != ESP_OK) {
-        firmware_ota_upload_abort();
+        s_config.abort(s_config.ctx);
         httpd_resp_set_status(req, "500 Internal Server Error");
         return httpd_resp_sendstr(req, "Falha ao finalizar imagem OTA");
     }
 
-    (void)xTaskCreate(ota_restart_task, "ota_restart", 2048, NULL, 5, NULL);
+    tele_portal_core_request_restart(s_config.restart_delay_ms > 0 ?
+                                     s_config.restart_delay_ms :
+                                     TELE_PORTAL_OTA_DEFAULT_RESTART_DELAY_MS);
 
     return httpd_resp_sendstr(req, "Upload concluido. Reiniciando para ativar o novo firmware.");
 }
@@ -164,7 +173,18 @@ static esp_err_t register_ota_routes(httpd_handle_t server)
     return err;
 }
 
-esp_err_t ota_portal_register_with_portal(void)
+esp_err_t tele_portal_ota_init(const tele_portal_ota_config_t *config)
 {
-    return web_portal_register_app_routes(register_ota_routes);
+    if (!config || !config->begin || !config->write || !config->finalize ||
+        !config->abort || !config->status) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    s_config = *config;
+    return ESP_OK;
+}
+
+esp_err_t tele_portal_ota_register_routes(void)
+{
+    return tele_portal_core_register_routes(register_ota_routes);
 }
