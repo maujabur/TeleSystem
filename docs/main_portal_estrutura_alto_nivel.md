@@ -7,15 +7,13 @@ componentizacao avanca:
 
 - paginas embarcadas via `components/tele_portal_assets`;
 - APIs base de status, configuracao, logs, restart e Wi-Fi;
-- captive portal HTTP/DNS;
+- captive portal HTTP/DNS via `components/tele_portal_captive`;
 - utilitarios de body, JSON e arquivos via `components/tele_portal_core`;
 - buffer circular de logs via `components/tele_portal_logs`.
 
 ## Arquivos principais
 
 - `web_portal.c/.h`: agregador temporario de rotas base e extensao por callbacks.
-- `captive_portal.c/.h`: rotas de deteccao de captive portal e redirects.
-- `dns_server.c/.h`: DNS local usado no modo captive.
 - `ota_portal.c/.h`: pagina e APIs de upload OTA.
 
 Componentes extraidos:
@@ -26,6 +24,7 @@ Componentes extraidos:
 - `tele_portal_status`: `/api/status` e manifesto `/api/status/meta`.
 - `tele_portal_config`: rotas genericas HTTP sobre `tele_config`.
 - `tele_portal_wifi`: rotas HTTP de credenciais, scan e redes salvas.
+- `tele_portal_captive`: rotas de deteccao de captive portal, redirects e DNS local.
 
 ## Rotas base
 
@@ -74,7 +73,7 @@ por manifesto.
 1. `main` inicializa `tele_portal_logs`.
 2. `connectivity_controller` decide se o portal sobe em modo captive ou normal.
 3. `web_portal_start` registra rotas base.
-4. `captive_portal_register_handlers` adiciona rotas de deteccao.
+4. `tele_portal_captive_register_handlers` adiciona rotas de deteccao.
 5. Se `captive_mode=true`, o DNS local e iniciado.
 6. Registradores externos adicionam APIs opcionais.
 

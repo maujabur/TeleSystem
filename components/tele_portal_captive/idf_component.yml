@@ -1,0 +1,4 @@
+version: "0.1.0"
+description: TeleSystem reusable captive portal DNS adapter
+dependencies:
+  idf: ">=5.0"

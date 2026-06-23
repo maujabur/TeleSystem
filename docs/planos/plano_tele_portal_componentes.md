@@ -451,6 +451,27 @@ Depois de cada fase:
 
 ## Proximo Passo Recomendado
 
+Fase 5A executada em `0.3.30 TeleSystem portal captive adapter`:
+
+- criado `components/tele_portal_captive`;
+- movidas rotas de deteccao de captive portal para
+  `tele_portal_captive_register_handlers`;
+- movido DNS captive para o novo componente;
+- `components/tele_portal` deixou de conter `captive_portal.c` e
+  `dns_server.c`;
+- `components/tele_portal` segue como agregador temporario para assets, logs,
+  status, config, Wi-Fi, restart e OTA.
+
+O proximo passo recomendado e executar **Fase 5B (`tele_portal_ota`)**:
+
+1. criar `components/tele_portal_ota`;
+2. expor uma API baseada em callbacks para `begin/write/finalize/abort/status`;
+3. mover `ota_portal.c/.h` para esse componente;
+4. adaptar o TeleSystem para conectar esses callbacks em `firmware_ota`;
+5. manter `/ota` e `/api/ota/*` funcionando como hoje.
+
+Historico da recomendacao anterior:
+
 Fase 4 executada em `0.3.29 TeleSystem portal wifi adapter`:
 
 - criado `components/tele_portal_wifi`;
@@ -462,14 +483,14 @@ Fase 4 executada em `0.3.29 TeleSystem portal wifi adapter`:
 - `components/tele_portal` segue como agregador temporario para assets, logs,
   status, config, Wi-Fi, restart, captive portal e OTA.
 
-O proximo passo recomendado e decidir entre duas fatias:
+O proximo passo recomendado naquele momento era decidir entre duas fatias:
 
 1. **Fase 5A: `tele_portal_captive`** - extrair `captive_portal.c`,
    `dns_server.c` e Kconfig futuro de DNS captive.
 2. **Fase 5B: `tele_portal_ota`** - extrair OTA web por callbacks, reduzindo o
    acoplamento com `firmware_ota`.
 
-Minha recomendacao e fazer primeiro **Fase 5A (`tele_portal_captive`)**, porque
+Minha recomendacao naquele momento foi fazer primeiro **Fase 5A (`tele_portal_captive`)**, porque
 ela e menor e termina de tirar mais infraestrutura HTTP do agregador antes do
 recorte OTA.
 

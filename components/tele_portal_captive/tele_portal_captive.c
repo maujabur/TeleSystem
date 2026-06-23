@@ -1,4 +1,4 @@
-#include "captive_portal.h"
+#include "tele_portal_captive.h"
 
 #include <stddef.h>
 
@@ -11,7 +11,7 @@
 static const char *CAPTIVE_PORTAL_BASE_URL = "http://192.168.42.1/";
 
 static bool s_captive_mode;
-static captive_portal_root_handler_fn s_root_handler;
+static tele_portal_captive_root_handler_fn s_root_handler;
 
 static esp_err_t captive_redirect_handler(httpd_req_t *req)
 {
@@ -50,8 +50,8 @@ static esp_err_t register_redirect_route(httpd_handle_t server, const char *uri)
     return httpd_register_uri_handler(server, &route);
 }
 
-esp_err_t captive_portal_register_handlers(httpd_handle_t server,
-                                           captive_portal_root_handler_fn root_handler)
+esp_err_t tele_portal_captive_register_handlers(httpd_handle_t server,
+                                                tele_portal_captive_root_handler_fn root_handler)
 {
     static const char *uris[] = {
         "/generate_204",
@@ -86,7 +86,7 @@ esp_err_t captive_portal_register_handlers(httpd_handle_t server,
     return ESP_OK;
 }
 
-esp_err_t captive_portal_set_enabled(bool enabled)
+esp_err_t tele_portal_captive_set_enabled(bool enabled)
 {
     s_captive_mode = enabled;
 
@@ -99,7 +99,7 @@ esp_err_t captive_portal_set_enabled(bool enabled)
     return dns_server_start(portal_ip);
 }
 
-esp_err_t captive_portal_stop(void)
+esp_err_t tele_portal_captive_stop(void)
 {
     s_captive_mode = false;
     return dns_server_stop();

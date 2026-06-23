@@ -6,8 +6,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "captive_portal.h"
 #include "tele_portal_assets.h"
+#include "tele_portal_captive.h"
 #include "tele_portal_config.h"
 #include "tele_portal_core.h"
 #include "tele_portal_logs.h"
@@ -125,7 +125,7 @@ static esp_err_t register_base_routes(httpd_handle_t server)
         return err;
     }
 
-    err = captive_portal_register_handlers(server, tele_portal_assets_root_handler);
+    err = tele_portal_captive_register_handlers(server, tele_portal_assets_root_handler);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar rotas de captive portal: %s", esp_err_to_name(err));
         return err;
@@ -154,7 +154,7 @@ esp_err_t web_portal_start(bool captive_mode)
         return err;
     }
 
-    err = captive_portal_set_enabled(captive_mode);
+    err = tele_portal_captive_set_enabled(captive_mode);
     if (err != ESP_OK) {
         (void)tele_portal_core_stop();
         return err;
@@ -170,7 +170,7 @@ esp_err_t web_portal_stop(void)
         return ESP_OK;
     }
 
-    captive_portal_stop();
+    tele_portal_captive_stop();
     return tele_portal_core_stop();
 }
 
