@@ -6,6 +6,7 @@
 
 #include "device_config_store.h"
 #include "tele_config.h"
+#include "wifi_manager.h"
 
 #ifndef CONFIG_WIFI_PROVISIONING_SSID
 #define CONFIG_WIFI_PROVISIONING_SSID "ESP32-Device"
@@ -74,6 +75,59 @@ static const tele_config_field_t s_device_config_fields[] = {
 
 static bool s_fields_registered;
 
+static esp_err_t apply_device_config_field(const tele_config_field_t *field,
+                                           const tele_config_value_t *value,
+                                           void *ctx)
+{
+    (void)ctx;
+
+    if (!field || !value) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (strcmp(field->id, DEVICE_CONFIG_ID_PROVISIONING_SSID) == 0) {
+        return wifi_manager_set_provisioning_ssid(value->string);
+    }
+    if (strcmp(field->id, DEVICE_CONFIG_ID_STA_MAX_RETRY) == 0) {
+        return wifi_manager_set_sta_max_retry((int)value->u32);
+    }
+    if (strcmp(field->id, DEVICE_CONFIG_ID_APSTA_POLICY) == 0 ||
+        strcmp(field->id, DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S) == 0) {
+        tele_config_value_t policy_value = {0};
+        tele_config_value_t grace_value = {0};
+        esp_err_t err = ESP_OK;
+
+        err = tele_config_get_effective(DEVICE_CONFIG_ID_APSTA_POLICY,
+                                        &policy_value,
+                                        NULL,
+                                        0,
+                                        NULL);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        err = tele_config_get_effective(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S,
+                                        &grace_value,
+                                        NULL,
+                                        0,
+                                        NULL);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        if (strcmp(field->id, DEVICE_CONFIG_ID_APSTA_POLICY) == 0) {
+            policy_value.i32 = value->i32;
+        } else {
+            grace_value.u32 = value->u32;
+        }
+
+        return wifi_manager_set_apsta_policy((wifi_manager_apsta_policy_t)policy_value.i32,
+                                             grace_value.u32);
+    }
+
+    return ESP_OK;
+}
+
 static bool apsta_policy_valid(device_config_apsta_policy_t policy)
 {
     return policy == DEVICE_CONFIG_APSTA_ALWAYS_ON ||
@@ -91,6 +145,18 @@ static esp_err_t ensure_fields_registered(void)
                                                 sizeof(s_device_config_fields) /
                                                     sizeof(s_device_config_fields[0]));
     if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+        (void)tele_config_set_apply_handler(DEVICE_CONFIG_ID_PROVISIONING_SSID,
+                                            apply_device_config_field,
+                                            NULL);
+        (void)tele_config_set_apply_handler(DEVICE_CONFIG_ID_STA_MAX_RETRY,
+                                            apply_device_config_field,
+                                            NULL);
+        (void)tele_config_set_apply_handler(DEVICE_CONFIG_ID_APSTA_POLICY,
+                                            apply_device_config_field,
+                                            NULL);
+        (void)tele_config_set_apply_handler(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S,
+                                            apply_device_config_field,
+                                            NULL);
         s_fields_registered = true;
         return ESP_OK;
     }

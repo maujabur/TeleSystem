@@ -1,7 +1,6 @@
 set(MAIN_SRCS
     "main.c"
     "connectivity/connectivity_controller.c"
-    "connectivity/device_config_routes.c"
 )
 
 idf_component_register(

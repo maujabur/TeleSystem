@@ -4,7 +4,6 @@
 #include "nvs_flash.h"
 
 #include "connectivity_controller.h"
-#include "device_config_routes.h"
 #include "firmware_ota.h"
 #include "firmware_version.h"
 #include "mqtt_presence.h"
@@ -117,7 +116,6 @@ void app_main(void)
 
     ESP_ERROR_CHECK(firmware_ota_init());
     ESP_ERROR_CHECK(ota_portal_register_with_portal());
-    ESP_ERROR_CHECK(device_config_routes_register_with_portal());
     ESP_ERROR_CHECK(connectivity_controller_start());
     ESP_ERROR_CHECK(mqtt_presence_start());
 }

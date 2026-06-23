@@ -226,6 +226,7 @@
               <input id="wifiApstaGrace" type="number" min="30" max="3600" value="600">
             </div>
             <button type="button" onclick="saveDeviceConnectivity()">Salvar conectividade</button>
+            <button class="secondary" type="button" onclick="resetDeviceConnectivity()">Reset defaults</button>
           </div>
           <div class="readout" id="wifiReadout">Wi-Fi: --</div>
         </div>
@@ -243,6 +244,15 @@
     </main>
 
     <script>
+      const CONFIG_IDS = {
+        provisioningSsid: "wifi.provisioning_ssid",
+        staMaxRetry: "wifi.sta_max_retry",
+        apstaPolicy: "wifi.apsta_policy",
+        apstaGrace: "wifi.apsta_grace_period_s",
+      };
+
+      let configFieldsById = {};
+
       function showBanner(kind, text) {
         const el = document.getElementById("banner");
         el.className = "banner show " + kind;
@@ -253,18 +263,49 @@
         return JSON.stringify(String(value || ""));
       }
 
-      function buildMenuconfigDefaults(deviceData) {
+      function fieldValue(id, fallback) {
+        const field = configFieldsById[id] || {};
+        if (field.value_hidden) {
+          return fallback;
+        }
+        return field.value !== undefined ? field.value : fallback;
+      }
+
+      function fieldDefault(id, fallback) {
+        const field = configFieldsById[id] || {};
+        if (field.default_hidden) {
+          return fallback;
+        }
+        return field.default !== undefined ? field.default : fallback;
+      }
+
+      function fieldNumber(id, fallback) {
+        return Number(fieldValue(id, fallback));
+      }
+
+      function fieldString(id, fallback) {
+        return String(fieldValue(id, fallback) || "");
+      }
+
+      function fieldHasFlag(field, flag) {
+        return Array.isArray(field && field.flags) &&
+          field.flags.some((entry) => entry && entry.flag === flag);
+      }
+
+      function buildMenuconfigDefaults() {
         const lines = [
           "# Exportado por /settings",
-          "CONFIG_WIFI_STA_MAX_RETRY=" + Math.round(Number(deviceData.sta_max_retry || 0)),
-          "CONFIG_WIFI_APSTA_POLICY=" + Math.round(Number(deviceData.apsta_policy || 0)),
-          "CONFIG_WIFI_APSTA_GRACE_PERIOD_S=" + Math.round(Number(deviceData.apsta_grace_period_s || 0)),
+          "CONFIG_WIFI_STA_MAX_RETRY=" + Math.round(fieldNumber(CONFIG_IDS.staMaxRetry, 0)),
+          "CONFIG_WIFI_APSTA_POLICY=" + Math.round(fieldNumber(CONFIG_IDS.apstaPolicy, 0)),
+          "CONFIG_WIFI_APSTA_GRACE_PERIOD_S=" + Math.round(fieldNumber(CONFIG_IDS.apstaGrace, 0)),
         ];
 
-        if (deviceData.provisioning_ssid_hidden) {
+        const ssidField = configFieldsById[CONFIG_IDS.provisioningSsid] || {};
+        const provisioningSsid = fieldString(CONFIG_IDS.provisioningSsid, "");
+        if (ssidField.value_hidden) {
           lines.push("# CONFIG_WIFI_PROVISIONING_SSID oculto por politica de build");
-        } else if (deviceData.provisioning_ssid) {
-          lines.push("CONFIG_WIFI_PROVISIONING_SSID=" + sdkconfigString(deviceData.provisioning_ssid));
+        } else if (provisioningSsid) {
+          lines.push("CONFIG_WIFI_PROVISIONING_SSID=" + sdkconfigString(provisioningSsid));
         }
 
         return {
@@ -287,25 +328,26 @@
 
       async function exportSettings() {
         try {
-          const [deviceResp, statusResp] = await Promise.all([
-            fetch("/api/device/config", { cache: "no-store" }),
+          const [configResp, statusResp] = await Promise.all([
+            fetch("/api/config/meta", { cache: "no-store" }),
             fetch("/api/status", { cache: "no-store" }),
           ]);
 
-          if (!deviceResp.ok || !statusResp.ok) {
+          if (!configResp.ok || !statusResp.ok) {
             throw new Error("export");
           }
 
-          const deviceData = await deviceResp.json();
+          const configData = await configResp.json();
           const statusData = await statusResp.json();
-          const menuconfig = buildMenuconfigDefaults(deviceData);
+          indexConfigFields(configData);
+          const menuconfig = buildMenuconfigDefaults();
           const timestamp = new Date().toISOString();
           const safeTimestamp = timestamp.replace(/[:.]/g, "-");
           const exportPayload = {
             exported_at: timestamp,
             source: "/settings",
             firmware_version: statusData.firmware_version || "--",
-            device_connectivity: deviceData,
+            config_manifest: configData,
             menuconfig_defaults_preview: menuconfig.lines,
             menuconfig_defaults_text: menuconfig.text,
           };
@@ -317,32 +359,78 @@
         }
       }
 
+      function indexConfigFields(configData) {
+        configFieldsById = {};
+        (configData.fields || []).forEach((field) => {
+          if (field && field.id) {
+            configFieldsById[field.id] = field;
+          }
+        });
+      }
+
+      function renderApstaChoices(field) {
+        const select = document.getElementById("wifiApstaPolicy");
+        const choices = Array.isArray(field && field.choices) ? field.choices : [];
+        if (!choices.length) {
+          return;
+        }
+
+        select.innerHTML = "";
+        choices.forEach((choice) => {
+          const option = document.createElement("option");
+          option.value = String(choice.value);
+          option.textContent = choice.label || String(choice.value);
+          select.appendChild(option);
+        });
+      }
+
+      function clampNumber(value, min, max, fallback) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+          return fallback;
+        }
+        return Math.max(min, Math.min(max, parsed));
+      }
+
       async function loadAll() {
         try {
-          const [deviceResp, statusResp] = await Promise.all([
-            fetch("/api/device/config", { cache: "no-store" }),
+          const [configResp, statusResp] = await Promise.all([
+            fetch("/api/config/meta", { cache: "no-store" }),
             fetch("/api/status", { cache: "no-store" }),
           ]);
 
-          if (!deviceResp.ok || !statusResp.ok) {
+          if (!configResp.ok || !statusResp.ok) {
             throw new Error("load");
           }
 
-          const device = await deviceResp.json();
+          const configData = await configResp.json();
           const status = await statusResp.json();
+          indexConfigFields(configData);
+
+          const ssidField = configFieldsById[CONFIG_IDS.provisioningSsid] || {};
+          const retryField = configFieldsById[CONFIG_IDS.staMaxRetry] || {};
+          const policyField = configFieldsById[CONFIG_IDS.apstaPolicy] || {};
+          const graceField = configFieldsById[CONFIG_IDS.apstaGrace] || {};
+
+          renderApstaChoices(policyField);
 
           document.getElementById("settingsStatus").textContent =
             "Ultima atualizacao: " + new Date().toLocaleTimeString();
-          document.getElementById("wifiProvisioningSsid").value = device.provisioning_ssid || "";
-          document.getElementById("wifiProvisioningSsid").disabled = !!device.provisioning_ssid_hidden;
+          document.getElementById("wifiProvisioningSsid").value = fieldString(CONFIG_IDS.provisioningSsid, "");
+          document.getElementById("wifiProvisioningSsid").disabled =
+            !!ssidField.value_hidden || fieldHasFlag(ssidField, "read_only");
           document.getElementById("wifiProvisioningSsid").placeholder =
-            device.provisioning_ssid_hidden ? "Oculto por politica de build" : "";
-          document.getElementById("wifiStaMaxRetry").value = Number(device.sta_max_retry || 3);
+            ssidField.value_hidden ? "Oculto por politica de build" : "";
+          document.getElementById("wifiStaMaxRetry").min = retryField.min !== undefined ? retryField.min : 1;
+          document.getElementById("wifiStaMaxRetry").max = retryField.max !== undefined ? retryField.max : 20;
+          document.getElementById("wifiStaMaxRetry").value = fieldNumber(CONFIG_IDS.staMaxRetry, 3);
           document.getElementById("wifiApstaPolicy").value =
-            String(device.apsta_policy !== undefined ? device.apsta_policy : 1);
-          document.getElementById("wifiApstaGrace").value = Number(device.apsta_grace_period_s || 600);
+            String(fieldValue(CONFIG_IDS.apstaPolicy, 1));
+          document.getElementById("wifiApstaGrace").min = graceField.min !== undefined ? graceField.min : 30;
+          document.getElementById("wifiApstaGrace").max = graceField.max !== undefined ? graceField.max : 3600;
+          document.getElementById("wifiApstaGrace").value = fieldNumber(CONFIG_IDS.apstaGrace, 600);
           document.getElementById("wifiReadout").textContent =
-            "Provisioning SSID " + (device.provisioning_ssid_hidden ? "oculto" : (device.provisioning_ssid || "--")) +
+            "Provisioning SSID " + (ssidField.value_hidden ? "oculto" : (fieldString(CONFIG_IDS.provisioningSsid, "") || "--")) +
             " | retry " + Number(status.wifi_sta_max_retry || 0) +
             " | politica APSTA " + Number(status.wifi_apsta_policy || 0) +
             " | grace " + Number(status.wifi_apsta_grace_period_s || 0) + " s";
@@ -355,31 +443,94 @@
         }
       }
 
+      async function setConfigValue(id, value) {
+        const resp = await fetch("/api/config/set", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, value }),
+        });
+        const result = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(result.error || "config_set_failed");
+        }
+        return result;
+      }
+
+      async function resetConfigValue(id) {
+        const resp = await fetch("/api/config/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        const result = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(result.error || "config_reset_failed");
+        }
+        return result;
+      }
+
       async function saveDeviceConnectivity() {
         const provisioningSsid = document.getElementById("wifiProvisioningSsid").value.trim();
-        const payload = {
-          sta_max_retry: Math.max(1, Math.min(20, Number(document.getElementById("wifiStaMaxRetry").value || 3))),
-          apsta_policy: Number(document.getElementById("wifiApstaPolicy").value || 1),
-          apsta_grace_period_s: Math.max(30,
-                                         Math.min(3600,
-                                                  Number(document.getElementById("wifiApstaGrace").value || 600))),
-        };
+        const retryField = configFieldsById[CONFIG_IDS.staMaxRetry] || {};
+        const graceField = configFieldsById[CONFIG_IDS.apstaGrace] || {};
+        const updates = [
+          [CONFIG_IDS.staMaxRetry,
+           Math.round(clampNumber(document.getElementById("wifiStaMaxRetry").value,
+                                  retryField.min !== undefined ? retryField.min : 1,
+                                  retryField.max !== undefined ? retryField.max : 20,
+                                  fieldDefault(CONFIG_IDS.staMaxRetry, 3)))],
+          [CONFIG_IDS.apstaPolicy, Number(document.getElementById("wifiApstaPolicy").value || 1)],
+          [CONFIG_IDS.apstaGrace,
+           Math.round(clampNumber(document.getElementById("wifiApstaGrace").value,
+                                  graceField.min !== undefined ? graceField.min : 30,
+                                  graceField.max !== undefined ? graceField.max : 3600,
+                                  fieldDefault(CONFIG_IDS.apstaGrace, 600)))],
+        ];
 
-        if (provisioningSsid) {
-          payload.provisioning_ssid = provisioningSsid;
+        if (provisioningSsid && !document.getElementById("wifiProvisioningSsid").disabled) {
+          updates.unshift([CONFIG_IDS.provisioningSsid, provisioningSsid]);
         }
 
         try {
-          const resp = await fetch("/api/device/config", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const text = await resp.text();
-          showBanner(resp.ok ? "ok" : "error", resp.ok ? "Conectividade salva." : text);
+          const results = [];
+          for (const [id, value] of updates) {
+            results.push(await setConfigValue(id, value));
+          }
+          const requiresReboot = results.some((result) => result.requires_reboot);
+          showBanner("ok",
+                     requiresReboot ?
+                     "Conectividade salva. Alguns campos recomendam reboot." :
+                     "Conectividade salva.");
           loadAll();
         } catch (err) {
-          showBanner("error", "Falha ao salvar conectividade.");
+          showBanner("error", "Falha ao salvar conectividade: " + (err.message || "--"));
+        }
+      }
+
+      async function resetDeviceConnectivity() {
+        if (!confirm("Restaurar defaults de conectividade?")) {
+          return;
+        }
+
+        try {
+          const ids = [
+            CONFIG_IDS.provisioningSsid,
+            CONFIG_IDS.staMaxRetry,
+            CONFIG_IDS.apstaPolicy,
+            CONFIG_IDS.apstaGrace,
+          ];
+          const results = [];
+          for (const id of ids) {
+            results.push(await resetConfigValue(id));
+          }
+          const requiresReboot = results.some((result) => result.requires_reboot);
+          showBanner("ok",
+                     requiresReboot ?
+                     "Defaults restaurados. Alguns campos recomendam reboot." :
+                     "Defaults restaurados.");
+          loadAll();
+        } catch (err) {
+          showBanner("error", "Falha ao restaurar defaults: " + (err.message || "--"));
         }
       }
 

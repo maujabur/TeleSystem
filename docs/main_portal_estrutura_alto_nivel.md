@@ -50,8 +50,6 @@ APIs:
 - `POST /api/wifi`
 - `GET /api/wifi/networks`
 - `GET/PUT/DELETE /api/wifi/saved`
-- `GET/POST /api/device/config`, registrada por `device_config_routes`
-  temporariamente para a pagina atual de settings
 - `GET/POST /api/ota/*`, registrada por `ota_portal`
 
 ## Contrato de status

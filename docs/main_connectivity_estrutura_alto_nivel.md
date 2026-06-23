@@ -71,21 +71,19 @@ Funcoes publicas:
 - device_config_store_load_apsta_policy
 - device_config_store_save_apsta_policy
 
-### device_config_routes.c / device_config_routes.h
+### Configuracao via tele_config
 
-Rotas HTTP para configuracao de dispositivo (pagina e API JSON).
+As configuracoes de conectividade sao registradas em `tele_config` por
+`device_config_store`. A interface web usa as rotas genericas de
+`tele_portal_config`:
 
-- Serve pagina /device-config a partir do storage.
-- Le/atualiza SSID de provisionamento via /api/device/config.
-- Le/atualiza retry maximo de STA via /api/device/config.
-- Le/atualiza politica APSTA e janela de grace via /api/device/config.
-- aplica hardening de resposta: detalhes internos de erro HTTP podem ficar ocultos por default em builds de release.
-- pode ocultar provisioning_ssid no payload de GET por configuracao de build.
-- Registra rotas no web portal.
+- `GET /api/config/meta`
+- `POST /api/config/set`
+- `POST /api/config/reset`
 
-Funcao publica:
-
-- device_config_routes_register_with_portal
+`device_config_store` tambem registra callbacks de apply para que mudancas de
+SSID de provisionamento, retry STA e politica APSTA possam ser aplicadas em
+runtime quando o `wifi_manager` permite.
 
 ### components/status_led
 
@@ -174,9 +172,11 @@ Fluxo de estado Wi-Fi:
 
 Fluxo de provisionamento:
 
-1. Cliente HTTP envia configuracao (rotas de device_config_routes).
-2. Dados sao validados e persistidos em device_config_store.
-3. Em fluxo Wi-Fi (credenciais), wifi_manager_apply_wifi_credentials persiste em wifi_config e reinicia conexao STA.
+1. Cliente HTTP envia configuracao via `tele_portal_config`.
+2. Dados sao validados e persistidos por `tele_config`.
+3. `device_config_store` aplica callbacks runtime no `wifi_manager` quando
+   possivel.
+4. Em fluxo Wi-Fi (credenciais), wifi_manager_apply_wifi_credentials persiste em wifi_config e reinicia conexao STA.
 
 ## Mecanismos de comunicacao e disparo
 
@@ -266,7 +266,7 @@ main/connectivity esta organizado em camadas claras:
 - controle/orquestracao: connectivity_controller
 - nucleo de estado/rede: wifi_manager
 - persistencia: wifi_config e device_config_store
-- interface web: device_config_routes
+- interface web: tele_portal_config
 - observabilidade local: status_led
 - gatilho de boot: boot_config_button
 

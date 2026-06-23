@@ -137,8 +137,8 @@ Dependencias:
 - `tele_config`;
 - `cJSON`.
 
-Este adaptador substitui a parte de Wi-Fi que hoje esta espalhada entre
-`web_portal.c` e `main/connectivity/device_config_routes.c`.
+Este adaptador substitui a parte de Wi-Fi que hoje ainda esta no agregador
+`web_portal.c`.
 
 ### 5. `tele_portal_ota`
 
@@ -451,6 +451,28 @@ Depois de cada fase:
 
 ## Proximo Passo Recomendado
 
+Fatia pos-Fase 3 executada em `0.3.28 TeleSystem settings config manifest`:
+
+- `firmware_assets/web/settings.html` passou a ler `GET /api/config/meta`;
+- salvamento de conectividade passou a usar `POST /api/config/set`;
+- reset de defaults passou a usar `POST /api/config/reset`;
+- `main/connectivity/device_config_routes.c/.h` foi removido do build;
+- `device_config_routes_register_with_portal()` foi removido de `main`;
+- `device_config_store` agora registra callbacks runtime de `tele_config` para
+  SSID de provisionamento, retry STA e politica APSTA;
+- a pagina de settings continua visualmente equivalente, mas dirigida por
+  manifesto.
+
+O proximo passo recomendado e executar somente a Fase 4:
+
+1. criar `components/tele_portal_wifi`;
+2. mover rotas `/api/wifi`, `/api/wifi/networks` e `/api/wifi/saved`;
+3. mover o callback de atividade Wi-Fi para o adaptador;
+4. deixar `components/tele_portal` ainda menor como agregador temporario;
+5. compilar e validar portal normal/captive quando houver hardware.
+
+Historico da recomendacao anterior para Fase 3:
+
 Fase 3 executada em `0.3.27 TeleSystem portal status config adapters`:
 
 - criado `components/tele_portal_status`;
@@ -462,18 +484,9 @@ Fase 3 executada em `0.3.27 TeleSystem portal status config adapters`:
   `POST /api/config/apply-reboot` expõem `tele_config` por HTTP;
 - campos comuns de status passaram a marcar tambem `TELE_STATUS_FLAG_WEB`;
 - `components/tele_portal` continua como agregador temporario;
-- a rota antiga `GET/POST /api/device/config` permanece por compatibilidade com
-  `settings.html` ate a proxima fatia de migracao da UI;
+- a rota antiga `GET/POST /api/device/config` permaneceu temporariamente para
+  compatibilidade com `settings.html`;
 - `idf.py build` passou gerando `build/TeleSystem.bin`.
-
-O proximo passo recomendado e migrar `firmware_assets/web/settings.html` para as
-rotas genericas de `tele_portal_config`:
-
-1. trocar leitura de `/api/device/config` por `/api/config/meta`;
-2. trocar salvamento por `/api/config/set` e reset por `/api/config/reset`;
-3. remover `main/connectivity/device_config_routes.c` do fluxo;
-4. retirar o registro `device_config_routes_register_with_portal()` de `main`;
-5. manter a pagina visualmente equivalente, mas dirigida por manifest.
 
 Historico da recomendacao anterior para Fase 2:
 
