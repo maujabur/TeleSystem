@@ -1,4 +1,8 @@
-version: "0.1.0"
-description: TeleSystem reusable captive portal DNS adapter
 dependencies:
-  idf: ">=5.0"
+  idf: ">=5.3"
+
+description: Captive portal redirect and DNS adapter for TeleSystem portal components.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_portal_captive
+version: 0.1.0

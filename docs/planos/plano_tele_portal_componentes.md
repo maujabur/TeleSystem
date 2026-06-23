@@ -451,6 +451,41 @@ Depois de cada fase:
 
 ## Proximo Passo Recomendado
 
+Fase 7 executada:
+
+- manifests dos componentes `tele_portal_*` foram padronizados;
+- `override_path` foi removido dos manifests publicaveis dos componentes;
+- dependencias externas foram mantidas nos manifests; dependencias internas
+  seguem no `CMakeLists.txt` e nos exemplos consumidores para evitar buscas no
+  registry durante builds locais offline;
+- `tele_system` e `tele_wifi` receberam manifests proprios porque sao
+  dependencias de adaptadores de portal;
+- `docs/estrategia_component_manager.md` foi atualizado com consumo do portal
+  por Component Manager;
+- os exemplos consumidores validam a resolucao local desses manifests.
+
+Fase 8 executada como verificacao da Fase 7:
+
+- compilado firmware principal;
+- compilado `examples/component_consumer_minimal`;
+- compilado `examples/component_consumer_mqtt`;
+- compilado `examples/component_consumer_portal`;
+- ajustado lock gerado pelo Component Manager.
+
+O proximo passo recomendado e **Fase 9: validar consumo externo limpo e preparar
+tag candidata**:
+
+1. criar um consumidor limpo fora do firmware principal, usando os blocos
+   `git/path/version` documentados;
+2. validar o consumo de combinacoes independentes: core/config/status,
+   core/config/status/mqtt e core/portal/logs;
+3. revisar se `tele_system` e `tele_wifi` devem continuar como componentes
+   consumiveis ou se precisam de uma separacao ainda mais generica;
+4. preparar uma tag candidata `lib-v0.1.0` quando a API publica estiver
+   suficientemente estavel.
+
+Historico da recomendacao anterior:
+
 Fase 6 executada:
 
 - criado `examples/component_consumer_portal`;
@@ -461,7 +496,7 @@ Fase 6 executada:
 - serve como prova local de consumo dos componentes de portal fora do firmware
   TeleSystem.
 
-O proximo passo recomendado e **Fase 7: preparar consumo externo por Component
+O proximo passo recomendado naquele momento era **Fase 7: preparar consumo externo por Component
 Manager**:
 
 1. revisar `idf_component.yml` dos componentes de portal extraidos;

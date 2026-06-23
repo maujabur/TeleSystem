@@ -22,8 +22,14 @@ serial, BLE, CAN bus, testes automatizados ou ferramentas locais.
 Adaptadores expoem os contratos por um transporte ou UI especifica:
 
 - `tele_mqtt`: publica config/status/commands via MQTT;
-- `tele_portal`: pode evoluir para renderizar partes de config/status/commands
-  via HTTP/web;
+- `tele_portal_core`: servidor HTTP generico, registro de rotas e callbacks;
+- `tele_portal_logs`: captura logs em memoria e expoe endpoint HTTP opcional;
+- `tele_portal_config`: expoe `tele_config` via HTTP;
+- `tele_portal_status`: expoe `tele_status` e status tecnico via HTTP;
+- `tele_portal_wifi`: expoe configuracao e scan Wi-Fi via HTTP;
+- `tele_portal_captive`: redirects e DNS para captive portal;
+- `tele_portal_ota`: upload OTA web por callbacks;
+- `tele_portal`: agregador local do TeleSystem enquanto a migracao avanca;
 - futuro `tele_can`: poderia mapear config/status/commands para CAN bus;
 - futuro console serial ou BLE pode seguir o mesmo principio.
 
@@ -93,6 +99,55 @@ dependencies:
 Os nomes de tag acima sao uma proposta. Antes de publicar, o repositorio deve
 criar uma tag real e estavel para o conjunto de componentes.
 
+Para usar apenas o nucleo HTTP do portal, sem Wi-Fi, MQTT, OTA ou componentes
+de produto:
+
+```yaml
+dependencies:
+  tele_portal_core:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_portal_core
+    version: lib-v0.1.0
+
+  tele_portal_logs:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_portal_logs
+    version: lib-v0.1.0
+```
+
+Para montar um portal mais completo, o consumidor declara somente os
+adaptadores que usa. Por exemplo, status/config por HTTP:
+
+```yaml
+dependencies:
+  tele_config:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_config
+    version: lib-v0.1.0
+
+  tele_status:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_status
+    version: lib-v0.1.0
+
+  tele_portal_core:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_portal_core
+    version: lib-v0.1.0
+
+  tele_portal_config:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_portal_config
+    version: lib-v0.1.0
+```
+
+Enquanto os componentes vivem no mesmo repositorio multi-componente, a forma
+mais previsivel e declarar explicitamente no projeto consumidor os componentes
+internos que ele usa. Os `CMakeLists.txt` continuam expressando o grafo real de
+compilacao; os `idf_component.yml` dos componentes ficam focados em metadados e
+dependencias externas. Isso evita que o solver tente buscar componentes internos
+no registry durante builds locais offline.
+
 ## Dependencias esperadas
 
 O consumo isolado depende de manter as dependencias pequenas:
@@ -101,11 +156,19 @@ O consumo isolado depende de manter as dependencias pequenas:
 - `tele_status` depende de `cJSON`;
 - `tele_commands` depende de `cJSON`;
 - `tele_mqtt` depende de MQTT, TLS/cert bundle e dos tres contratos;
+- `tele_portal_core` depende de `esp_http_server` e `cJSON`;
+- `tele_portal_logs`, `tele_portal_assets`, `tele_portal_captive` e
+  `tele_portal_ota` dependem de `tele_portal_core`;
+- `tele_portal_config` depende de `tele_config` e `tele_portal_core`;
+- `tele_portal_status` depende de `tele_status`, `tele_system`, `tele_wifi` e
+  `tele_portal_core`;
+- `tele_portal_wifi` depende de `tele_wifi` e `tele_portal_core`;
 - `tele_presence` nao deve ser tratado como componente generico: ele e exemplo
   de integracao de produto.
 
-Antes de publicar, cada componente deve ter `idf_component.yml` proprio ou uma
-estrategia equivalente aceita pelo Component Manager para consumo por `path`.
+Cada componente reutilizavel deve ter `idf_component.yml` proprio. Os
+`override_path` devem ficar nos projetos consumidores locais, nao nos manifests
+publicaveis dos componentes.
 
 ## Uso com CAN bus
 
@@ -148,8 +211,12 @@ proprio para CAN.
   `tele_commands` sem `tele_mqtt`.
 - `examples/component_consumer_mqtt` valida os mesmos contratos com `tele_mqtt`
   como adaptador opcional.
-- `tele_config`, `tele_status`, `tele_commands` e `tele_mqtt` possuem
-  `idf_component.yml` proprio com metadados e dependencias externas.
+- `examples/component_consumer_portal` valida `tele_portal_core` e
+  `tele_portal_logs` sem Wi-Fi, MQTT, OTA, `tele_system`, `tele_status` ou
+  `tele_config`.
+- `tele_config`, `tele_status`, `tele_commands`, `tele_mqtt` e a familia
+  `tele_portal_*` possuem `idf_component.yml` proprio com metadados e
+  dependencias externas.
 - Os exemplos usam `path:` para consumir os componentes locais e
   `override_path:` para reaproveitar `managed_components` durante validacao
   dentro deste repositorio.

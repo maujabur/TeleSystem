@@ -1,4 +1,8 @@
-version: "0.1.0"
-description: TeleSystem reusable web portal static assets adapter
 dependencies:
-  idf: ">=5.0"
+  idf: ">=5.3"
+
+description: Static web asset adapter for TeleSystem portal components.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_portal_assets
+version: 0.1.0

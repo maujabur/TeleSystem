@@ -1,7 +1,9 @@
-version: "0.1.0"
-description: TeleSystem reusable web portal status adapter
 dependencies:
-  idf: ">=5.0"
-  espressif/cjson:
-    version: "^1.7.19"
-    override_path: ../../managed_components/espressif__cjson
+  idf: ">=5.3"
+  espressif/cjson: "^1.7.19"
+
+description: HTTP status adapter for TeleSystem portal components.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_portal_status
+version: 0.1.0

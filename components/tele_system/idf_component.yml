@@ -1,0 +1,8 @@
+dependencies:
+  idf: ">=5.3"
+
+description: TeleSystem firmware utilities for power, battery and OTA state.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_system
+version: 0.1.0

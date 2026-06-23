@@ -1,4 +1,8 @@
-version: "0.1.0"
-description: TeleSystem reusable web portal in-memory logs adapter
 dependencies:
-  idf: ">=5.0"
+  idf: ">=5.3"
+
+description: In-memory log capture and HTTP logs adapter for TeleSystem portal components.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_portal_logs
+version: 0.1.0
