@@ -1,0 +1,17 @@
+menu "Tele Portal Logs"
+
+config TELE_PORTAL_LOGS_ENABLE_ENDPOINT
+    bool "Enable /api/logs endpoint"
+    default y
+    help
+        Mantem a API de logs disponivel no portal tecnico. Recomendado
+        desativado para builds de release.
+
+config TELE_PORTAL_LOGS_CAPTURE_DEBUG
+    bool "Capture DEBUG/VERBOSE logs in portal logs buffer"
+    default n
+    help
+        Quando desativado, o buffer usado por /api/logs ignora linhas de
+        DEBUG/VERBOSE para reduzir ruido e volume.
+
+endmenu

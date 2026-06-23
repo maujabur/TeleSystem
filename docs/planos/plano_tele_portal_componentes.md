@@ -246,9 +246,9 @@ Criar:
 
 Mover:
 
-- `app_log_buffer.c`;
-- handlers de pagina estatica;
-- endpoint de logs.
+- buffer circular de logs para `tele_portal_logs.c`;
+- handlers de pagina estatica para `tele_portal_assets.c`;
+- endpoint de logs para `tele_portal_logs.c`.
 
 Resultado esperado:
 
@@ -389,7 +389,7 @@ adaptadores especificos.
 
 Mover opcoes globais para os componentes correspondentes:
 
-- `CONFIG_WEB_PORTAL_ENABLE_LOGS_ENDPOINT` -> `tele_portal_logs`;
+- `CONFIG_TELE_PORTAL_LOGS_ENABLE_ENDPOINT` -> `tele_portal_logs`;
 - `CONFIG_WEB_PORTAL_EXPOSE_NETWORK_IDENTIFIERS` -> `tele_portal_wifi` ou
   `tele_portal_status`;
 - `CONFIG_WEB_PORTAL_DETAILED_HTTP_ERRORS` -> `tele_portal_core`;
@@ -451,6 +451,28 @@ Depois de cada fase:
 
 ## Proximo Passo Recomendado
 
+Fase 2 executada em `0.3.26 TeleSystem portal assets logs extraction`:
+
+- criado `components/tele_portal_assets`;
+- criado `components/tele_portal_logs`;
+- movidas paginas estaticas para `tele_portal_assets`;
+- movido buffer circular de logs e endpoint `/api/logs` para
+  `tele_portal_logs`;
+- `components/tele_portal` continua como agregador temporario;
+- os Kconfigs de logs agora vivem em `tele_portal_logs`;
+- `idf.py build` passou gerando `build/TeleSystem.bin`.
+
+O proximo passo recomendado e executar somente a Fase 3:
+
+1. criar `tele_portal_status`;
+2. criar `tele_portal_config`;
+3. mover `GET /api/status` para manifest/status generico;
+4. mover APIs HTTP de config para `tele_config`;
+5. manter o portal visual igual enquanto HTTP e MQTT passam a compartilhar os
+   mesmos contratos.
+
+Historico da recomendacao anterior para Fase 1:
+
 Fase 1 executada em `0.3.25 TeleSystem portal core extraction`:
 
 - criado `components/tele_portal_core`;
@@ -461,15 +483,7 @@ Fase 1 executada em `0.3.25 TeleSystem portal core extraction`:
   `cJSON` e `mqtt`, permitindo build sem consultar o registry em desenvolvimento;
 - `idf.py build` passou gerando `build/TeleSystem.bin`.
 
-O proximo passo recomendado e executar somente a Fase 2:
-
-1. criar `tele_portal_assets`;
-2. criar `tele_portal_logs`;
-3. mover paginas estaticas e buffer de logs para adaptadores opcionais;
-4. manter rotas e aparencia atuais;
-5. compilar e testar portal normal/captive.
-
-Historico da recomendacao anterior para Fase 1:
+Historico da recomendacao original para Fase 1:
 
 1. criar `tele_portal_core`;
 2. mover servidor HTTP, registro de rotas e helpers;

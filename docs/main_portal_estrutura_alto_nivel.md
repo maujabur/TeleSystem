@@ -2,22 +2,27 @@
 
 ## Objetivo
 
-`components/tele_portal` implementa a interface HTTP do firmware:
+`components/tele_portal` agrega a interface HTTP do firmware enquanto a
+componentizacao avanca:
 
-- paginas embarcadas em `firmware_assets/web`;
+- paginas embarcadas via `components/tele_portal_assets`;
 - APIs base de status, logs, restart e Wi-Fi;
 - captive portal HTTP/DNS;
-- utilitarios de body, JSON e arquivos;
-- buffer circular de logs.
+- utilitarios de body, JSON e arquivos via `components/tele_portal_core`;
+- buffer circular de logs via `components/tele_portal_logs`.
 
 ## Arquivos principais
 
-- `web_portal.c/.h`: servidor HTTP, rotas base e extensao por callbacks.
+- `web_portal.c/.h`: agregador temporario de rotas base e extensao por callbacks.
 - `captive_portal.c/.h`: rotas de deteccao de captive portal e redirects.
 - `dns_server.c/.h`: DNS local usado no modo captive.
-- `http_helpers.c/.h`: helpers para JSON/body/arquivo.
-- `app_log_buffer.c/.h`: captura e snapshot de logs recentes.
 - `ota_portal.c/.h`: pagina e APIs de upload OTA.
+
+Componentes extraidos:
+
+- `tele_portal_core`: servidor HTTP, registro de rotas e helpers.
+- `tele_portal_assets`: paginas estaticas embarcadas.
+- `tele_portal_logs`: captura e endpoint de logs recentes.
 
 ## Rotas base
 
@@ -58,7 +63,7 @@ do produto.
 
 ## Fluxo de inicializacao
 
-1. `main` inicializa `app_log_buffer` de `components/tele_portal`.
+1. `main` inicializa `tele_portal_logs`.
 2. `connectivity_controller` decide se o portal sobe em modo captive ou normal.
 3. `web_portal_start` registra rotas base.
 4. `captive_portal_register_handlers` adiciona rotas de deteccao.

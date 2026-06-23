@@ -8,12 +8,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "app_log_buffer.h"
 #include "captive_portal.h"
 #include "firmware_version.h"
 #include "http_helpers.h"
+#include "tele_portal_assets.h"
 #include "time_sync.h"
 #include "tele_portal_core.h"
+#include "tele_portal_logs.h"
 #include "vbat_monitor.h"
 #include "web_portal.h"
 #include "wifi_manager.h"
@@ -21,10 +22,6 @@
 #define WEB_PORTAL_MAX_URI_HANDLERS 48
 #define WEB_PORTAL_MAX_OPEN_SOCKETS 4
 #define WEB_PORTAL_SOCKET_TIMEOUT_SECONDS 5
-
-#ifndef CONFIG_WEB_PORTAL_ENABLE_LOGS_ENDPOINT
-#define CONFIG_WEB_PORTAL_ENABLE_LOGS_ENDPOINT 0
-#endif
 
 #ifndef CONFIG_WEB_PORTAL_EXPOSE_NETWORK_IDENTIFIERS
 #define CONFIG_WEB_PORTAL_EXPOSE_NETWORK_IDENTIFIERS 0
@@ -49,26 +46,6 @@
 static const char *TAG = "web-portal";
 static bool s_core_initialized;
 static bool s_base_routes_registered;
-
-extern const unsigned char _binary_index_html_start[];
-extern const unsigned char _binary_index_html_end[];
-extern const unsigned char _binary_status_html_start[];
-extern const unsigned char _binary_status_html_end[];
-extern const unsigned char _binary_settings_html_start[];
-extern const unsigned char _binary_settings_html_end[];
-extern const unsigned char _binary_networks_html_start[];
-extern const unsigned char _binary_networks_html_end[];
-extern const unsigned char _binary_logs_html_start[];
-extern const unsigned char _binary_logs_html_end[];
-
-static esp_err_t send_embedded_html(httpd_req_t *req,
-                                    const unsigned char *start,
-                                    const unsigned char *end)
-{
-    size_t len = (size_t)(end - start);
-    httpd_resp_set_type(req, "text/html; charset=utf-8");
-    return httpd_resp_send(req, (const char *)start, (ssize_t)len);
-}
 
 static esp_err_t send_internal_error(httpd_req_t *req, esp_err_t err)
 {
@@ -116,52 +93,13 @@ static esp_err_t ensure_core_initialized(void)
     };
     esp_err_t err = tele_portal_core_init(&config);
     if (err == ESP_OK) {
+        tele_portal_assets_config_t assets_config = {
+            .enable_logs_page = tele_portal_logs_endpoint_enabled(),
+        };
+        ESP_ERROR_CHECK(tele_portal_assets_init(&assets_config));
         s_core_initialized = true;
     }
     return err;
-}
-
-static esp_err_t root_get_handler(httpd_req_t *req)
-{
-    return send_embedded_html(req, _binary_index_html_start, _binary_index_html_end);
-}
-
-static esp_err_t logs_page_get_handler(httpd_req_t *req)
-{
-    if (!CONFIG_WEB_PORTAL_ENABLE_LOGS_ENDPOINT) {
-        return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Pagina nao encontrada");
-    }
-
-    return send_embedded_html(req, _binary_logs_html_start, _binary_logs_html_end);
-}
-
-static esp_err_t status_page_get_handler(httpd_req_t *req)
-{
-    return send_embedded_html(req, _binary_status_html_start, _binary_status_html_end);
-}
-
-static esp_err_t settings_page_get_handler(httpd_req_t *req)
-{
-    return send_embedded_html(req, _binary_settings_html_start, _binary_settings_html_end);
-}
-
-static esp_err_t networks_page_get_handler(httpd_req_t *req)
-{
-    return send_embedded_html(req, _binary_networks_html_start, _binary_networks_html_end);
-}
-
-static esp_err_t api_logs_get_handler(httpd_req_t *req)
-{
-    static char logs[8192];
-
-    if (!CONFIG_WEB_PORTAL_ENABLE_LOGS_ENDPOINT) {
-        return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Endpoint indisponivel");
-    }
-
-    tele_portal_core_note_activity();
-    app_log_buffer_get_snapshot(logs, sizeof(logs));
-    httpd_resp_set_type(req, "text/plain; charset=utf-8");
-    return httpd_resp_sendstr(req, logs);
 }
 
 static esp_err_t api_restart_post_handler(httpd_req_t *req)
@@ -517,40 +455,10 @@ esp_err_t web_portal_register_app_routes(web_portal_routes_register_fn register_
 
 static esp_err_t register_base_routes(httpd_handle_t server)
 {
-    httpd_uri_t root = {
-        .uri = "/",
-        .method = HTTP_GET,
-        .handler = root_get_handler,
-    };
-    httpd_uri_t logs_page = {
-        .uri = "/logs",
-        .method = HTTP_GET,
-        .handler = logs_page_get_handler,
-    };
-    httpd_uri_t status_page = {
-        .uri = "/status",
-        .method = HTTP_GET,
-        .handler = status_page_get_handler,
-    };
-    httpd_uri_t settings_page = {
-        .uri = "/settings",
-        .method = HTTP_GET,
-        .handler = settings_page_get_handler,
-    };
-    httpd_uri_t networks_page = {
-        .uri = "/networks",
-        .method = HTTP_GET,
-        .handler = networks_page_get_handler,
-    };
     httpd_uri_t api_status = {
         .uri = "/api/status",
         .method = HTTP_GET,
         .handler = api_status_get_handler,
-    };
-    httpd_uri_t api_logs = {
-        .uri = "/api/logs",
-        .method = HTTP_GET,
-        .handler = api_logs_get_handler,
     };
     httpd_uri_t api_restart = {
         .uri = "/api/restart",
@@ -583,24 +491,12 @@ static esp_err_t register_base_routes(httpd_handle_t server)
         .handler = api_wifi_saved_delete_handler,
     };
 
-    esp_err_t err = register_uri_checked(server, &root);
+    esp_err_t err = tele_portal_assets_register_routes(server);
     if (err == ESP_OK) {
-        err = register_uri_checked(server, &logs_page);
-    }
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &status_page);
-    }
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &settings_page);
-    }
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &networks_page);
+        err = tele_portal_logs_register_routes(server);
     }
     if (err == ESP_OK) {
         err = register_uri_checked(server, &api_status);
-    }
-    if (err == ESP_OK && CONFIG_WEB_PORTAL_ENABLE_LOGS_ENDPOINT) {
-        err = register_uri_checked(server, &api_logs);
     }
     if (err == ESP_OK) {
         err = register_uri_checked(server, &api_restart);
@@ -625,7 +521,7 @@ static esp_err_t register_base_routes(httpd_handle_t server)
         return err;
     }
 
-    err = captive_portal_register_handlers(server, root_get_handler);
+    err = captive_portal_register_handlers(server, tele_portal_assets_root_handler);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar rotas de captive portal: %s", esp_err_to_name(err));
         return err;

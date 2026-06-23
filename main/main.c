@@ -3,7 +3,6 @@
 #include "esp_sleep.h"
 #include "nvs_flash.h"
 
-#include "app_log_buffer.h"
 #include "connectivity_controller.h"
 #include "device_config_routes.h"
 #include "firmware_ota.h"
@@ -11,6 +10,7 @@
 #include "mqtt_presence.h"
 #include "ota_portal.h"
 #include "power_good.h"
+#include "tele_portal_logs.h"
 #include "vbat_monitor.h"
 
 #ifndef CONFIG_VBAT_SHUTDOWN_THRESHOLD_MV
@@ -86,7 +86,7 @@ void app_main(void)
 {
     esp_err_t err;
 
-    app_log_buffer_init();
+    tele_portal_logs_init();
     ESP_ERROR_CHECK(vbat_monitor_init());
 
     ESP_LOGI(TAG, "Inicializando");

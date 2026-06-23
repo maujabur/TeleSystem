@@ -1,12 +1,5 @@
 menu "Web Portal Config"
 
-config WEB_PORTAL_ENABLE_LOGS_ENDPOINT
-    bool "Enable /api/logs endpoint"
-    default y
-    help
-        Mantem a API de logs disponivel no portal tecnico. Recomendado
-        desativado para builds de release.
-
 config WEB_PORTAL_EXPOSE_NETWORK_IDENTIFIERS
     bool "Expose SSID/IP identifiers in technical APIs"
     default n
@@ -20,12 +13,5 @@ config WEB_PORTAL_DETAILED_HTTP_ERRORS
     help
         Quando desativado, endpoints tecnicos retornam mensagens genericas
         para falhas internas, reduzindo exposicao de detalhes internos.
-
-config APP_LOG_BUFFER_CAPTURE_DEBUG
-    bool "Capture DEBUG/VERBOSE logs in /api/logs buffer"
-    default n
-    help
-        Quando desativado, o buffer usado por /api/logs ignora linhas de
-        DEBUG/VERBOSE para reduzir ruido e volume.
 
 endmenu
