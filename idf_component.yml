@@ -1,3 +1,7 @@
 dependencies:
-  espressif/cjson: ^1.7.19
-  espressif/mqtt: '*'
+  espressif/cjson:
+    version: ^1.7.19
+    override_path: managed_components/espressif__cjson
+  espressif/mqtt:
+    version: '*'
+    override_path: managed_components/espressif__mqtt

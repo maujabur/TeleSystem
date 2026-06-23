@@ -13,11 +13,11 @@
 #include "firmware_version.h"
 #include "http_helpers.h"
 #include "time_sync.h"
+#include "tele_portal_core.h"
 #include "vbat_monitor.h"
 #include "web_portal.h"
 #include "wifi_manager.h"
 
-#define WEB_PORTAL_MAX_APP_ROUTE_REGISTRARS 4
 #define WEB_PORTAL_MAX_URI_HANDLERS 48
 #define WEB_PORTAL_MAX_OPEN_SOCKETS 4
 #define WEB_PORTAL_SOCKET_TIMEOUT_SECONDS 5
@@ -47,9 +47,8 @@
 #endif
 
 static const char *TAG = "web-portal";
-static httpd_handle_t s_server;
-static web_portal_routes_register_fn s_app_route_registrars[WEB_PORTAL_MAX_APP_ROUTE_REGISTRARS];
-static size_t s_app_route_registrar_count;
+static bool s_core_initialized;
+static bool s_base_routes_registered;
 
 extern const unsigned char _binary_index_html_start[];
 extern const unsigned char _binary_index_html_end[];
@@ -89,6 +88,39 @@ static void restart_task(void *arg)
     esp_restart();
 }
 
+static void portal_activity_cb(void *ctx)
+{
+    (void)ctx;
+    (void)wifi_manager_note_portal_activity();
+}
+
+static void portal_restart_cb(uint32_t delay_ms, void *ctx)
+{
+    (void)delay_ms;
+    (void)ctx;
+    xTaskCreate(restart_task, "web_restart", 2048, NULL, 5, NULL);
+}
+
+static esp_err_t ensure_core_initialized(void)
+{
+    if (s_core_initialized) {
+        return ESP_OK;
+    }
+
+    tele_portal_core_config_t config = {
+        .max_uri_handlers = WEB_PORTAL_MAX_URI_HANDLERS,
+        .max_open_sockets = WEB_PORTAL_MAX_OPEN_SOCKETS,
+        .socket_timeout_s = WEB_PORTAL_SOCKET_TIMEOUT_SECONDS,
+        .on_activity = portal_activity_cb,
+        .restart = portal_restart_cb,
+    };
+    esp_err_t err = tele_portal_core_init(&config);
+    if (err == ESP_OK) {
+        s_core_initialized = true;
+    }
+    return err;
+}
+
 static esp_err_t root_get_handler(httpd_req_t *req)
 {
     return send_embedded_html(req, _binary_index_html_start, _binary_index_html_end);
@@ -126,7 +158,7 @@ static esp_err_t api_logs_get_handler(httpd_req_t *req)
         return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Endpoint indisponivel");
     }
 
-    (void)wifi_manager_note_portal_activity();
+    tele_portal_core_note_activity();
     app_log_buffer_get_snapshot(logs, sizeof(logs));
     httpd_resp_set_type(req, "text/plain; charset=utf-8");
     return httpd_resp_sendstr(req, logs);
@@ -134,11 +166,11 @@ static esp_err_t api_logs_get_handler(httpd_req_t *req)
 
 static esp_err_t api_restart_post_handler(httpd_req_t *req)
 {
-    (void)wifi_manager_note_portal_activity();
+    tele_portal_core_note_activity();
     ESP_LOGW(TAG, "Restart solicitado pela interface web");
     httpd_resp_set_type(req, "text/plain; charset=utf-8");
     esp_err_t err = httpd_resp_sendstr(req, "Reiniciando placa.");
-    xTaskCreate(restart_task, "web_restart", 2048, NULL, 5, NULL);
+    tele_portal_core_request_restart(300);
     return err;
 }
 
@@ -476,32 +508,15 @@ static esp_err_t register_uri_checked(httpd_handle_t server, const httpd_uri_t *
 
 esp_err_t web_portal_register_app_routes(web_portal_routes_register_fn register_fn)
 {
-    if (!register_fn) {
-        return ESP_ERR_INVALID_ARG;
+    esp_err_t err = ensure_core_initialized();
+    if (err != ESP_OK) {
+        return err;
     }
-
-    for (size_t i = 0; i < s_app_route_registrar_count; ++i) {
-        if (s_app_route_registrars[i] == register_fn) {
-            return ESP_OK;
-        }
-    }
-
-    if (s_app_route_registrar_count >= WEB_PORTAL_MAX_APP_ROUTE_REGISTRARS) {
-        return ESP_ERR_NO_MEM;
-    }
-
-    s_app_route_registrars[s_app_route_registrar_count++] = register_fn;
-
-    if (s_server) {
-        return register_fn(s_server);
-    }
-
-    return ESP_OK;
+    return tele_portal_core_register_routes(register_fn);
 }
 
-esp_err_t web_portal_start(bool captive_mode)
+static esp_err_t register_base_routes(httpd_handle_t server)
 {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     httpd_uri_t root = {
         .uri = "/",
         .method = HTTP_GET,
@@ -568,94 +583,80 @@ esp_err_t web_portal_start(bool captive_mode)
         .handler = api_wifi_saved_delete_handler,
     };
 
-    if (s_server) {
-        return captive_portal_set_enabled(captive_mode);
-    }
-
-    config.max_uri_handlers = WEB_PORTAL_MAX_URI_HANDLERS;
-    config.max_open_sockets = WEB_PORTAL_MAX_OPEN_SOCKETS;
-    config.lru_purge_enable = true;
-    config.recv_wait_timeout = WEB_PORTAL_SOCKET_TIMEOUT_SECONDS;
-    config.send_wait_timeout = WEB_PORTAL_SOCKET_TIMEOUT_SECONDS;
-    config.uri_match_fn = httpd_uri_match_wildcard;
-    ESP_LOGI(TAG,
-             "Servidor HTTP: max_open_sockets=%d lru_purge=%s timeout=%ds",
-             config.max_open_sockets,
-             config.lru_purge_enable ? "sim" : "nao",
-             WEB_PORTAL_SOCKET_TIMEOUT_SECONDS);
-
-    esp_err_t err = httpd_start(&s_server, &config);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao iniciar servidor HTTP: %s", esp_err_to_name(err));
-        return err;
-    }
-
-    err = register_uri_checked(s_server, &root);
+    esp_err_t err = register_uri_checked(server, &root);
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &logs_page);
+        err = register_uri_checked(server, &logs_page);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &status_page);
+        err = register_uri_checked(server, &status_page);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &settings_page);
+        err = register_uri_checked(server, &settings_page);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &networks_page);
+        err = register_uri_checked(server, &networks_page);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &api_status);
+        err = register_uri_checked(server, &api_status);
     }
     if (err == ESP_OK && CONFIG_WEB_PORTAL_ENABLE_LOGS_ENDPOINT) {
-        err = register_uri_checked(s_server, &api_logs);
+        err = register_uri_checked(server, &api_logs);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &api_restart);
+        err = register_uri_checked(server, &api_restart);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &api_wifi);
+        err = register_uri_checked(server, &api_wifi);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &api_wifi_networks);
+        err = register_uri_checked(server, &api_wifi_networks);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &api_wifi_saved_list);
+        err = register_uri_checked(server, &api_wifi_saved_list);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &api_wifi_saved_update);
+        err = register_uri_checked(server, &api_wifi_saved_update);
     }
     if (err == ESP_OK) {
-        err = register_uri_checked(s_server, &api_wifi_saved_delete);
+        err = register_uri_checked(server, &api_wifi_saved_delete);
     }
+
     if (err != ESP_OK) {
-        httpd_stop(s_server);
-        s_server = NULL;
         return err;
     }
 
-    err = captive_portal_register_handlers(s_server, root_get_handler);
+    err = captive_portal_register_handlers(server, root_get_handler);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar rotas de captive portal: %s", esp_err_to_name(err));
-        httpd_stop(s_server);
-        s_server = NULL;
         return err;
     }
 
-    for (size_t i = 0; i < s_app_route_registrar_count; ++i) {
-        err = s_app_route_registrars[i](s_server);
+    return ESP_OK;
+}
+
+esp_err_t web_portal_start(bool captive_mode)
+{
+    esp_err_t err = ensure_core_initialized();
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    if (!s_base_routes_registered) {
+        err = tele_portal_core_register_routes(register_base_routes);
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Falha ao registrar rotas da aplicacao %u: %s",
-                     (unsigned)i, esp_err_to_name(err));
-            httpd_stop(s_server);
-            s_server = NULL;
             return err;
         }
+        s_base_routes_registered = true;
+    }
+
+    err = tele_portal_core_start(captive_mode);
+    if (err != ESP_OK) {
+        return err;
     }
 
     err = captive_portal_set_enabled(captive_mode);
     if (err != ESP_OK) {
-        httpd_stop(s_server);
-        s_server = NULL;
+        (void)tele_portal_core_stop();
         return err;
     }
 
@@ -665,19 +666,15 @@ esp_err_t web_portal_start(bool captive_mode)
 
 esp_err_t web_portal_stop(void)
 {
-    if (!s_server) {
+    if (!tele_portal_core_is_running()) {
         return ESP_OK;
     }
 
     captive_portal_stop();
-    esp_err_t err = httpd_stop(s_server);
-    if (err == ESP_OK) {
-        s_server = NULL;
-    }
-    return err;
+    return tele_portal_core_stop();
 }
 
 bool web_portal_is_running(void)
 {
-    return s_server != NULL;
+    return tele_portal_core_is_running();
 }

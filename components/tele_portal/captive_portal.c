@@ -6,7 +6,7 @@
 #include "esp_http_server.h"
 #include "lwip/ip4_addr.h"
 
-#include "wifi_manager.h"
+#include "tele_portal_core.h"
 
 static const char *CAPTIVE_PORTAL_BASE_URL = "http://192.168.42.1/";
 
@@ -15,7 +15,7 @@ static captive_portal_root_handler_fn s_root_handler;
 
 static esp_err_t captive_redirect_handler(httpd_req_t *req)
 {
-    (void)wifi_manager_note_portal_activity();
+    tele_portal_core_note_activity();
 
     if (!s_captive_mode && s_root_handler) {
         return s_root_handler(req);
@@ -28,7 +28,7 @@ static esp_err_t captive_redirect_handler(httpd_req_t *req)
 
 static esp_err_t captive_not_found_handler(httpd_req_t *req, httpd_err_code_t err)
 {
-    (void)wifi_manager_note_portal_activity();
+    tele_portal_core_note_activity();
 
     if (!s_captive_mode) {
         return httpd_resp_send_err(req, err, "Pagina nao encontrada");

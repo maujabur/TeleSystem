@@ -4,8 +4,7 @@
 #include <string.h>
 
 #include "esp_log.h"
-
-#include "wifi_manager.h"
+#include "tele_portal_core.h"
 
 static const char *TAG = "http-helpers";
 
@@ -33,7 +32,7 @@ esp_err_t http_helpers_send_json(httpd_req_t *req, cJSON *json, int status_code)
         return ESP_ERR_INVALID_ARG;
     }
 
-    (void)wifi_manager_note_portal_activity();
+    tele_portal_core_note_activity();
 
     payload = cJSON_PrintUnformatted(json);
     if (!payload) {
@@ -56,7 +55,7 @@ esp_err_t http_helpers_recv_body(httpd_req_t *req, char *buffer, size_t buffer_s
         return ESP_ERR_INVALID_SIZE;
     }
 
-    (void)wifi_manager_note_portal_activity();
+    tele_portal_core_note_activity();
 
     while (total_received < req->content_len) {
         int received = httpd_req_recv(req,
@@ -81,7 +80,7 @@ esp_err_t http_helpers_send_file(httpd_req_t *req, const char *content_type, con
         return ESP_ERR_INVALID_ARG;
     }
 
-    (void)wifi_manager_note_portal_activity();
+    tele_portal_core_note_activity();
 
     file = fopen(path, "rb");
     httpd_resp_set_type(req, content_type);
