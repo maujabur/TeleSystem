@@ -1,5 +1,7 @@
 # tele_config
 
+Guia do grupo: [componentes_mqtt_config_status_commands.md](componentes_mqtt_config_status_commands.md).
+
 ## Objetivo
 
 `components/tele_config` centraliza campos de configuracao reutilizaveis entre

@@ -1,5 +1,7 @@
 # tele_status
 
+Guia do grupo: [componentes_mqtt_config_status_commands.md](componentes_mqtt_config_status_commands.md).
+
 `components/tele_status` centraliza campos observaveis de runtime. Ele e o
 par read-only do `tele_config`: nao grava NVS, nao aplica valores e nao conhece
 defaults de menuconfig. O componente apenas registra metadados e callbacks de

@@ -23,7 +23,8 @@
 - Modify `components/tele_presence/CMakeLists.txt`: add `tele_config` only when MQTT adapter task begins.
 - Modify `components/tele_presence/mqtt_presence.c`: later, build/apply settings through `tele_config`.
 - Modify `main/connectivity/device_config_routes.c`: later, expose generic config through web while preserving `/api/device/config`.
-- Modify docs: `docs/roadmap_atual.md` and architecture docs after code lands.
+- Modify docs: current docs now live under `docs/arquitetura_index.md` and
+  `docs/componentes_mqtt_config_status_commands.md`.
 
 ## Scope Guardrails
 
@@ -570,9 +571,8 @@ Expected: build passes.
 ## Task 6: Documentation
 
 **Files:**
-- Modify: `docs/roadmap_atual.md`
-- Modify: `docs/main_raiz_estrutura_alto_nivel.md`
-- Modify: `docs/main_connectivity_estrutura_alto_nivel.md`
+- Modify: `docs/arquitetura_index.md`
+- Modify: `docs/componentes_mqtt_config_status_commands.md`
 - Add or modify: `docs/tele_config.md`
 
 - [ ] **Step 1: Document the rule**
@@ -607,4 +607,3 @@ env XDG_CACHE_HOME=/tmp/telesystem-cache CCACHE_DIR=/tmp/telesystem-ccache idf.p
 ```
 
 Expected: build passes.
-

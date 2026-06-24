@@ -136,11 +136,11 @@ Comece por [docs/arquitetura_index.md](docs/arquitetura_index.md). Ele aponta a 
 
 Leituras uteis:
 
-- [docs/main_raiz_estrutura_alto_nivel.md](docs/main_raiz_estrutura_alto_nivel.md)
-- [docs/main_connectivity_estrutura_alto_nivel.md](docs/main_connectivity_estrutura_alto_nivel.md)
-- [docs/main_portal_estrutura_alto_nivel.md](docs/main_portal_estrutura_alto_nivel.md)
-- [docs/status_led_system.md](docs/status_led_system.md)
-- [docs/roadmap_atual.md](docs/roadmap_atual.md)
+- [docs/componentes_manifest_updates.md](docs/componentes_manifest_updates.md)
+- [docs/componentes_mqtt_config_status_commands.md](docs/componentes_mqtt_config_status_commands.md)
+- [docs/componentes_portal.md](docs/componentes_portal.md)
+- [docs/componentes_wifi_conectividade.md](docs/componentes_wifi_conectividade.md)
+- [docs/componentes_sistema.md](docs/componentes_sistema.md)
 
 ## Notas de desenvolvimento
 

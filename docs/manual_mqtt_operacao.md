@@ -1,5 +1,7 @@
 # Manual de Operacao MQTT
 
+Guia do grupo: [componentes_mqtt_config_status_commands.md](componentes_mqtt_config_status_commands.md).
+
 ## Objetivo
 
 O firmware publica presenca, estado e telemetria via MQTT e aceita comandos
@@ -106,7 +108,7 @@ Payload retido para online/offline. O mesmo topico e usado como LWT.
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "status": "online",
   "reason": "mqtt_connected",
@@ -123,7 +125,7 @@ sem gravar nada em NVS/flash.
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "last_seen_ts": "2026-06-09T12:01:00Z",
@@ -138,7 +140,7 @@ Snapshot retido com conectividade, bateria e dados tecnicos curtos.
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "wifi_state": "sta_connected",
@@ -150,7 +152,12 @@ Snapshot retido com conectividade, bateria e dados tecnicos curtos.
   "heap_free": 8195536,
   "uptime_s": 61,
   "heartbeat_interval_s": 60,
-  "time_synchronized": true
+  "time_synchronized": true,
+  "ota_state": "idle",
+  "ota_in_progress": false,
+  "ota_progress_pct": 0,
+  "ota_target_version": "",
+  "ota_last_error": ""
 }
 ```
 
@@ -161,14 +168,17 @@ Telemetria periodica, sem retenção.
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:01:00Z",
   "uptime_s": 60,
   "rssi": -40,
   "heap_free": 8195536,
   "vbat_mv": 0,
-  "wifi_state": "sta_connected"
+  "wifi_state": "sta_connected",
+  "ota_state": "idle",
+  "ota_in_progress": false,
+  "ota_progress_pct": 0
 }
 ```
 
@@ -181,7 +191,7 @@ ajuda por hover.
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -213,7 +223,7 @@ campo exposto por MQTT.
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -272,7 +282,7 @@ mutavel ou relacionado a reboot.
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "ts": "2026-06-09T12:00:00Z",
   "registry_revision": 1,
@@ -301,7 +311,7 @@ Eventos discretos de firmware.
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "event": "boot",
   "message": "mqtt_online",
@@ -337,7 +347,7 @@ Resposta base:
 ```json
 {
   "device_id": "ESP32-Device-5112D0",
-  "fw": "0.3.23 ESP32 Device",
+  "fw": "0.3.31 TeleSystem portal OTA adapter",
   "session_id": "20260609T120000Z-5112D0",
   "cmd_id": "c1",
   "ok": true,

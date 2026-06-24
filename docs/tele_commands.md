@@ -1,5 +1,7 @@
 # tele_commands
 
+Guia do grupo: [componentes_mqtt_config_status_commands.md](componentes_mqtt_config_status_commands.md).
+
 `components/tele_commands` centraliza o manifesto de comandos remotos
 disponiveis no firmware. Ele e o terceiro par do contrato generico:
 

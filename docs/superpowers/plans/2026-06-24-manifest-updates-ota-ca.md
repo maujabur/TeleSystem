@@ -33,7 +33,7 @@ Current local OTA code:
 - `components/tele_system/firmware_ota.c` has upload OTA in streaming form through `firmware_ota_upload_begin()`, `firmware_ota_upload_write()`, `firmware_ota_upload_finalize()`, and `firmware_ota_upload_abort()`.
 - `components/tele_portal_ota/tele_portal_ota.c` already streams uploaded HTTP body chunks into those callbacks.
 - `partitions.csv` has two OTA slots and no SPIFFS/FAT staging partition large enough for a full firmware image.
-- `docs/plano_ota_remoto_https.md` already describes manifest-based remote OTA and explains why firmware should stream directly into the OTA partition.
+- Manifest update behavior is now documented in `docs/componentes_manifest_updates.md`.
 
 External reference repository:
 
@@ -115,7 +115,7 @@ main/main.c
 components/tele_commands/tele_commands.c
 components/tele_mqtt/tele_mqtt.c
 components/tele_portal_ota/tele_portal_ota.c
-docs/plano_ota_remoto_https.md
+docs/componentes_manifest_updates.md
 docs/arquitetura_index.md
 ```
 
@@ -1033,14 +1033,13 @@ git commit -m "feat: add update manifest publishing tool"
 
 **Files:**
 
-- Modify: `docs/plano_ota_remoto_https.md`
 - Modify: `docs/arquitetura_index.md`
-- Create: `docs/manifest_updates.md`
+- Create or modify: `docs/componentes_manifest_updates.md`
 - Modify: `README.md` if user-facing setup changed.
 
 - [ ] **Step 1: Write architecture doc**
 
-Create `docs/manifest_updates.md` with:
+Create or update `docs/componentes_manifest_updates.md` with:
 
 - component boundaries;
 - manifest schema;
@@ -1051,9 +1050,10 @@ Create `docs/manifest_updates.md` with:
 - publishing workflow;
 - known deferred work: signatures, rollout groups, ETag, auto scheduling.
 
-- [ ] **Step 2: Update existing OTA plan**
+- [ ] **Step 2: Update architecture index**
 
-Mark the implemented pieces in `docs/plano_ota_remoto_https.md` and remove outdated language that says remote manifest OTA is only future work.
+Point `docs/arquitetura_index.md` to the current manifest/update guide and
+remove references to obsolete OTA planning documents.
 
 - [ ] **Step 3: Add integration checklist**
 

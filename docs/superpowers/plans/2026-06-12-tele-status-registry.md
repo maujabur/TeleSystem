@@ -76,7 +76,7 @@ Keep `get_technical_status` manually assembled for now, because its nested objec
 - Create: `docs/tele_status.md`
 - Modify: `components/tele_system/include/firmware_version.h`
 - Modify: `docs/manual_mqtt_operacao.md`
-- Modify: `docs/plano_ota_remoto_https.md`
+- Modify: `docs/componentes_mqtt_config_status_commands.md`
 
 - [ ] **Step 1: Document the component boundary**
 

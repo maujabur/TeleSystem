@@ -1,55 +1,52 @@
 # Indice de Arquitetura
 
-## Objetivo
+Este diretorio contem a documentacao viva do TeleSystem. Planos antigos,
+roadmaps ja executados e documentos de estrutura que duplicavam o codigo atual
+foram removidos para evitar decisoes baseadas em informacao ultrapassada.
 
-Este arquivo aponta para os documentos ainda relevantes depois da limpeza do
-TeleSystem. Documentos do projeto anterior foram removidos para evitar que o
-codigo atual seja guiado por rotas, estados ou modulos que nao existem mais.
+## Guias Por Grupo De Componentes
 
-## Leitura recomendada
+Leia estes documentos primeiro:
 
-1. [main_raiz_estrutura_alto_nivel.md](main_raiz_estrutura_alto_nivel.md)
-2. [main_connectivity_estrutura_alto_nivel.md](main_connectivity_estrutura_alto_nivel.md)
-3. [main_portal_estrutura_alto_nivel.md](main_portal_estrutura_alto_nivel.md)
-4. [manual_mqtt_operacao.md](manual_mqtt_operacao.md)
-5. [plano_nucleo_mqtt_generico.md](plano_nucleo_mqtt_generico.md)
-6. [exemplo_integracao_mqtt_generico.md](exemplo_integracao_mqtt_generico.md)
-7. [estrategia_component_manager.md](estrategia_component_manager.md)
-8. [tele_config.md](tele_config.md)
-9. [tele_status.md](tele_status.md)
-10. [tele_commands.md](tele_commands.md)
-11. [status_led_system.md](status_led_system.md)
-12. [plano_ota_remoto_https.md](plano_ota_remoto_https.md)
-13. [roadmap_atual.md](roadmap_atual.md)
+1. [componentes_manifest_updates.md](componentes_manifest_updates.md)
+2. [componentes_mqtt_config_status_commands.md](componentes_mqtt_config_status_commands.md)
+3. [componentes_portal.md](componentes_portal.md)
+4. [componentes_wifi_conectividade.md](componentes_wifi_conectividade.md)
+5. [componentes_sistema.md](componentes_sistema.md)
 
-## Guias complementares
+## Contratos Especificos
 
-- [home_page_branding_manual.md](home_page_branding_manual.md)
+- [tele_config.md](tele_config.md): registry de configuracao persistivel.
+- [tele_status.md](tele_status.md): registry de status read-only.
+- [tele_commands.md](tele_commands.md): registry de comandos remotos.
+- [manual_mqtt_operacao.md](manual_mqtt_operacao.md): topicos, payloads e comandos MQTT.
+- [tools/update_artifacts/README.md](../tools/update_artifacts/README.md): geracao de manifests de firmware e CA.
 
-## Relacao entre subsistemas atuais
+## Guias Complementares
 
-- `main/main.c` inicializa NVS, VBAT, OTA, portal, conectividade e MQTT.
-- `main/connectivity` orquestra conectividade e rotas de configuracao.
-- `components/tele_wifi` contem Wi-Fi, provisionamento, credenciais, botao de
-  boot e NTP como base reutilizavel.
-- `components/tele_mqtt` contem o cliente MQTT reutilizavel, sem depender do
-  dominio TeleSystem.
-- `components/tele_config` contem o registro de campos configuraveis, validacao
-  e persistencia de overrides em NVS.
-- `components/tele_status` contem o registro read-only de campos observaveis,
-  usado inicialmente pelos payloads MQTT de `state` e `heartbeat`.
-- `components/tele_commands` contem o registro de comandos remotos e gera o
-  manifesto MQTT `meta/commands`.
-- `components/tele_presence` adapta a presenca MQTT para os dados atuais do
-  firmware.
-- `components/status_led` contem o driver/stub de LED de status reutilizavel.
-- `components/tele_portal` serve as paginas embarcadas e APIs base de status,
-  conectividade, logs, Wi-Fi, OTA e restart.
-- `components/tele_system` contem versao de firmware, OTA, bateria e
-  power-good.
+- [home_page_branding_manual.md](home_page_branding_manual.md): orientacao visual do portal.
 
-## Regra de manutencao
+## Planos Historicos
 
-Quando uma nova feature de dominio entrar, documente primeiro a interface
-publica do modulo e depois atualize este indice. Planos longos devem ficar no
-roadmap ou em documento explicitamente marcado como futuro.
+Planos em `docs/superpowers/plans/` sao historico de implementacao. Eles podem
+ajudar a entender decisoes, mas nao devem substituir os guias acima ao usar ou
+integrar componentes.
+
+## Mapa Rapido
+
+- `main/main.c`: inicializa NVS, CA store, OTA, portal, conectividade e MQTT.
+- `main/connectivity`: adapta eventos Wi-Fi ao portal, LED e sincronismo de tempo.
+- `components/tele_manifest`, `tele_ca_store`, `tele_ca_updater` e
+  `tele_system/firmware_ota.c`: updates por manifest.
+- `components/tele_config`, `tele_status`, `tele_commands`, `tele_mqtt` e
+  `tele_presence`: contrato MQTT/config/status/commands.
+- `components/tele_portal*`: servidor HTTP embarcado e rotas do portal.
+- `components/tele_wifi`: Wi-Fi, provisionamento, credenciais e NTP.
+- `components/tele_system` e `components/status_led`: OTA, versao, bateria,
+  power-good e LED.
+
+## Regra De Manutencao
+
+Ao adicionar ou alterar um componente, atualize o guia do grupo correspondente.
+Se a mudanca cria uma nova interface publica, inclua um exemplo minimo de uso e
+o ponto de inicializacao esperado.
