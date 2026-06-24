@@ -9,6 +9,10 @@ Este exemplo nao usa Wi-Fi, MQTT, OTA, `tele_system`, `tele_status` ou
 `tele_config`. Ele registra uma rota propria `GET /api/ping` e inicia o servidor
 HTTP generico.
 
+Como o exemplo nao cria Wi-Fi/AP, ele valida o consumo e a inicializacao do
+servidor HTTP, mas nao oferece acesso pelo navegador sozinho. Para teste real no
+navegador, use um consumidor que combine `tele_wifi` com `tele_portal_core`.
+
 ## Build local
 
 Na raiz do repositorio:

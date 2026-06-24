@@ -69,5 +69,5 @@ direct_dependencies:
 - tele_mqtt
 - tele_status
 manifest_hash: b5224043d4bc639215439498021e33511b0f62ad241ffebc45120827fa399bf8
-target: esp32
+target: esp32s3
 version: 3.0.0

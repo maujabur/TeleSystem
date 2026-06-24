@@ -34,5 +34,5 @@ direct_dependencies:
 - tele_portal_core
 - tele_portal_logs
 manifest_hash: d561fbf39eaf1573494b0c0e29424b49b4a603bd426b4294afa25154d5baab4a
-target: esp32
+target: esp32s3
 version: 3.0.0

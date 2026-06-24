@@ -47,5 +47,5 @@ direct_dependencies:
 - tele_config
 - tele_status
 manifest_hash: 85779e3182e2b5f2b704eb4c68113f127ae8c2465fd417b8f1dc11e8a9ac8c92
-target: esp32
+target: esp32s3
 version: 3.0.0

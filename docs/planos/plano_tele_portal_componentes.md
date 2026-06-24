@@ -475,14 +475,26 @@ Fase 8 executada como verificacao da Fase 7:
 O proximo passo recomendado e **Fase 9: validar consumo externo limpo e preparar
 tag candidata**:
 
-1. criar um consumidor limpo fora do firmware principal, usando os blocos
-   `git/path/version` documentados;
-2. validar o consumo de combinacoes independentes: core/config/status,
-   core/config/status/mqtt e core/portal/logs;
-3. revisar se `tele_system` e `tele_wifi` devem continuar como componentes
-   consumiveis ou se precisam de uma separacao ainda mais generica;
-4. preparar uma tag candidata `lib-v0.1.0` quando a API publica estiver
-   suficientemente estavel.
+Fase 9 parcialmente executada:
+
+- criado consumidor externo minimo em `/tmp/telesystem_consumer_test`;
+- validado consumo offline/local de `tele_config`, `tele_status` e
+  `tele_commands` fora do repositorio principal;
+- confirmado que, sem rede e sem `dependencies.lock`, o Component Manager tenta
+  consultar o registry para resolver `espressif/cjson`;
+- documentado em `docs/estrategia_component_manager.md` o fluxo offline com
+  `EXTRA_COMPONENT_DIRS` + `IDF_COMPONENT_MANAGER=0`.
+
+O proximo passo recomendado e **Fase 9B: validar consumidor externo com Wi-Fi e
+portal real**:
+
+1. criar consumidor externo com `tele_wifi`, `tele_portal_core` e
+   `tele_portal_logs`;
+2. validar boot, provisionamento/rede e acesso pelo navegador;
+3. decidir se `tele_wifi` esta generico o suficiente ou se precisa separar
+   inicializacao Wi-Fi, store de configuracao e NTP;
+4. depois disso, testar consumo `git/path/version` com uma tag/lock real e
+   preparar uma tag candidata `lib-v0.1.0`.
 
 Historico da recomendacao anterior:
 

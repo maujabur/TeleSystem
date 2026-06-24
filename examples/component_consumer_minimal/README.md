@@ -20,3 +20,9 @@ idf.py -C examples/component_consumer_minimal build
 O `main/idf_component.yml` usa `path:` para apontar para os componentes locais.
 Em um projeto externo, troque esses paths pelos blocos `git` comentados no
 manifesto do exemplo.
+
+## Consumo externo offline
+
+Sem acesso ao registry da Espressif, um projeto externo pode usar
+`EXTRA_COMPONENT_DIRS` e compilar com `IDF_COMPONENT_MANAGER=0`. O procedimento
+esta documentado em `docs/estrategia_component_manager.md`.

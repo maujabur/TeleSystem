@@ -3,8 +3,10 @@
 #include <stdio.h>
 
 #include "esp_err.h"
+#include "esp_event.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "esp_timer.h"
 #include "tele_portal_core.h"
 #include "tele_portal_logs.h"
@@ -56,6 +58,9 @@ static esp_err_t register_example_routes(httpd_handle_t server)
 
 void app_main(void)
 {
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
     tele_portal_logs_init();
 
     const tele_portal_core_config_t portal_config = {

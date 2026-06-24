@@ -148,6 +148,56 @@ compilacao; os `idf_component.yml` dos componentes ficam focados em metadados e
 dependencias externas. Isso evita que o solver tente buscar componentes internos
 no registry durante builds locais offline.
 
+## Consumo externo offline/local
+
+Durante desenvolvimento sem acesso ao registry da Espressif, um projeto externo
+pode consumir os componentes por `EXTRA_COMPONENT_DIRS` e desabilitar o
+Component Manager. Esse modo nao substitui o fluxo publicavel por
+`git/path/version`; ele apenas evita buscas de rede enquanto os componentes e
+dependencias externas ainda estao sendo validados localmente.
+
+Exemplo de `CMakeLists.txt` de um consumidor externo minimo:
+
+```cmake
+cmake_minimum_required(VERSION 3.22)
+
+set(EXTRA_COMPONENT_DIRS
+    /workspaces/telecafezinho/managed_components/espressif__cjson
+    /workspaces/telecafezinho/components/tele_config
+    /workspaces/telecafezinho/components/tele_status
+    /workspaces/telecafezinho/components/tele_commands
+)
+
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(telesystem_consumer_test)
+```
+
+Nesse modo, o `main/CMakeLists.txt` do consumidor declara os componentes usados:
+
+```cmake
+idf_component_register(
+    SRCS "main.c"
+    INCLUDE_DIRS "."
+    REQUIRES nvs_flash tele_config tele_status tele_commands espressif__cjson
+)
+```
+
+Build:
+
+```bash
+IDF_COMPONENT_MANAGER=0 idf.py -C /tmp/telesystem_consumer_test set-target esp32s3 build
+```
+
+Essa validacao ja foi feita com um consumidor externo em
+`/tmp/telesystem_consumer_test`, usando `tele_config`, `tele_status` e
+`tele_commands`.
+
+Observacao importante: com `idf_component.yml` puro e sem `dependencies.lock`,
+o Component Manager tenta consultar o registry para resolver `espressif/cjson`,
+mesmo quando os componentes TeleSystem usam `path:` local. Para validacao
+offline, use `EXTRA_COMPONENT_DIRS` + `IDF_COMPONENT_MANAGER=0`. Para consumo
+publicavel, use `git/path/version` depois de criar uma tag real.
+
 ## Dependencias esperadas
 
 O consumo isolado depende de manter as dependencias pequenas:
@@ -220,13 +270,18 @@ proprio para CAN.
 - Os exemplos usam `path:` para consumir os componentes locais e
   `override_path:` para reaproveitar `managed_components` durante validacao
   dentro deste repositorio.
+- Um consumidor externo minimo em `/tmp/telesystem_consumer_test` validou o uso
+  offline/local de `tele_config`, `tele_status` e `tele_commands` por
+  `EXTRA_COMPONENT_DIRS` com `IDF_COMPONENT_MANAGER=0`.
 
 ## Proximas Acoes
 
-1. Revisar os metadados publicaveis dos componentes antes da primeira tag
+1. Criar um consumidor externo com `tele_wifi` + `tele_portal_core` +
+   `tele_portal_logs` para validar portal acessivel pelo navegador.
+2. Testar consumo `git/path/version` com rede ou com uma tag/lock real.
+3. Revisar os metadados publicaveis dos componentes antes da primeira tag
    (`license`, `description`, `repository`, `url`, `version`).
-2. Criar a tag `lib-v0.1.0` quando a API estiver estavel o suficiente para
+4. Criar a tag `lib-v0.1.0` quando a API estiver estavel o suficiente para
    consumo por outros projetos.
-3. Testar consumo em um segundo projeto usando os blocos `git` dos exemplos.
-4. Decidir se os componentes continuam neste repositorio ou migram para um
+5. Decidir se os componentes continuam neste repositorio ou migram para um
    repositorio compartilhado dedicado.
