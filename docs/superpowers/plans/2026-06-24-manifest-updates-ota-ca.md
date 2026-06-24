@@ -202,7 +202,7 @@ typedef tele_manifest_version_decision_t (*tele_manifest_version_cb_t)(
 - Create: `components/tele_manifest/tele_manifest_sha256.c`
 - Modify: root `CMakeLists.txt` only if this project requires explicit component registration.
 
-- [ ] **Step 1: Add component metadata**
+- [x] **Step 1: Add component metadata**
 
 Create `components/tele_manifest/idf_component.yml`:
 
@@ -217,7 +217,7 @@ dependencies:
   espressif/cjson: "^1.7.19"
 ```
 
-- [ ] **Step 2: Add component build file**
+- [x] **Step 2: Add component build file**
 
 Create `components/tele_manifest/CMakeLists.txt`:
 
@@ -238,7 +238,7 @@ idf_component_register(
 )
 ```
 
-- [ ] **Step 3: Add Kconfig**
+- [x] **Step 3: Add Kconfig**
 
 Create `components/tele_manifest/Kconfig`:
 
@@ -264,7 +264,7 @@ menu "Tele manifest updater"
 endmenu
 ```
 
-- [ ] **Step 4: Add public header with final API surface**
+- [x] **Step 4: Add public header with final API surface**
 
 Create `components/tele_manifest/include/tele_manifest.h` with:
 
@@ -408,7 +408,7 @@ esp_err_t tele_manifest_run_file(const char *manifest_url,
 #endif
 ```
 
-- [ ] **Step 5: Add compiling stubs**
+- [x] **Step 5: Add compiling stubs**
 
 Add empty implementations that return `ESP_ERR_NOT_SUPPORTED` for public functions, then run:
 
@@ -418,7 +418,7 @@ idf.py build
 
 Expected: build succeeds or fails only because current workspace configuration is already broken. If the failure is from missing symbols in `tele_manifest`, fix the skeleton before continuing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add components/tele_manifest

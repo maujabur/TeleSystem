@@ -1,0 +1,19 @@
+menu "Tele manifest updater"
+
+    config TELE_MANIFEST_HTTP_TIMEOUT_MS
+        int "HTTP timeout in milliseconds"
+        default 15000
+
+    config TELE_MANIFEST_MAX_REDIRECTS
+        int "Maximum HTTP redirects"
+        default 5
+
+    config TELE_MANIFEST_DOWNLOAD_BUFFER_SIZE
+        int "HTTP artifact download buffer size"
+        default 4096
+
+    config TELE_MANIFEST_DEFAULT_MAX_MANIFEST_SIZE
+        int "Default maximum manifest size"
+        default 4096
+
+endmenu

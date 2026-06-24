@@ -1,0 +1,14 @@
+idf_component_register(
+    SRCS
+        "tele_manifest.c"
+        "tele_manifest_http.c"
+        "tele_manifest_json.c"
+        "tele_manifest_sha256.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        espressif__cjson
+        esp-tls
+        esp_http_client
+        mbedtls
+)
