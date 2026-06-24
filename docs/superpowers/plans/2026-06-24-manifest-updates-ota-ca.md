@@ -502,7 +502,7 @@ git commit -m "feat: parse and validate update manifests"
 - Modify: `components/tele_manifest/tele_manifest.c`
 - Modify: `components/tele_manifest/CMakeLists.txt`
 
-- [ ] **Step 1: Implement HTTPS manifest fetch**
+- [x] **Step 1: Implement HTTPS manifest fetch**
 
 Add internal function:
 
@@ -523,7 +523,7 @@ Use `esp_http_client_config_t` with:
 - `.buffer_size = CONFIG_TELE_MANIFEST_DOWNLOAD_BUFFER_SIZE`
 - `.buffer_size_tx = CONFIG_TELE_MANIFEST_DOWNLOAD_BUFFER_SIZE`
 
-- [ ] **Step 2: Implement SHA-256 helpers**
+- [x] **Step 2: Implement SHA-256 helpers**
 
 Add helpers that hide mbedTLS details:
 
@@ -534,7 +534,7 @@ esp_err_t tele_manifest_sha256_bytes_to_hex(const uint8_t bytes[32], char out[65
 
 Prefer public mbedTLS SHA-256 APIs available in the project ESP-IDF. If the current ESP-IDF only exposes the same private header used by the reference repo, isolate that include in `tele_manifest_sha256.c`.
 
-- [ ] **Step 3: Implement streaming artifact apply**
+- [x] **Step 3: Implement streaming artifact apply**
 
 Implement `tele_manifest_apply_stream()`:
 
@@ -552,11 +552,11 @@ Implement `tele_manifest_apply_stream()`:
 - Call `apply->finish(artifact, ctx)` only after size and hash match.
 - On any error after begin, call `apply->abort(ctx)`.
 
-- [ ] **Step 4: Implement file apply as wrapper**
+- [x] **Step 4: Implement file apply as wrapper**
 
 Implement `tele_manifest_apply_file()` using the same artifact download mechanics but writing to a temp file under `work_dir`. Keep this path for CA bundle updates and future non-OTA artifacts.
 
-- [ ] **Step 5: Implement run helpers**
+- [x] **Step 5: Implement run helpers**
 
 `tele_manifest_run_stream()` and `tele_manifest_run_file()` should:
 
@@ -566,7 +566,7 @@ Implement `tele_manifest_apply_file()` using the same artifact download mechanic
 - call the selected apply mode;
 - populate `tele_manifest_run_result_t`.
 
-- [ ] **Step 6: Build**
+- [x] **Step 6: Build**
 
 ```bash
 idf.py build
@@ -574,7 +574,7 @@ idf.py build
 
 Expected: build passes.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add components/tele_manifest
