@@ -11,6 +11,10 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "firmware_ota.h"
+#include "tele_ca_store.h"
+#include "tele_ca_updater.h"
+#include "tele_commands.h"
 #include "tele_config.h"
 #include "tele_mqtt.h"
 #include "tele_status.h"
@@ -84,6 +88,95 @@ static bool s_started;
 static bool s_wifi_event_registered;
 static bool s_status_fields_registered;
 static bool s_config_fields_registered;
+static bool s_commands_registered;
+
+static const tele_command_arg_t s_update_manifest_args[] = {
+    {
+        .id = "manifest_url",
+        .type = TELE_COMMAND_ARG_STRING,
+        .required = true,
+        .min_len = 1,
+        .max_len = TELE_MANIFEST_URL_SIZE - 1,
+    },
+    {
+        .id = "channel",
+        .type = TELE_COMMAND_ARG_STRING,
+        .required = false,
+        .min_len = 1,
+        .max_len = TELE_MANIFEST_CHANNEL_SIZE - 1,
+    },
+    {
+        .id = "allow_same_version",
+        .type = TELE_COMMAND_ARG_BOOL,
+        .required = false,
+    },
+    {
+        .id = "restart_on_success",
+        .type = TELE_COMMAND_ARG_BOOL,
+        .required = false,
+    },
+};
+
+static const tele_command_arg_t s_ca_manifest_args[] = {
+    {
+        .id = "manifest_url",
+        .type = TELE_COMMAND_ARG_STRING,
+        .required = true,
+        .min_len = 1,
+        .max_len = TELE_MANIFEST_URL_SIZE - 1,
+    },
+    {
+        .id = "channel",
+        .type = TELE_COMMAND_ARG_STRING,
+        .required = false,
+        .min_len = 1,
+        .max_len = TELE_MANIFEST_CHANNEL_SIZE - 1,
+    },
+    {
+        .id = "restart_on_update",
+        .type = TELE_COMMAND_ARG_BOOL,
+        .required = false,
+    },
+};
+
+static const tele_command_t s_update_commands[] = {
+    {
+        .name = "ota_check",
+        .label = "Verificar OTA",
+        .description = "Consulta um manifest remoto de firmware sem aplicar a atualizacao.",
+        .group = "updates",
+        .flags = TELE_COMMAND_FLAG_MQTT,
+        .args = s_update_manifest_args,
+        .arg_count = 2,
+    },
+    {
+        .name = "ota_apply",
+        .label = "Aplicar OTA",
+        .description = "Inicia OTA de firmware por manifest em streaming.",
+        .group = "updates",
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
+        .args = s_update_manifest_args,
+        .arg_count = 4,
+    },
+    {
+        .name = "ca_check",
+        .label = "Verificar CA",
+        .description = "Consulta um manifest remoto de bundle CA sem aplicar.",
+        .group = "updates",
+        .flags = TELE_COMMAND_FLAG_MQTT,
+        .args = s_ca_manifest_args,
+        .arg_count = 2,
+    },
+    {
+        .name = "ca_apply",
+        .label = "Aplicar CA",
+        .description = "Baixa, verifica e ativa um bundle CA por manifest.",
+        .group = "updates",
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
+        .args = s_ca_manifest_args,
+        .arg_count = 3,
+    },
+};
 
 static const tele_config_field_t s_mqtt_config_fields[] = {
     {
@@ -628,6 +721,243 @@ static esp_err_t mqtt_presence_register_config_fields(void)
     return err;
 }
 
+static esp_err_t mqtt_presence_register_commands(void)
+{
+    if (s_commands_registered) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = tele_commands_register(s_update_commands,
+                                           sizeof(s_update_commands) /
+                                               sizeof(s_update_commands[0]));
+    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+        s_commands_registered = true;
+        return ESP_OK;
+    }
+    return err;
+}
+
+static const char *json_string_arg(const cJSON *args, const char *id, bool required)
+{
+    const cJSON *item = cJSON_IsObject(args) ? cJSON_GetObjectItemCaseSensitive(args, id) : NULL;
+    if (!cJSON_IsString(item) || !item->valuestring || item->valuestring[0] == '\0') {
+        return required ? NULL : "";
+    }
+    return item->valuestring;
+}
+
+static bool json_bool_arg(const cJSON *args, const char *id, bool default_value)
+{
+    const cJSON *item = cJSON_IsObject(args) ? cJSON_GetObjectItemCaseSensitive(args, id) : NULL;
+    if (cJSON_IsBool(item)) {
+        return cJSON_IsTrue(item);
+    }
+    return default_value;
+}
+
+static cJSON *build_artifact_check_result(const tele_manifest_artifact_t *artifact,
+                                          const char *current_version,
+                                          bool available)
+{
+    cJSON *result = cJSON_CreateObject();
+    if (!result || !artifact) {
+        cJSON_Delete(result);
+        return NULL;
+    }
+
+    cJSON_AddStringToObject(result, "current_version", current_version ? current_version : "");
+    cJSON_AddBoolToObject(result, "available", available);
+    cJSON_AddStringToObject(result, "target_version", artifact->version);
+    cJSON_AddStringToObject(result, "build_id", artifact->build_id);
+    cJSON_AddStringToObject(result, "artifact_type", artifact->artifact_type);
+    cJSON_AddStringToObject(result, "channel", artifact->channel);
+    cJSON_AddNumberToObject(result, "size", (double)artifact->size);
+    cJSON_AddBoolToObject(result, "critical", artifact->critical);
+    if (artifact->url_count > 0) {
+        cJSON_AddStringToObject(result, "artifact_url", artifact->urls[0]);
+    }
+    return result;
+}
+
+static esp_err_t handle_ota_check_command(const cJSON *args,
+                                          cJSON **out_result,
+                                          const char **out_error)
+{
+    const char *manifest_url = json_string_arg(args, "manifest_url", true);
+    const char *channel = json_string_arg(args, "channel", false);
+    bool allow_same_version = json_bool_arg(args, "allow_same_version", false);
+    tele_manifest_artifact_t artifact = {0};
+
+    if (!manifest_url) {
+        *out_error = "missing_manifest_url";
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const firmware_ota_manifest_config_t config = {
+        .manifest_url = manifest_url,
+        .channel = channel[0] != '\0' ? channel : NULL,
+        .allow_same_version = allow_same_version,
+        .restart_on_success = false,
+    };
+    esp_err_t err = firmware_ota_check_manifest(&config, &artifact);
+    if (err != ESP_OK) {
+        *out_error = "ota_check_failed";
+        return err;
+    }
+
+    *out_result = build_artifact_check_result(&artifact,
+                                              APP_VERSION_SEMVER,
+                                              strcmp(artifact.version, APP_VERSION_SEMVER) != 0 ||
+                                              allow_same_version);
+    return *out_result ? ESP_OK : ESP_ERR_NO_MEM;
+}
+
+static esp_err_t handle_ota_apply_command(const cJSON *args,
+                                          cJSON **out_result,
+                                          const char **out_error)
+{
+    const char *manifest_url = json_string_arg(args, "manifest_url", true);
+    const char *channel = json_string_arg(args, "channel", false);
+
+    if (!manifest_url) {
+        *out_error = "missing_manifest_url";
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const firmware_ota_manifest_config_t config = {
+        .manifest_url = manifest_url,
+        .channel = channel[0] != '\0' ? channel : NULL,
+        .allow_same_version = json_bool_arg(args, "allow_same_version", false),
+        .restart_on_success = json_bool_arg(args, "restart_on_success", true),
+    };
+    esp_err_t err = firmware_ota_start_manifest(&config);
+    if (err != ESP_OK) {
+        *out_error = "ota_apply_start_failed";
+        return err;
+    }
+
+    cJSON *result = cJSON_CreateObject();
+    if (!result) {
+        return ESP_ERR_NO_MEM;
+    }
+    cJSON_AddBoolToObject(result, "started", true);
+    cJSON_AddStringToObject(result, "manifest_url", manifest_url);
+    cJSON_AddStringToObject(result, "channel", channel);
+    cJSON_AddBoolToObject(result, "restart_on_success", config.restart_on_success);
+    *out_result = result;
+    return ESP_OK;
+}
+
+static esp_err_t handle_ca_check_command(const cJSON *args,
+                                         cJSON **out_result,
+                                         const char **out_error)
+{
+    const char *manifest_url = json_string_arg(args, "manifest_url", true);
+    const char *channel = json_string_arg(args, "channel", false);
+    char current_version[64] = {0};
+    tele_manifest_artifact_t artifact = {0};
+
+    if (!manifest_url) {
+        *out_error = "missing_manifest_url";
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const tele_ca_updater_config_t config = {
+        .manifest_url = manifest_url,
+        .channel = channel[0] != '\0' ? channel : NULL,
+        .restart_on_update = false,
+    };
+    esp_err_t err = tele_ca_updater_check(&config, &artifact);
+    if (err != ESP_OK) {
+        *out_error = "ca_check_failed";
+        return err;
+    }
+
+    (void)tele_ca_store_get_version(current_version, sizeof(current_version));
+    *out_result = build_artifact_check_result(&artifact,
+                                              current_version,
+                                              strcmp(current_version, artifact.version) != 0);
+    return *out_result ? ESP_OK : ESP_ERR_NO_MEM;
+}
+
+static esp_err_t handle_ca_apply_command(const cJSON *args,
+                                         cJSON **out_result,
+                                         const char **out_error)
+{
+    const char *manifest_url = json_string_arg(args, "manifest_url", true);
+    const char *channel = json_string_arg(args, "channel", false);
+    tele_manifest_run_result_t run_result = {0};
+
+    if (!manifest_url) {
+        *out_error = "missing_manifest_url";
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const tele_ca_updater_config_t config = {
+        .manifest_url = manifest_url,
+        .channel = channel[0] != '\0' ? channel : NULL,
+        .restart_on_update = json_bool_arg(args, "restart_on_update", false),
+    };
+    esp_err_t err = tele_ca_updater_apply(&config, &run_result);
+    if (err != ESP_OK) {
+        *out_error = "ca_apply_failed";
+        return err;
+    }
+
+    cJSON *result = cJSON_CreateObject();
+    if (!result) {
+        return ESP_ERR_NO_MEM;
+    }
+    cJSON_AddNumberToObject(result, "result", (double)run_result.result);
+    cJSON_AddStringToObject(result, "selected_url", run_result.selected_url);
+    cJSON_AddNumberToObject(result, "bytes_received", (double)run_result.bytes_received);
+    cJSON_AddStringToObject(result, "message", run_result.message);
+    *out_result = result;
+    return ESP_OK;
+}
+
+static bool mqtt_presence_is_mutating_command(const char *cmd_name,
+                                              const cJSON *args,
+                                              void *ctx)
+{
+    (void)args;
+    (void)ctx;
+    return cmd_name &&
+           (strcmp(cmd_name, "ota_apply") == 0 ||
+            strcmp(cmd_name, "ca_apply") == 0);
+}
+
+static esp_err_t mqtt_presence_handle_command(const char *cmd_name,
+                                              const cJSON *args,
+                                              cJSON **out_result,
+                                              const char **out_error,
+                                              void *ctx)
+{
+    (void)ctx;
+
+    if (!cmd_name || !out_result || !out_error) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *out_result = NULL;
+    *out_error = NULL;
+
+    if (strcmp(cmd_name, "ota_check") == 0) {
+        return handle_ota_check_command(args, out_result, out_error);
+    }
+    if (strcmp(cmd_name, "ota_apply") == 0) {
+        return handle_ota_apply_command(args, out_result, out_error);
+    }
+    if (strcmp(cmd_name, "ca_check") == 0) {
+        return handle_ca_check_command(args, out_result, out_error);
+    }
+    if (strcmp(cmd_name, "ca_apply") == 0) {
+        return handle_ca_apply_command(args, out_result, out_error);
+    }
+
+    return ESP_ERR_NOT_FOUND;
+}
+
 static uint32_t mqtt_presence_effective_heartbeat_interval_s(void)
 {
     tele_config_value_t value = {0};
@@ -775,6 +1105,8 @@ esp_err_t mqtt_presence_start(void)
         .is_ready = mqtt_presence_ready,
         .build_timestamp = mqtt_presence_build_timestamp,
         .build_technical_status = mqtt_presence_build_technical_status,
+        .is_mutating_command = mqtt_presence_is_mutating_command,
+        .handle_command = mqtt_presence_handle_command,
         .restart = mqtt_presence_restart,
     };
 
@@ -823,6 +1155,12 @@ esp_err_t mqtt_presence_start(void)
     err = mqtt_presence_register_status_fields();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar status MQTT: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = mqtt_presence_register_commands();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao registrar comandos MQTT do produto: %s", esp_err_to_name(err));
         return err;
     }
 

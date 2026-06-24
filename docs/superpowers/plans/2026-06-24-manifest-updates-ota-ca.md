@@ -852,7 +852,7 @@ git commit -m "feat: add manifest-driven streaming OTA"
 - Modify: `docs/tele_commands.md`
 - Modify: `docs/manual_mqtt_operacao.md`
 
-- [ ] **Step 1: Add `ota_check` command**
+- [x] **Step 1: Add `ota_check` command**
 
 Payload:
 
@@ -880,7 +880,7 @@ Response fields:
 }
 ```
 
-- [ ] **Step 2: Add `ota_apply` command**
+- [x] **Step 2: Add `ota_apply` command**
 
 Payload:
 
@@ -896,15 +896,15 @@ Payload:
 
 Response should acknowledge that OTA started, not wait for reboot.
 
-- [ ] **Step 3: Add `ca_check` and `ca_apply` commands**
+- [x] **Step 3: Add `ca_check` and `ca_apply` commands**
 
 Use the same shape as OTA, with artifact type fixed by the adapter.
 
-- [ ] **Step 4: Update command manifest**
+- [x] **Step 4: Update command manifest**
 
 Expose the four commands in the command manifest so the desktop/MQTT control tools can discover them.
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 ```bash
 idf.py build
@@ -912,7 +912,7 @@ idf.py build
 
 Expected: build passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add main components/tele_commands docs/tele_commands.md docs/manual_mqtt_operacao.md

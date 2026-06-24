@@ -121,6 +121,18 @@ descobrivel por `meta/config` e evita duplicar semantica.
 - `config/reset`;
 - `apply_and_reboot`.
 
+O TeleSystem tambem registra comandos de update por manifest pelo adaptador
+`components/tele_presence`:
+
+- `ota_check`;
+- `ota_apply`;
+- `ca_check`;
+- `ca_apply`.
+
+Todos usam `args.manifest_url` e aceitam `args.channel`. `ota_apply` inicia uma
+task de OTA em streaming e responde apenas que o processo comecou. `ca_apply`
+baixa, valida e ativa o bundle CA pelo storage runtime.
+
 O firmware publica `{base_topic}/{device_id}/meta/commands` como mensagem
 retida ao conectar ao broker. O Control Center consome esse manifesto para
 mostrar comandos agrupados, argumentos e ajuda por hover.

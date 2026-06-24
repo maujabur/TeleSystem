@@ -467,6 +467,72 @@ Agenda reboot curto depois do ACK.
 {"cmd_id":"r1","name":"apply_and_reboot","args":{"delay_ms":800}}
 ```
 
+### ota_check
+
+Consulta um manifest remoto de firmware sem aplicar OTA.
+
+```json
+{
+  "cmd_id": "ota-check-1",
+  "name": "ota_check",
+  "args": {
+    "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json",
+    "channel": "pilot"
+  }
+}
+```
+
+Resposta bem-sucedida inclui `current_version`, `available`,
+`target_version`, `build_id`, `size`, `critical` e `artifact_url`.
+
+### ota_apply
+
+Inicia OTA de firmware por manifest em streaming. O ACK confirma apenas que a
+task foi iniciada; progresso e resultado ficam no status OTA.
+
+```json
+{
+  "cmd_id": "ota-apply-1",
+  "name": "ota_apply",
+  "args": {
+    "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json",
+    "channel": "pilot",
+    "restart_on_success": true
+  }
+}
+```
+
+### ca_check
+
+Consulta um manifest remoto de bundle CA sem aplicar.
+
+```json
+{
+  "cmd_id": "ca-check-1",
+  "name": "ca_check",
+  "args": {
+    "manifest_url": "https://updates.example.com/ca/stable/bundle_ca.manifest.json",
+    "channel": "stable"
+  }
+}
+```
+
+### ca_apply
+
+Baixa, valida e ativa um bundle CA por manifest.
+
+```json
+{
+  "cmd_id": "ca-apply-1",
+  "name": "ca_apply",
+  "args": {
+    "manifest_url": "https://updates.example.com/ca/stable/bundle_ca.manifest.json",
+    "channel": "stable",
+    "restart_on_update": false
+  }
+}
+```
+
 ## Extensao por produto
 
 Novos comandos de dominio devem ser adicionados no adaptador
