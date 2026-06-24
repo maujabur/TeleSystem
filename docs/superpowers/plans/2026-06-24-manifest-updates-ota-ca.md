@@ -592,7 +592,7 @@ git commit -m "feat: add HTTPS manifest artifact delivery"
 - Create: `components/tele_ca_store/tele_ca_store.c`
 - Modify: `partitions.csv` if the project needs a `ca_store` SPIFFS partition.
 
-- [ ] **Step 1: Decide storage partition**
+- [x] **Step 1: Decide storage partition**
 
 The current `partitions.csv` has no SPIFFS. Add a CA storage partition only if runtime CA updates are required in this firmware image:
 
@@ -602,7 +602,7 @@ ca_store, data, spiffs, , 0x80000,
 
 If flash space is tight, reduce app slot size only after checking current firmware binary size and target device flash size.
 
-- [ ] **Step 2: Add public CA API**
+- [x] **Step 2: Add public CA API**
 
 Create `tele_ca_store.h` with:
 
@@ -633,7 +633,7 @@ esp_err_t tele_ca_store_apply_file(const char *verified_path, const char *versio
 #endif
 ```
 
-- [ ] **Step 3: Implement from reference design**
+- [x] **Step 3: Implement from reference design**
 
 Use `ca_manager` from `mozilla_ca_spiffs_updater` as the implementation reference, preserving these properties:
 
@@ -645,11 +645,11 @@ Use `ca_manager` from `mozilla_ca_spiffs_updater` as the implementation referenc
 - keep previous active bundle on failure;
 - persist active version separately.
 
-- [ ] **Step 4: Wire app initialization**
+- [x] **Step 4: Wire app initialization**
 
 Call `tele_ca_store_init()` during boot before HTTPS clients that should use the stored CA bundle.
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 ```bash
 idf.py build
@@ -657,7 +657,7 @@ idf.py build
 
 Expected: build passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add components/tele_ca_store partitions.csv main components

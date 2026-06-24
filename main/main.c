@@ -10,6 +10,7 @@
 #include "firmware_version.h"
 #include "mqtt_presence.h"
 #include "power_good.h"
+#include "tele_ca_store.h"
 #include "tele_portal_ota.h"
 #include "tele_portal_logs.h"
 #include "vbat_monitor.h"
@@ -177,6 +178,7 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(err);
 
+    ESP_ERROR_CHECK(tele_ca_store_init());
     ESP_ERROR_CHECK(firmware_ota_init());
     ESP_ERROR_CHECK(register_portal_ota_routes());
     ESP_ERROR_CHECK(connectivity_controller_start());

@@ -1,0 +1,23 @@
+menu "Tele CA store"
+
+    config TELE_CA_STORE_STORAGE_LABEL
+        string "CA store SPIFFS partition label"
+        default "ca_store"
+
+    config TELE_CA_STORE_BASE_PATH
+        string "CA store mount path"
+        default "/ca_store"
+
+    config TELE_CA_STORE_BUNDLE_FILENAME
+        string "CA bundle filename"
+        default "bundle_ca.bin"
+
+    config TELE_CA_STORE_VERSION_FILENAME
+        string "CA bundle version filename"
+        default "bundle_ca.version"
+
+    config TELE_CA_STORE_MAX_BUNDLE_SIZE
+        int "Maximum CA bundle size"
+        default 262144
+
+endmenu

@@ -1,0 +1,8 @@
+dependencies:
+  idf: ">=5.3"
+
+description: Runtime CA bundle storage and activation for TeleSystem firmware.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_ca_store
+version: 0.1.0
