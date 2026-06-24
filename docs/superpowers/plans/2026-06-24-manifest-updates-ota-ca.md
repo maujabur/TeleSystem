@@ -433,7 +433,7 @@ git commit -m "feat: add manifest updater component skeleton"
 - Modify: `components/tele_manifest/tele_manifest.c`
 - Test: host-style parsing test if the project host test pattern supports `cJSON`; otherwise add an ESP-IDF component test under `components/tele_manifest/test/`.
 
-- [ ] **Step 1: Add parser helpers**
+- [x] **Step 1: Add parser helpers**
 
 Implement:
 
@@ -459,11 +459,11 @@ Rules:
 - Enforce `request->max_artifact_size` when non-zero.
 - Enforce configured channel when `request->channel` is non-empty.
 
-- [ ] **Step 2: Wire `tele_manifest_fetch` to parser**
+- [x] **Step 2: Wire `tele_manifest_fetch` to parser**
 
 For now, `tele_manifest_fetch()` may call an internal HTTP text fetch stub until Task 3. It must allocate at most `request->max_manifest_size` or `CONFIG_TELE_MANIFEST_DEFAULT_MAX_MANIFEST_SIZE`.
 
-- [ ] **Step 3: Add tests**
+- [x] **Step 3: Add tests**
 
 Cover at least:
 
@@ -476,7 +476,7 @@ Cover at least:
 - oversized artifact;
 - too many URLs.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run the smallest available command for component tests. If no host test harness exists, run:
 
@@ -486,7 +486,7 @@ idf.py build
 
 Expected: parser code compiles and all available parser tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add components/tele_manifest

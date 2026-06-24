@@ -5,7 +5,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef TELE_MANIFEST_HOST_TEST
+#include "tele_manifest_host_stubs.h"
+#else
 #include "esp_err.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
