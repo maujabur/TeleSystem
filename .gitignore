@@ -25,6 +25,7 @@ tools/mqtt_desktop/settings_*.json
 build/
 build*/
 build-*/
+artifacts/
 *.o
 *.a
 *.out

@@ -982,7 +982,7 @@ git commit -m "feat: expose manifest update status"
 - Create: `tools/update_artifacts/README.md`
 - Modify: `.gitignore` if generated artifacts should stay out of the firmware repo.
 
-- [ ] **Step 1: Add manifest generator**
+- [x] **Step 1: Add manifest generator**
 
 The script should accept:
 
@@ -999,7 +999,7 @@ python tools/update_artifacts/generate_manifest.py \
 
 Output JSON must include `schema`, `artifact_type`, `channel`, `version`, `build_id`, `url`, `sha256`, `size`, and `critical`.
 
-- [ ] **Step 2: Support CA bundles**
+- [x] **Step 2: Support CA bundles**
 
 The same script should work with:
 
@@ -1014,11 +1014,11 @@ python tools/update_artifacts/generate_manifest.py \
   --out artifacts/ca/stable/bundle_ca.manifest.json
 ```
 
-- [ ] **Step 3: Document publishing**
+- [x] **Step 3: Document publishing**
 
 Document that artifacts should live in a separate artifact repository or release bucket, not in the firmware source tree.
 
-- [ ] **Step 4: Run script locally**
+- [x] **Step 4: Run script locally**
 
 Run the script against a small test file and inspect JSON manually.
 
