@@ -675,7 +675,7 @@ git commit -m "feat: add runtime CA bundle store"
 - Create: `components/tele_ca_updater/tele_ca_updater.c`
 - Modify: `main/main.c`
 
-- [ ] **Step 1: Add public adapter API**
+- [x] **Step 1: Add public adapter API**
 
 Create:
 
@@ -709,7 +709,7 @@ esp_err_t tele_ca_updater_apply(const tele_ca_updater_config_t *config,
 #endif
 ```
 
-- [ ] **Step 2: Implement version policy**
+- [x] **Step 2: Implement version policy**
 
 CA version policy:
 
@@ -718,7 +718,7 @@ CA version policy:
 - Apply if manifest version differs.
 - Reject only when manifest channel/type validation fails in `tele_manifest`.
 
-- [ ] **Step 3: Implement file apply callback**
+- [x] **Step 3: Implement file apply callback**
 
 The apply callback must call:
 
@@ -728,11 +728,11 @@ tele_ca_store_apply_file(verified_path, artifact->version);
 
 After success, restart only if `config->restart_on_update` is true.
 
-- [ ] **Step 4: Wire into app**
+- [x] **Step 4: Wire into app**
 
 Add app configuration for CA manifest URL and channel. In the first integration, run one manual or boot-time CA update check only after Wi-Fi is connected.
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 ```bash
 idf.py build
@@ -740,7 +740,7 @@ idf.py build
 
 Expected: build passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add components/tele_ca_updater main

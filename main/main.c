@@ -4,6 +4,8 @@
 #include "esp_psram.h"
 #include "esp_sleep.h"
 #include "nvs_flash.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "connectivity_controller.h"
 #include "firmware_ota.h"
@@ -11,9 +13,11 @@
 #include "mqtt_presence.h"
 #include "power_good.h"
 #include "tele_ca_store.h"
+#include "tele_ca_updater.h"
 #include "tele_portal_ota.h"
 #include "tele_portal_logs.h"
 #include "vbat_monitor.h"
+#include "wifi_manager.h"
 
 #ifndef CONFIG_VBAT_SHUTDOWN_THRESHOLD_MV
 #define CONFIG_VBAT_SHUTDOWN_THRESHOLD_MV 3500
@@ -57,6 +61,26 @@
 
 #ifndef CONFIG_STATUS_LED_GPIO
 #define CONFIG_STATUS_LED_GPIO 48
+#endif
+
+#ifndef CONFIG_TELE_CA_UPDATER_BOOT_ENABLED
+#define CONFIG_TELE_CA_UPDATER_BOOT_ENABLED 0
+#endif
+
+#ifndef CONFIG_TELE_CA_UPDATER_MANIFEST_URL
+#define CONFIG_TELE_CA_UPDATER_MANIFEST_URL ""
+#endif
+
+#ifndef CONFIG_TELE_CA_UPDATER_CHANNEL
+#define CONFIG_TELE_CA_UPDATER_CHANNEL "stable"
+#endif
+
+#ifndef CONFIG_TELE_CA_UPDATER_RESTART_ON_UPDATE
+#define CONFIG_TELE_CA_UPDATER_RESTART_ON_UPDATE 0
+#endif
+
+#ifndef CONFIG_TELE_CA_UPDATER_BOOT_WAIT_TIMEOUT_MS
+#define CONFIG_TELE_CA_UPDATER_BOOT_WAIT_TIMEOUT_MS 60000
 #endif
 
 static const char *TAG = "telesystem";
@@ -122,6 +146,61 @@ static esp_err_t register_portal_ota_routes(void)
     return tele_portal_ota_register_routes();
 }
 
+static void ca_updater_boot_task(void *ctx)
+{
+    (void)ctx;
+
+    if (!CONFIG_TELE_CA_UPDATER_BOOT_ENABLED ||
+        CONFIG_TELE_CA_UPDATER_MANIFEST_URL[0] == '\0') {
+        vTaskDelete(NULL);
+        return;
+    }
+
+    ESP_LOGI(TAG, "Aguardando Wi-Fi para verificar manifest de CA");
+    esp_err_t err = wifi_manager_wait_until_ready(pdMS_TO_TICKS(CONFIG_TELE_CA_UPDATER_BOOT_WAIT_TIMEOUT_MS));
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "CA updater ignorado: Wi-Fi nao ficou pronto (%s)", esp_err_to_name(err));
+        vTaskDelete(NULL);
+        return;
+    }
+
+    const tele_ca_updater_config_t config = {
+        .manifest_url = CONFIG_TELE_CA_UPDATER_MANIFEST_URL,
+        .channel = CONFIG_TELE_CA_UPDATER_CHANNEL,
+        .restart_on_update = CONFIG_TELE_CA_UPDATER_RESTART_ON_UPDATE,
+    };
+    tele_manifest_run_result_t result = {0};
+    err = tele_ca_updater_apply(&config, &result);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Falha ao aplicar manifest de CA: %s", esp_err_to_name(err));
+    } else {
+        ESP_LOGI(TAG,
+                 "Manifest de CA finalizado: result=%d url=%s",
+                 result.result,
+                 result.selected_url);
+    }
+
+    vTaskDelete(NULL);
+}
+
+static void maybe_start_ca_updater_boot_task(void)
+{
+    if (!CONFIG_TELE_CA_UPDATER_BOOT_ENABLED ||
+        CONFIG_TELE_CA_UPDATER_MANIFEST_URL[0] == '\0') {
+        return;
+    }
+
+    BaseType_t ok = xTaskCreate(ca_updater_boot_task,
+                                "ca_updater",
+                                8192,
+                                NULL,
+                                tskIDLE_PRIORITY + 1,
+                                NULL);
+    if (ok != pdPASS) {
+        ESP_LOGE(TAG, "Falha ao criar task do CA updater");
+    }
+}
+
 static void log_startup_config_snapshot(void)
 {
     ESP_LOGI(TAG,
@@ -182,5 +261,6 @@ void app_main(void)
     ESP_ERROR_CHECK(firmware_ota_init());
     ESP_ERROR_CHECK(register_portal_ota_routes());
     ESP_ERROR_CHECK(connectivity_controller_start());
+    maybe_start_ca_updater_boot_task();
     ESP_ERROR_CHECK(mqtt_presence_start());
 }

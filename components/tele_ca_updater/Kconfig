@@ -1,0 +1,31 @@
+menu "Tele CA updater"
+
+    config TELE_CA_UPDATER_BOOT_ENABLED
+        bool "Check CA manifest after Wi-Fi connects"
+        default n
+
+    config TELE_CA_UPDATER_MANIFEST_URL
+        string "CA bundle manifest URL"
+        default ""
+
+    config TELE_CA_UPDATER_CHANNEL
+        string "CA bundle update channel"
+        default "stable"
+
+    config TELE_CA_UPDATER_RESTART_ON_UPDATE
+        bool "Restart after applying a CA bundle update"
+        default n
+
+    config TELE_CA_UPDATER_BOOT_WAIT_TIMEOUT_MS
+        int "Boot CA update Wi-Fi wait timeout in milliseconds"
+        default 60000
+
+    config TELE_CA_UPDATER_MAX_MANIFEST_SIZE
+        int "Maximum CA manifest size"
+        default 4096
+
+    config TELE_CA_UPDATER_MAX_BUNDLE_SIZE
+        int "Maximum CA bundle artifact size"
+        default 262144
+
+endmenu
