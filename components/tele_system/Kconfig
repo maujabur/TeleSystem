@@ -102,6 +102,16 @@ config VBAT_MONITOR_RDIV_RGND
 
 endmenu
 
+menu "Firmware OTA Config"
+
+config FIRMWARE_OTA_MANIFEST_MAX_SIZE
+    int "Maximum firmware OTA manifest size"
+    default 4096
+    help
+        Tamanho maximo do JSON de manifest usado pelo OTA remoto por manifest.
+
+endmenu
+
 menu "POWER_GOOD GPIO Config"
 
 config POWER_GOOD_GPIO_ENABLED

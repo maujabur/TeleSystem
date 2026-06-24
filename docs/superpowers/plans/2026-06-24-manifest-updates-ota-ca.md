@@ -758,7 +758,7 @@ git commit -m "feat: add manifest-based CA updater"
 - Modify: `components/tele_system/Kconfig`
 - Modify: `components/tele_system/include/firmware_version.h`
 
-- [ ] **Step 1: Add normalized version macros**
+- [x] **Step 1: Add normalized version macros**
 
 Update `firmware_version.h` so firmware automation can compare a stable value:
 
@@ -771,7 +771,7 @@ Update `firmware_version.h` so firmware automation can compare a stable value:
 
 Use the actual project version for `APP_VERSION_SEMVER`.
 
-- [ ] **Step 2: Expand OTA status**
+- [x] **Step 2: Expand OTA status**
 
 Add fields:
 
@@ -785,7 +785,7 @@ size_t total_size;
 uint8_t progress_pct;
 ```
 
-- [ ] **Step 3: Add manifest OTA API**
+- [x] **Step 3: Add manifest OTA API**
 
 Add:
 
@@ -803,7 +803,7 @@ esp_err_t firmware_ota_check_manifest(const firmware_ota_manifest_config_t *conf
 esp_err_t firmware_ota_start_manifest(const firmware_ota_manifest_config_t *config);
 ```
 
-- [ ] **Step 4: Implement firmware version policy**
+- [x] **Step 4: Implement firmware version policy**
 
 Policy:
 
@@ -813,7 +813,7 @@ Policy:
 - Reject if `min_version` exists and current firmware is lower than `min_version`.
 - Reject if artifact size is larger than next OTA partition size.
 
-- [ ] **Step 5: Implement stream callbacks**
+- [x] **Step 5: Implement stream callbacks**
 
 Map manifest streaming callbacks to OTA:
 
@@ -824,11 +824,11 @@ Map manifest streaming callbacks to OTA:
 
 Do not set boot partition before `tele_manifest_apply_stream()` has validated size and SHA-256.
 
-- [ ] **Step 6: Run manifest OTA in a task**
+- [x] **Step 6: Run manifest OTA in a task**
 
 Like the existing URL OTA path, `firmware_ota_start_manifest()` should create a FreeRTOS task so callers do not block MQTT or HTTP handlers.
 
-- [ ] **Step 7: Build**
+- [x] **Step 7: Build**
 
 ```bash
 idf.py build
@@ -836,7 +836,7 @@ idf.py build
 
 Expected: build passes.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add components/tele_system
