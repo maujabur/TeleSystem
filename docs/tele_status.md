@@ -98,6 +98,11 @@ Ferramentas devem cruzar `id` do manifesto com as chaves dos payloads de valor.
 - `uptime_s`
 - `heartbeat_interval_s`
 - `time_synchronized`
+- `ota_state`
+- `ota_in_progress`
+- `ota_progress_pct`
+- `ota_target_version`
+- `ota_last_error`
 
 `state` e `heartbeat` sao montados a partir do registry. O firmware tambem
 publica `meta/status` retained com os metadados dos campos expostos por MQTT,

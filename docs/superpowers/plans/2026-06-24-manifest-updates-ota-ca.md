@@ -928,7 +928,7 @@ git commit -m "feat: expose manifest update commands"
 - Modify: `components/tele_status/tele_status.c` if OTA status belongs in the status registry.
 - Modify: `docs/tele_status.md`
 
-- [ ] **Step 1: Extend `/api/ota/status`**
+- [x] **Step 1: Extend `/api/ota/status`**
 
 Return:
 
@@ -947,7 +947,7 @@ Return:
 }
 ```
 
-- [ ] **Step 2: Keep upload OTA working**
+- [x] **Step 2: Keep upload OTA working**
 
 Manual upload status should still work. For upload mode, use:
 
@@ -955,11 +955,11 @@ Manual upload status should still work. For upload mode, use:
 - `artifact_url = "upload"`
 - `target_version = ""` unless image metadata is parsed later.
 
-- [ ] **Step 3: Add status registry fields if useful**
+- [x] **Step 3: Add status registry fields if useful**
 
 Expose update state, progress, and last error through `tele_status` only if those values are useful for MQTT dashboards. Do not duplicate the full artifact metadata unless consumers need it.
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 ```bash
 idf.py build
@@ -967,7 +967,7 @@ idf.py build
 
 Expected: build passes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add main components/tele_portal_ota components/tele_status docs/tele_status.md

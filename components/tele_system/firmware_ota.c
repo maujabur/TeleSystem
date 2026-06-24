@@ -680,6 +680,7 @@ esp_err_t firmware_ota_upload_begin(void)
     s_status.state = FIRMWARE_OTA_STATE_RUNNING;
     reset_transfer_status_locked();
     copy_text(s_status.url, sizeof(s_status.url), "upload");
+    copy_text(s_status.artifact_url, sizeof(s_status.artifact_url), "upload");
     s_status.last_error[0] = '\0';
     portEXIT_CRITICAL(&s_ota_lock);
 

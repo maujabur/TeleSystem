@@ -441,6 +441,57 @@ static bool status_read_time_synchronized(void *ctx)
     return time_sync_is_synchronized();
 }
 
+static const char *status_read_ota_state(void *ctx)
+{
+    static char state[16] = {0};
+    firmware_ota_status_t status = {0};
+    (void)ctx;
+
+    firmware_ota_get_status(&status);
+    snprintf(state, sizeof(state), "%s", firmware_ota_state_name(status.state));
+    return state;
+}
+
+static bool status_read_ota_in_progress(void *ctx)
+{
+    firmware_ota_status_t status = {0};
+    (void)ctx;
+
+    firmware_ota_get_status(&status);
+    return status.in_progress;
+}
+
+static uint32_t status_read_ota_progress_pct(void *ctx)
+{
+    firmware_ota_status_t status = {0};
+    (void)ctx;
+
+    firmware_ota_get_status(&status);
+    return status.progress_pct;
+}
+
+static const char *status_read_ota_target_version(void *ctx)
+{
+    static char target_version[sizeof(((firmware_ota_status_t *)0)->target_version)] = {0};
+    firmware_ota_status_t status = {0};
+    (void)ctx;
+
+    firmware_ota_get_status(&status);
+    snprintf(target_version, sizeof(target_version), "%s", status.target_version);
+    return target_version;
+}
+
+static const char *status_read_ota_last_error(void *ctx)
+{
+    static char last_error[sizeof(((firmware_ota_status_t *)0)->last_error)] = {0};
+    firmware_ota_status_t status = {0};
+    (void)ctx;
+
+    firmware_ota_get_status(&status);
+    snprintf(last_error, sizeof(last_error), "%s", status.last_error);
+    return last_error;
+}
+
 static const tele_status_field_t s_common_status_fields[] = {
     {
         .id = "wifi_state",
@@ -539,6 +590,52 @@ static const tele_status_field_t s_common_status_fields[] = {
         .type = TELE_STATUS_TYPE_BOOL,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
         .read.boolean = status_read_time_synchronized,
+    },
+    {
+        .id = "ota_state",
+        .label = "Estado OTA",
+        .description = "Estado atual do subsistema OTA.",
+        .group = "updates",
+        .type = TELE_STATUS_TYPE_STRING,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
+        .read.string = status_read_ota_state,
+    },
+    {
+        .id = "ota_in_progress",
+        .label = "OTA em progresso",
+        .description = "Indica se ha atualizacao OTA em andamento.",
+        .group = "updates",
+        .type = TELE_STATUS_TYPE_BOOL,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
+        .read.boolean = status_read_ota_in_progress,
+    },
+    {
+        .id = "ota_progress_pct",
+        .label = "Progresso OTA",
+        .description = "Percentual de download/aplicacao OTA conhecido.",
+        .group = "updates",
+        .type = TELE_STATUS_TYPE_U32,
+        .unit = "%",
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
+        .read.u32 = status_read_ota_progress_pct,
+    },
+    {
+        .id = "ota_target_version",
+        .label = "Versao OTA alvo",
+        .description = "Versao de firmware alvo quando uma OTA por manifest esta em andamento ou pendente.",
+        .group = "updates",
+        .type = TELE_STATUS_TYPE_STRING,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
+        .read.string = status_read_ota_target_version,
+    },
+    {
+        .id = "ota_last_error",
+        .label = "Ultimo erro OTA",
+        .description = "Ultimo erro reportado pelo subsistema OTA.",
+        .group = "updates",
+        .type = TELE_STATUS_TYPE_STRING,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT | TELE_STATUS_FLAG_WEB,
+        .read.string = status_read_ota_last_error,
     },
     {
         .id = "power_good.enabled",

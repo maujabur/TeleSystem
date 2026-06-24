@@ -123,10 +123,17 @@ static esp_err_t portal_ota_status_cb(cJSON *json, void *ctx)
     cJSON_AddBoolToObject(json, "in_progress", status.in_progress);
     cJSON_AddBoolToObject(json, "restart_pending", status.restart_pending);
     cJSON_AddStringToObject(json, "current_version", status.current_version);
+    cJSON_AddStringToObject(json, "target_version", status.target_version);
+    cJSON_AddStringToObject(json, "build_id", status.build_id);
     cJSON_AddStringToObject(json, "configured_url", status.url);
+    cJSON_AddStringToObject(json, "manifest_url", status.manifest_url);
+    cJSON_AddStringToObject(json, "artifact_url", status.artifact_url);
     cJSON_AddStringToObject(json, "last_error", status.last_error);
     cJSON_AddStringToObject(json, "running_partition", status.running_partition);
     cJSON_AddStringToObject(json, "next_update_partition", status.next_update_partition);
+    cJSON_AddNumberToObject(json, "bytes_written", (double)status.bytes_written);
+    cJSON_AddNumberToObject(json, "total_size", (double)status.total_size);
+    cJSON_AddNumberToObject(json, "progress_pct", status.progress_pct);
 
     return ESP_OK;
 }
