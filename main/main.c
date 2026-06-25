@@ -12,6 +12,7 @@
 #include "firmware_version.h"
 #include "mqtt_presence.h"
 #include "power_good.h"
+#include "tele_artifacts.h"
 #include "tele_ca_store.h"
 #include "tele_ca_updater.h"
 #include "tele_portal_commands.h"
@@ -173,20 +174,21 @@ static void ca_updater_boot_task(void *ctx)
         return;
     }
 
-    const tele_ca_updater_config_t config = {
+    const tele_artifact_request_t request = {
+        .artifact_type = "ca_bundle",
         .manifest_url = CONFIG_TELE_CA_UPDATER_MANIFEST_URL,
         .channel = CONFIG_TELE_CA_UPDATER_CHANNEL,
-        .restart_on_update = CONFIG_TELE_CA_UPDATER_RESTART_ON_UPDATE,
+        .restart_on_success = CONFIG_TELE_CA_UPDATER_RESTART_ON_UPDATE,
     };
-    tele_manifest_run_result_t result = {0};
-    err = tele_ca_updater_apply(&config, &result);
+    tele_artifact_apply_result_t result = {0};
+    err = tele_artifacts_apply(&request, &result);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Falha ao aplicar manifest de CA: %s", esp_err_to_name(err));
     } else {
         ESP_LOGI(TAG,
                  "Manifest de CA finalizado: result=%d url=%s",
-                 result.result,
-                 result.selected_url);
+                 result.run.result,
+                 result.run.selected_url);
     }
 
     vTaskDelete(NULL);
@@ -268,6 +270,9 @@ void app_main(void)
 
     ESP_ERROR_CHECK(tele_ca_store_init());
     ESP_ERROR_CHECK(firmware_ota_init());
+    ESP_ERROR_CHECK(tele_ca_updater_register_artifact());
+    ESP_ERROR_CHECK(firmware_ota_register_artifact());
+    ESP_ERROR_CHECK(tele_artifacts_register_commands());
     ESP_ERROR_CHECK(tele_portal_core_register_routes(tele_portal_commands_register_routes));
     ESP_ERROR_CHECK(register_portal_ota_routes());
     ESP_ERROR_CHECK(connectivity_controller_start());

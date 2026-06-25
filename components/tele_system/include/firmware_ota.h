@@ -41,6 +41,7 @@ typedef struct {
 } firmware_ota_manifest_config_t;
 
 esp_err_t firmware_ota_init(void);
+esp_err_t firmware_ota_register_artifact(void);
 esp_err_t firmware_ota_start(const char *url);
 esp_err_t firmware_ota_check_manifest(const firmware_ota_manifest_config_t *config,
                                       tele_manifest_artifact_t *out_artifact);

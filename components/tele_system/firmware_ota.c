@@ -13,6 +13,7 @@
 
 #include "firmware_ota.h"
 #include "firmware_version.h"
+#include "tele_artifacts.h"
 
 #ifndef CONFIG_FIRMWARE_OTA_MANIFEST_MAX_SIZE
 #define CONFIG_FIRMWARE_OTA_MANIFEST_MAX_SIZE 4096
@@ -662,6 +663,85 @@ esp_err_t firmware_ota_start_manifest(const firmware_ota_manifest_config_t *conf
     }
 
     return ESP_OK;
+}
+
+static esp_err_t check_firmware_artifact(const tele_artifact_request_t *request,
+                                         tele_artifact_check_result_t *out_result,
+                                         void *ctx)
+{
+    (void)ctx;
+
+    if (!request ||
+        !out_result ||
+        !request->manifest_url ||
+        strcmp(request->artifact_type, FIRMWARE_OTA_ARTIFACT_TYPE) != 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const firmware_ota_manifest_config_t config = {
+        .manifest_url = request->manifest_url,
+        .channel = request->channel,
+        .allow_same_version = request->allow_same_version,
+        .restart_on_success = request->restart_on_success,
+    };
+
+    esp_err_t err = firmware_ota_check_manifest(&config, &out_result->artifact);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    copy_text(out_result->current_version,
+              sizeof(out_result->current_version),
+              APP_VERSION_SEMVER);
+    out_result->available = request->allow_same_version ||
+                            strcmp(out_result->artifact.version, APP_VERSION_SEMVER) != 0;
+    return ESP_OK;
+}
+
+static esp_err_t apply_firmware_artifact(const tele_artifact_request_t *request,
+                                         tele_artifact_apply_result_t *out_result,
+                                         void *ctx)
+{
+    (void)ctx;
+
+    if (!request ||
+        !out_result ||
+        !request->manifest_url ||
+        strcmp(request->artifact_type, FIRMWARE_OTA_ARTIFACT_TYPE) != 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const firmware_ota_manifest_config_t config = {
+        .manifest_url = request->manifest_url,
+        .channel = request->channel,
+        .allow_same_version = request->allow_same_version,
+        .restart_on_success = request->restart_on_success,
+    };
+
+    esp_err_t err = firmware_ota_start_manifest(&config);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    out_result->started_async = true;
+    out_result->run.result = TELE_MANIFEST_RESULT_UNKNOWN;
+    copy_text(out_result->run.message, sizeof(out_result->run.message), "started");
+    return ESP_OK;
+}
+
+esp_err_t firmware_ota_register_artifact(void)
+{
+    static const tele_artifact_handler_t handler = {
+        .artifact_type = FIRMWARE_OTA_ARTIFACT_TYPE,
+        .label = "Firmware OTA",
+        .mode = TELE_ARTIFACT_MODE_STREAM,
+        .default_restart_on_success = true,
+        .check = check_firmware_artifact,
+        .apply = apply_firmware_artifact,
+    };
+
+    esp_err_t err = tele_artifacts_register(&handler);
+    return err == ESP_ERR_INVALID_STATE ? ESP_OK : err;
 }
 
 esp_err_t firmware_ota_upload_begin(void)

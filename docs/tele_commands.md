@@ -149,17 +149,17 @@ descobrivel por `meta/config` e evita duplicar semantica.
 - `config/reset`;
 - `apply_and_reboot`.
 
-O TeleSystem tambem registra comandos de update por manifest pelo adaptador
-`components/tele_presence`:
+O TeleSystem tambem registra comandos genericos de artefatos por manifest pelo
+componente `components/tele_artifacts`:
 
-- `ota_check`;
-- `ota_apply`;
-- `ca_check`;
-- `ca_apply`.
+- `artifact/check`;
+- `artifact/apply`.
 
-Todos usam `args.manifest_url` e aceitam `args.channel`. `ota_apply` inicia uma
-task de OTA em streaming e responde apenas que o processo comecou. `ca_apply`
-baixa, valida e ativa o bundle CA pelo storage runtime.
+Todos usam `args.artifact_type`, `args.manifest_url` e aceitam `args.channel`.
+`artifact/apply` para `artifact_type = "firmware"` inicia uma task de OTA em
+streaming e responde apenas que o processo comecou. `artifact/apply` para
+`artifact_type = "ca_bundle"` baixa, valida e ativa o bundle CA pelo storage
+runtime.
 
 O firmware publica `{base_topic}/{device_id}/meta/commands` como mensagem
 retida ao conectar ao broker. O Control Center consome esse manifesto para

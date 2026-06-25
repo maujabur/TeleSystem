@@ -1,17 +1,19 @@
-# Componentes De Manifest E Updates
+# Componentes De Manifest E Artefatos
 
-Este grupo implementa updates por manifest para dois artefatos:
+Este grupo implementa updates por manifest de forma generica. O sistema atual
+registra dois artefatos:
 
-- bundle de certificados CA;
-- firmware OTA em streaming.
+- `ca_bundle`, aplicado como arquivo validado no `tele_ca_store`;
+- `firmware`, aplicado em streaming direto na particao OTA.
 
-O componente generico conhece manifest, HTTPS, tamanho, SHA-256 e politica de
-versao por callback. Os adaptadores de dominio conhecem como aplicar cada tipo
-de artefato.
+Novos tipos devem registrar um handler em `tele_artifacts`, escolhendo se a
+aplicacao usa arquivo local ou streaming.
 
 ## Componentes
 
 ### `components/tele_manifest`
+
+Motor de manifest, download e verificacao.
 
 Responsavel por:
 
@@ -23,10 +25,41 @@ Responsavel por:
 - calcular SHA-256 durante o download;
 - chamar callbacks de progresso e aplicacao.
 
-Use `tele_manifest_fetch()` quando so precisa consultar o manifest. Use
-`tele_manifest_run_file()` para artefatos pequenos que precisam virar arquivo
-local antes da aplicacao. Use `tele_manifest_run_stream()` para firmware OTA,
-onde nao deve existir staging completo em filesystem.
+Use:
+
+- `tele_manifest_fetch()` para consultar o manifest;
+- `tele_manifest_run_file()` para artefatos que devem ser baixados para um
+  arquivo temporario antes da aplicacao;
+- `tele_manifest_run_stream()` para artefatos grandes ou que devem ser gravados
+  direto no destino, como firmware OTA.
+
+### `components/tele_artifacts`
+
+Registry generico de tipos de artefato.
+
+Cada handler declara:
+
+- `artifact_type`;
+- `mode`: `TELE_ARTIFACT_MODE_FILE` ou `TELE_ARTIFACT_MODE_STREAM`;
+- default de `restart_on_success`;
+- callback de `check`;
+- callback de `apply`.
+
+API principal:
+
+```c
+esp_err_t tele_artifacts_register(const tele_artifact_handler_t *handler);
+const tele_artifact_handler_t *tele_artifacts_find(const char *artifact_type);
+esp_err_t tele_artifacts_check(const tele_artifact_request_t *request,
+                               tele_artifact_check_result_t *out_result);
+esp_err_t tele_artifacts_apply(const tele_artifact_request_t *request,
+                               tele_artifact_apply_result_t *out_result);
+esp_err_t tele_artifacts_register_commands(void);
+```
+
+`tele_artifacts_register_commands()` registra comandos genericos no dispatcher
+`tele_commands`, sem depender de MQTT. MQTT, portal e uma futura serial podem
+chamar o mesmo dispatcher.
 
 ### `components/tele_ca_store`
 
@@ -37,29 +70,20 @@ Responsavel por:
 - aplicar bundle novo com promocao segura por `.tmp` e `.bak`;
 - guardar e ler versao do bundle ativo.
 
-Inicializacao atual:
+Inicializacao:
 
 ```c
 ESP_ERROR_CHECK(tele_ca_store_init());
 ```
 
-Essa chamada acontece em `main/main.c` antes do OTA, portal, Wi-Fi e MQTT.
-
 ### `components/tele_ca_updater`
 
-Adaptador para `artifact_type = "ca_bundle"`.
+Handler do artefato `ca_bundle`.
 
-Use:
+Uso:
 
 ```c
-const tele_ca_updater_config_t config = {
-    .manifest_url = "https://updates.example.com/ca/stable/manifest.json",
-    .channel = "stable",
-    .restart_on_update = false,
-};
-
-tele_manifest_run_result_t result = {0};
-esp_err_t err = tele_ca_updater_apply(&config, &result);
+ESP_ERROR_CHECK(tele_ca_updater_register_artifact());
 ```
 
 Politica atual:
@@ -67,50 +91,40 @@ Politica atual:
 - se a versao do manifest e igual a versao salva, pula;
 - se a versao salva esta vazia, aplica;
 - se a versao difere, aplica;
-- tipo, canal, URL, tamanho e SHA sao validados por `tele_manifest`.
+- tipo, canal, URL, tamanho e SHA sao validados por `tele_manifest`;
+- `restart_on_success` reinicia depois de aplicar quando solicitado.
 
-Existe uma rotina opcional de boot em `main/main.c`, controlada por:
-
-- `CONFIG_TELE_CA_UPDATER_BOOT_ENABLED`;
-- `CONFIG_TELE_CA_UPDATER_MANIFEST_URL`;
-- `CONFIG_TELE_CA_UPDATER_CHANNEL`;
-- `CONFIG_TELE_CA_UPDATER_RESTART_ON_UPDATE`;
-- `CONFIG_TELE_CA_UPDATER_BOOT_WAIT_TIMEOUT_MS`.
-
-Por default ela fica desligada.
+A rotina opcional de boot em `main/main.c` usa `tele_artifacts_apply()` para
+aplicar `artifact_type = "ca_bundle"` depois que o Wi-Fi fica pronto.
 
 ### `components/tele_system/firmware_ota.c`
 
-Responsavel por OTA de firmware:
+Handler do artefato `firmware`.
+
+Responsavel por:
 
 - upload manual pelo portal, em streaming;
-- OTA antigo por URL direta;
+- OTA por URL direta;
 - OTA por manifest em streaming direto para a particao OTA;
-- status de progresso, versao alvo, build id, URLs e erro.
+- status de progresso, versao alvo, build id, URLs e erro;
+- registro do handler `firmware` com `firmware_ota_register_artifact()`.
 
-Para consultar:
+O comando generico `artifact/apply` apenas inicia a task OTA. O download roda em
+segundo plano e continua usando `tele_manifest_run_stream()`. O boot partition
+so e alterado depois de download completo, tamanho esperado, SHA-256 e
+`esp_ota_end()` passarem.
 
-```c
-firmware_ota_manifest_config_t config = {
-    .manifest_url = "https://updates.example.com/telesystem/pilot/manifest.json",
-    .channel = "pilot",
-    .allow_same_version = false,
-    .restart_on_success = true,
-};
+## Inicializacao No App
 
-tele_manifest_artifact_t artifact = {0};
-esp_err_t err = firmware_ota_check_manifest(&config, &artifact);
-```
-
-Para aplicar:
+Fluxo atual em `main/main.c`:
 
 ```c
-esp_err_t err = firmware_ota_start_manifest(&config);
+ESP_ERROR_CHECK(tele_ca_store_init());
+ESP_ERROR_CHECK(firmware_ota_init());
+ESP_ERROR_CHECK(tele_ca_updater_register_artifact());
+ESP_ERROR_CHECK(firmware_ota_register_artifact());
+ESP_ERROR_CHECK(tele_artifacts_register_commands());
 ```
-
-`firmware_ota_start_manifest()` cria uma task; chamadores MQTT/HTTP nao devem
-ficar bloqueados durante o download. O boot partition so e alterado depois de
-download completo, tamanho esperado, SHA-256 e `esp_ota_end()` passarem.
 
 ## Schema De Manifest
 
@@ -139,28 +153,27 @@ Campos opcionais:
 Regras:
 
 - `schema` deve ser `1`;
-- `artifact_type` deve ser `firmware` ou `ca_bundle`, conforme o adaptador;
+- `artifact_type` deve corresponder a um handler registrado;
 - `channel` precisa bater quando configurado pelo chamador;
 - todas as URLs de artefato devem ser HTTPS;
 - `sha256` tem 64 caracteres hexadecimais;
-- `size` precisa ser maior que zero e menor que o limite do chamador.
+- `size` precisa ser maior que zero e menor que o limite do handler.
 
-## Comandos MQTT
+## Comandos
 
-Registrados por `components/tele_presence`:
+Registrados por `components/tele_artifacts`:
 
-- `ota_check`;
-- `ota_apply`;
-- `ca_check`;
-- `ca_apply`.
+- `artifact/check`;
+- `artifact/apply`.
 
-Exemplo:
+Exemplo OTA:
 
 ```json
 {
   "cmd_id": "ota-apply-1",
-  "name": "ota_apply",
+  "name": "artifact/apply",
   "args": {
+    "artifact_type": "firmware",
     "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json",
     "channel": "pilot",
     "restart_on_success": true
@@ -168,8 +181,24 @@ Exemplo:
 }
 ```
 
-`ota_apply` responde apenas que a task iniciou. O progresso aparece em
-`/api/ota/status`, `state`, `heartbeat` e campos do registry `tele_status`.
+Exemplo CA:
+
+```json
+{
+  "cmd_id": "ca-apply-1",
+  "name": "artifact/apply",
+  "args": {
+    "artifact_type": "ca_bundle",
+    "manifest_url": "https://updates.example.com/ca/stable/bundle_ca.manifest.json",
+    "channel": "stable"
+  }
+}
+```
+
+`artifact/apply` para `firmware` responde com `started_async = true`; progresso
+e resultado aparecem em `/api/ota/status`, `state`, `heartbeat` e campos do
+registry `tele_status`. Para `ca_bundle`, a aplicacao e sincronizada e o
+resultado inclui URL selecionada, bytes recebidos e mensagem.
 
 ## Verificacao Periodica
 
@@ -177,12 +206,12 @@ Os componentes nao possuem scheduler proprio. A verificacao de tempos em tempos
 deve viver no nivel da aplicacao, por exemplo em uma task iniciada por
 `main/main.c` depois de Wi-Fi pronto.
 
-Fluxo recomendado para uma rotina principal:
+Fluxo recomendado:
 
 1. esperar Wi-Fi pronto com `wifi_manager_wait_until_ready()`;
-2. aplicar CA automaticamente se politica do produto permitir;
-3. consultar OTA e publicar/notificar resultado;
-4. aplicar OTA somente se configurado para auto-apply;
+2. chamar `tele_artifacts_check()` para `ca_bundle` e `firmware`;
+3. aplicar CA automaticamente se a politica do produto permitir;
+4. aplicar firmware somente se configurado para auto-apply;
 5. repetir com intervalo configuravel e jitter.
 
 ## Publicacao De Artefatos

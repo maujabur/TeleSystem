@@ -1,0 +1,5 @@
+version: "0.1.0"
+description: Generic manifest artifact registry and command adapter
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_artifacts
+dependencies:
+  idf: ">=5.0"

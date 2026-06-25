@@ -39,6 +39,7 @@ APIs principais:
 
 ```c
 esp_err_t firmware_ota_init(void);
+esp_err_t firmware_ota_register_artifact(void);
 esp_err_t firmware_ota_start(const char *url);
 esp_err_t firmware_ota_start_manifest(const firmware_ota_manifest_config_t *config);
 esp_err_t firmware_ota_upload_begin(void);
@@ -51,9 +52,11 @@ void firmware_ota_get_status(firmware_ota_status_t *status);
 Uso:
 
 - portal usa `firmware_ota_upload_*`;
-- comandos MQTT usam `firmware_ota_check_manifest()` e
-  `firmware_ota_start_manifest()`;
-- rotina principal futura pode chamar as mesmas APIs depois de Wi-Fi pronto.
+- `firmware_ota_register_artifact()` registra `artifact_type = "firmware"` no
+  registry generico `tele_artifacts`;
+- comandos MQTT/portal usam `artifact/check` e `artifact/apply`;
+- rotina principal futura pode chamar `tele_artifacts_check()` e
+  `tele_artifacts_apply()` depois de Wi-Fi pronto.
 
 ## Status OTA
 

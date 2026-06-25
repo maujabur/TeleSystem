@@ -480,15 +480,16 @@ Agenda reboot curto depois do ACK.
 {"cmd_id":"r1","name":"apply_and_reboot","args":{"delay_ms":800}}
 ```
 
-### ota_check
+### artifact/check
 
-Consulta um manifest remoto de firmware sem aplicar OTA.
+Consulta um manifest remoto de qualquer artefato registrado sem aplicar.
 
 ```json
 {
   "cmd_id": "ota-check-1",
-  "name": "ota_check",
+  "name": "artifact/check",
   "args": {
+    "artifact_type": "firmware",
     "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json",
     "channel": "pilot"
   }
@@ -496,9 +497,10 @@ Consulta um manifest remoto de firmware sem aplicar OTA.
 ```
 
 Resposta bem-sucedida inclui `current_version`, `available`,
-`target_version`, `build_id`, `size`, `critical` e `artifact_url`.
+`target_version`, `build_id`, `artifact_type`, `mode`, `size`, `critical` e
+`artifact_url`.
 
-### ota_apply
+### artifact/apply para firmware
 
 Inicia OTA de firmware por manifest em streaming. O ACK confirma apenas que a
 task foi iniciada; progresso e resultado ficam no status OTA.
@@ -506,8 +508,9 @@ task foi iniciada; progresso e resultado ficam no status OTA.
 ```json
 {
   "cmd_id": "ota-apply-1",
-  "name": "ota_apply",
+  "name": "artifact/apply",
   "args": {
+    "artifact_type": "firmware",
     "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json",
     "channel": "pilot",
     "restart_on_success": true
@@ -515,42 +518,29 @@ task foi iniciada; progresso e resultado ficam no status OTA.
 }
 ```
 
-### ca_check
-
-Consulta um manifest remoto de bundle CA sem aplicar.
-
-```json
-{
-  "cmd_id": "ca-check-1",
-  "name": "ca_check",
-  "args": {
-    "manifest_url": "https://updates.example.com/ca/stable/bundle_ca.manifest.json",
-    "channel": "stable"
-  }
-}
-```
-
-### ca_apply
+### artifact/apply para CA
 
 Baixa, valida e ativa um bundle CA por manifest.
 
 ```json
 {
   "cmd_id": "ca-apply-1",
-  "name": "ca_apply",
+  "name": "artifact/apply",
   "args": {
+    "artifact_type": "ca_bundle",
     "manifest_url": "https://updates.example.com/ca/stable/bundle_ca.manifest.json",
     "channel": "stable",
-    "restart_on_update": false
+    "restart_on_success": false
   }
 }
 ```
 
 ## Extensao por produto
 
-Novos comandos de dominio devem ser adicionados no adaptador
-`components/tele_presence/mqtt_presence.c`, registrando `tele_command_t` com
-handler:
+Novos comandos de dominio devem registrar `tele_command_t` com handler. Novos
+tipos de arquivo atualizaveis por manifest devem registrar um handler em
+`components/tele_artifacts`, reaproveitando `artifact/check` e
+`artifact/apply`.
 
 - `.handler`, para executar o comando e devolver `result`;
 - `TELE_COMMAND_FLAG_MUTATING`, para comandos que alteram estado e precisam de
