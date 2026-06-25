@@ -51,6 +51,25 @@ typedef struct {
 } tele_command_arg_t;
 
 typedef struct {
+    const char *cmd_id;
+    const char *name;
+    const cJSON *args;
+    uint32_t required_flags;
+} tele_command_request_t;
+
+typedef struct {
+    bool ok;
+    const char *error;
+    cJSON *result;
+} tele_command_response_t;
+
+typedef esp_err_t (*tele_command_handler_t)(const char *cmd_name,
+                                            const cJSON *args,
+                                            cJSON **out_result,
+                                            const char **out_error,
+                                            void *ctx);
+
+typedef struct {
     const char *name;
     const char *label;
     const char *description;
@@ -58,11 +77,16 @@ typedef struct {
     uint32_t flags;
     const tele_command_arg_t *args;
     size_t arg_count;
+    tele_command_handler_t handler;
+    void *ctx;
 } tele_command_t;
 
 esp_err_t tele_commands_register(const tele_command_t *commands, size_t command_count);
 const tele_command_t *tele_commands_find(const char *name);
 esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flags);
+esp_err_t tele_commands_execute(const tele_command_request_t *request,
+                                tele_command_response_t *response);
+void tele_commands_response_cleanup(tele_command_response_t *response);
 
 #ifdef __cplusplus
 }

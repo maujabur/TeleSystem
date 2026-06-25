@@ -49,10 +49,10 @@ Nucleo MQTT reutilizavel. Responsavel por:
 - publicar `availability`, `seen`, `state`, `heartbeat`;
 - publicar manifests `meta/config`, `meta/status`, `meta/commands`;
 - receber `cmd/in` e publicar `cmd/out`;
-- deduplicar comandos mutaveis por `cmd_id`.
+- chamar o dispatcher generico de `tele_commands`.
 
 O nucleo deve continuar sem conhecer regras de dominio do TeleSystem. Produto
-integra por `tele_mqtt_config_t`.
+integra por registries e pelos callbacks de payload de `tele_mqtt_config_t`.
 
 Guia de operacao: [manual_mqtt_operacao.md](manual_mqtt_operacao.md).
 
@@ -63,7 +63,7 @@ Adaptador do TeleSystem para o nucleo MQTT. Responsavel por:
 - registrar campos de config do produto;
 - registrar campos de status comuns;
 - registrar comandos de update por manifest;
-- implementar `handle_command` e `is_mutating_command`;
+- implementar handlers dos comandos de update;
 - esperar Wi-Fi e horario sincronizado antes de iniciar MQTT.
 
 `mqtt_presence_start()` e chamado por `main/main.c` depois de
@@ -106,12 +106,13 @@ Dentro de `mqtt_presence_start()`:
 ## Como Adicionar Comando
 
 1. Registre metadados com `tele_commands_register()`.
-2. Se for MQTT, implemente execucao em `handle_command`.
-3. Se altera estado, marque `MUTATING` no registry e retorne `true` em
-   `is_mutating_command`.
+2. Informe `.handler` no `tele_command_t`.
+3. Se altera estado, marque `MUTATING` no registry.
 4. Retorne resultado JSON curto; nao bloqueie handlers por downloads grandes.
 
 Para download grande, como OTA de firmware, inicie uma task e responda ACK.
+MQTT, portal HTTP ou serial podem chamar o mesmo dispatcher
+`tele_commands_execute()`; cada transporte decide quais flags aceita.
 
 ## Topicos MQTT
 

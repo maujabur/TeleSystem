@@ -15,14 +15,6 @@ extern "C" {
 typedef bool (*tele_mqtt_ready_cb_t)(void *ctx);
 typedef bool (*tele_mqtt_timestamp_cb_t)(char *buffer, size_t buffer_len, void *ctx);
 typedef cJSON *(*tele_mqtt_json_cb_t)(void *ctx);
-typedef bool (*tele_mqtt_command_mutating_cb_t)(const char *cmd_name,
-                                                const cJSON *args,
-                                                void *ctx);
-typedef esp_err_t (*tele_mqtt_command_handler_t)(const char *cmd_name,
-                                                 const cJSON *args,
-                                                 cJSON **out_result,
-                                                 const char **out_error,
-                                                 void *ctx);
 typedef void (*tele_mqtt_restart_cb_t)(uint32_t delay_ms, void *ctx);
 
 /*
@@ -42,7 +34,6 @@ typedef void (*tele_mqtt_restart_cb_t)(uint32_t delay_ms, void *ctx);
  * - build_timestamp: returns an ISO-like timestamp; fallback is Unix epoch
  * - build_technical_status: product-specific technical diagnostics
  * - restart: product-specific reboot hook; fallback is esp_restart()
- * - handle_command/is_mutating_command: product-specific command extension
  *
  * Optional payload overrides:
  * - build_state, build_heartbeat, build_config_manifest, build_status_manifest
@@ -69,8 +60,6 @@ typedef struct {
     tele_mqtt_json_cb_t build_status_manifest;
     tele_mqtt_json_cb_t build_technical_status;
     tele_mqtt_json_cb_t build_heartbeat;
-    tele_mqtt_command_mutating_cb_t is_mutating_command;
-    tele_mqtt_command_handler_t handle_command;
     tele_mqtt_restart_cb_t restart;
     void *ctx;
 } tele_mqtt_config_t;

@@ -90,6 +90,12 @@ static bool s_status_fields_registered;
 static bool s_config_fields_registered;
 static bool s_commands_registered;
 
+static esp_err_t mqtt_presence_handle_command(const char *cmd_name,
+                                              const cJSON *args,
+                                              cJSON **out_result,
+                                              const char **out_error,
+                                              void *ctx);
+
 static const tele_command_arg_t s_update_manifest_args[] = {
     {
         .id = "manifest_url",
@@ -148,6 +154,7 @@ static const tele_command_t s_update_commands[] = {
         .flags = TELE_COMMAND_FLAG_MQTT,
         .args = s_update_manifest_args,
         .arg_count = 2,
+        .handler = mqtt_presence_handle_command,
     },
     {
         .name = "ota_apply",
@@ -157,6 +164,7 @@ static const tele_command_t s_update_commands[] = {
         .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
         .args = s_update_manifest_args,
         .arg_count = 4,
+        .handler = mqtt_presence_handle_command,
     },
     {
         .name = "ca_check",
@@ -166,6 +174,7 @@ static const tele_command_t s_update_commands[] = {
         .flags = TELE_COMMAND_FLAG_MQTT,
         .args = s_ca_manifest_args,
         .arg_count = 2,
+        .handler = mqtt_presence_handle_command,
     },
     {
         .name = "ca_apply",
@@ -175,6 +184,7 @@ static const tele_command_t s_update_commands[] = {
         .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
         .args = s_ca_manifest_args,
         .arg_count = 3,
+        .handler = mqtt_presence_handle_command,
     },
 };
 
@@ -1013,17 +1023,6 @@ static esp_err_t handle_ca_apply_command(const cJSON *args,
     return ESP_OK;
 }
 
-static bool mqtt_presence_is_mutating_command(const char *cmd_name,
-                                              const cJSON *args,
-                                              void *ctx)
-{
-    (void)args;
-    (void)ctx;
-    return cmd_name &&
-           (strcmp(cmd_name, "ota_apply") == 0 ||
-            strcmp(cmd_name, "ca_apply") == 0);
-}
-
 static esp_err_t mqtt_presence_handle_command(const char *cmd_name,
                                               const cJSON *args,
                                               cJSON **out_result,
@@ -1202,8 +1201,6 @@ esp_err_t mqtt_presence_start(void)
         .is_ready = mqtt_presence_ready,
         .build_timestamp = mqtt_presence_build_timestamp,
         .build_technical_status = mqtt_presence_build_technical_status,
-        .is_mutating_command = mqtt_presence_is_mutating_command,
-        .handle_command = mqtt_presence_handle_command,
         .restart = mqtt_presence_restart,
     };
 

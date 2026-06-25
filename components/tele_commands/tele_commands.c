@@ -7,10 +7,14 @@
 
 #define TELE_COMMANDS_MAX_REGISTERED 32
 #define TELE_COMMANDS_MAX_ARGS 8
+#define TELE_COMMANDS_MAX_SEEN_MUTATING_IDS 16
+#define TELE_COMMANDS_CMD_ID_MAX_LEN 64
 #define TELE_COMMANDS_REGISTRY_REVISION 1
 
 static const tele_command_t *s_commands[TELE_COMMANDS_MAX_REGISTERED];
 static size_t s_command_count;
+static char s_seen_mutating_ids[TELE_COMMANDS_MAX_SEEN_MUTATING_IDS][TELE_COMMANDS_CMD_ID_MAX_LEN];
+static size_t s_seen_mutating_count;
 
 static cJSON *add_object_to_array(cJSON *array)
 {
@@ -103,6 +107,112 @@ const tele_command_t *tele_commands_find(const char *name)
         }
     }
     return NULL;
+}
+
+static bool command_id_was_seen(const char *cmd_id)
+{
+    if (!cmd_id || cmd_id[0] == '\0') {
+        return false;
+    }
+
+    for (size_t i = 0; i < s_seen_mutating_count; ++i) {
+        if (strcmp(s_seen_mutating_ids[i], cmd_id) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void remember_command_id(const char *cmd_id)
+{
+    if (!cmd_id || cmd_id[0] == '\0') {
+        return;
+    }
+
+    size_t slot = s_seen_mutating_count;
+    if (slot >= TELE_COMMANDS_MAX_SEEN_MUTATING_IDS) {
+        memmove(&s_seen_mutating_ids[0],
+                &s_seen_mutating_ids[1],
+                sizeof(s_seen_mutating_ids[0]) * (TELE_COMMANDS_MAX_SEEN_MUTATING_IDS - 1));
+        slot = TELE_COMMANDS_MAX_SEEN_MUTATING_IDS - 1;
+    } else {
+        s_seen_mutating_count++;
+    }
+
+    snprintf(s_seen_mutating_ids[slot], sizeof(s_seen_mutating_ids[slot]), "%s", cmd_id);
+}
+
+static void response_set_error(tele_command_response_t *response, const char *error)
+{
+    if (!response) {
+        return;
+    }
+
+    response->ok = false;
+    response->error = error;
+    response->result = NULL;
+}
+
+esp_err_t tele_commands_execute(const tele_command_request_t *request,
+                                tele_command_response_t *response)
+{
+    const tele_command_t *command = NULL;
+    const char *handler_error = NULL;
+    esp_err_t err = ESP_OK;
+
+    if (!request || !response || !request->name || request->name[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    memset(response, 0, sizeof(*response));
+    command = tele_commands_find(request->name);
+    if (!command ||
+        (request->required_flags != 0 &&
+         (command->flags & request->required_flags) != request->required_flags)) {
+        response_set_error(response, "unsupported_command");
+        return ESP_OK;
+    }
+
+    if (!command->handler) {
+        response_set_error(response, "unsupported_command");
+        return ESP_OK;
+    }
+
+    if ((command->flags & TELE_COMMAND_FLAG_MUTATING) != 0 &&
+        command_id_was_seen(request->cmd_id)) {
+        response_set_error(response, "duplicate_command");
+        return ESP_OK;
+    }
+
+    err = command->handler(command->name,
+                           request->args,
+                           &response->result,
+                           &handler_error,
+                           command->ctx);
+    if (err == ESP_OK) {
+        response->ok = true;
+        response->error = NULL;
+        if ((command->flags & TELE_COMMAND_FLAG_MUTATING) != 0) {
+            remember_command_id(request->cmd_id);
+        }
+        return ESP_OK;
+    }
+
+    response->ok = false;
+    response->error = handler_error ? handler_error : "command_failed";
+    return ESP_OK;
+}
+
+void tele_commands_response_cleanup(tele_command_response_t *response)
+{
+    if (!response) {
+        return;
+    }
+
+    if (response->result) {
+        cJSON_Delete(response->result);
+    }
+    memset(response, 0, sizeof(*response));
 }
 
 esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flags)

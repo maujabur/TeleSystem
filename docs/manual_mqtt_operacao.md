@@ -44,9 +44,7 @@ Callbacks opcionais:
 - `build_technical_status`: adiciona diagnostico especifico de produto ao
   comando `get_technical_status`;
 - `restart`: executa reboot especifico do produto; se ausente, usa
-  `esp_restart()`;
-- `handle_command` e `is_mutating_command`: estendem o conjunto de comandos com
-  acoes especificas do produto.
+  `esp_restart()`.
 
 Os builders `build_state`, `build_heartbeat`, `build_config_manifest` e
 `build_status_manifest` tambem sao opcionais. Quando ficam `NULL`, `tele_mqtt`
@@ -546,11 +544,16 @@ Baixa, valida e ativa um bundle CA por manifest.
 ## Extensao por produto
 
 Novos comandos de dominio devem ser adicionados no adaptador
-`components/tele_presence/mqtt_presence.c`, usando os callbacks:
+`components/tele_presence/mqtt_presence.c`, registrando `tele_command_t` com
+handler:
 
-- `is_mutating_command`, para declarar comandos que alteram estado antes da
-  execucao;
-- `handle_command`, para executar o comando e devolver `result`.
+- `.handler`, para executar o comando e devolver `result`;
+- `TELE_COMMAND_FLAG_MUTATING`, para comandos que alteram estado e precisam de
+  deduplicacao por `cmd_id`;
+- flags de exposicao, como `TELE_COMMAND_FLAG_MQTT` ou
+  `TELE_COMMAND_FLAG_WEB`, para limitar quais transportes podem executar.
 
-O componente `tele_mqtt` permanece responsavel por topicos, conexao, JSON,
-ACK/NACK e deduplicacao.
+O componente `tele_mqtt` permanece responsavel por topicos, conexao, JSON e
+ACK/NACK. A execucao e a deduplicacao de comandos mutaveis ficam em
+`tele_commands_execute()`, que tambem pode ser chamado por portal HTTP ou
+serial.

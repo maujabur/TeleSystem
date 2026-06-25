@@ -13,7 +13,7 @@ disponiveis no firmware. Ele e o terceiro par do contrato generico:
 
 Cada comando registrado tem:
 
-- `name`: nome usado no payload MQTT `cmd/in`;
+- `name`: nome estavel usado no envelope de comando;
 - `label`: nome curto para botao;
 - `description`: texto de ajuda para ferramentas e hover;
 - `group`: agrupamento livre definido pelo projeto, como `system`, `status`,
@@ -21,10 +21,12 @@ Cada comando registrado tem:
 - flags de exposicao, como `MQTT`, `WEB`, `MUTATING`, `REBOOT_REQUIRED` e
   `INTERNAL`;
 - lista opcional de argumentos, com `id`, tipo, obrigatoriedade e limites.
+- handler opcional de execucao, independente do transporte.
 
-O componente nao executa comandos. Ele apenas registra metadados e gera JSON.
-O dispatcher continua em `components/tele_mqtt`, que usa o registry para
-publicar `meta/commands` e responder `commands/get`.
+O componente tambem oferece `tele_commands_execute()`, que recebe um envelope
+normalizado (`cmd_id`, `name`, `args`, `required_flags`) e devolve uma resposta
+normalizada (`ok`, `error`, `result`). Transportes como MQTT, portal HTTP ou
+serial apenas traduzem seu protocolo para esse envelope.
 
 ## Registro
 
@@ -55,6 +57,7 @@ static const tele_command_t s_commands[] = {
                  TELE_COMMAND_FLAG_REBOOT_REQUIRED,
         .args = s_reboot_args,
         .arg_count = 1,
+        .handler = handle_apply_and_reboot,
     },
 };
 ```
@@ -78,9 +81,31 @@ precisam entender o contrato completo, mas UIs comuns podem oculta-los da lista
 principal. `config/set` e `config/reset`, por exemplo, sao usados internamente
 pela aba Settings do Control Center.
 
-## Execucao MQTT
+## Execucao
 
-Comandos chegam em `{base_topic}/{device_id}/cmd/in`:
+Qualquer transporte pode executar um comando registrado:
+
+```c
+tele_command_response_t response = {0};
+const tele_command_request_t request = {
+    .cmd_id = "cmd-20260614T120000Z",
+    .name = "get_state",
+    .args = args_json,
+    .required_flags = TELE_COMMAND_FLAG_MQTT,
+};
+
+esp_err_t err = tele_commands_execute(&request, &response);
+if (err == ESP_OK) {
+    /* serializar response.ok, response.error e response.result */
+}
+tele_commands_response_cleanup(&response);
+```
+
+Quando o comando tem `TELE_COMMAND_FLAG_MUTATING`, o dispatcher aplica
+deduplicacao por `cmd_id`. Isso reduz o risco de repetir acoes causadas por
+reentrega MQTT, retry HTTP ou retransmissao serial.
+
+No MQTT, comandos chegam em `{base_topic}/{device_id}/cmd/in`:
 
 ```json
 {
@@ -93,11 +118,8 @@ Comandos chegam em `{base_topic}/{device_id}/cmd/in`:
 Respostas saem em `{base_topic}/{device_id}/cmd/out` e incluem o mesmo
 `cmd_id`, sucesso ou erro, timestamp e resultado quando houver.
 
-`tele_mqtt` executa os comandos base do nucleo diretamente. Comandos de produto
-podem ser adicionados por `handle_command` e `is_mutating_command` em
-`tele_mqtt_config_t`. Ao marcar um comando como `MUTATING`, o dispatcher aplica
-deduplicacao por `cmd_id` para reduzir risco de repetir acoes causadas por
-reentrega MQTT.
+`tele_mqtt` apenas faz parse do payload, chama `tele_commands_execute()` com
+`TELE_COMMAND_FLAG_MQTT` e publica a resposta em `cmd/out`.
 
 ## Command ou setting?
 
@@ -139,9 +161,16 @@ O firmware publica `{base_topic}/{device_id}/meta/commands` como mensagem
 retida ao conectar ao broker. O Control Center consome esse manifesto para
 mostrar comandos agrupados, argumentos e ajuda por hover.
 
-## Fora de escopo por enquanto
+## Uso Pelo Portal Ou Serial
 
-- execucao automatica de comandos apenas pelo registry;
+O dispatcher ja pode ser chamado por portal HTTP ou serial no funcionamento
+atual, desde que o transporte construa um `cJSON *args` e escolha as flags
+permitidas para aquele canal. Hoje nao existe endpoint HTTP nem console serial
+generico para comandos; o portal ainda tem rotas especificas, como upload OTA.
+Adicionar esses adapters nao exige depender de `tele_mqtt`.
+
+## Fora De Escopo Por Enquanto
+
 - validacao visual rica e widgets especificos por tipo em todos os comandos;
 - paginacao de manifesto;
 - autorizacao por comando.
