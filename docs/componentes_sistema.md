@@ -16,8 +16,39 @@ Inclui:
 
 ### `components/status_led`
 
-Driver/stub de LED de status. O `connectivity_controller` atualiza o LED de
-acordo com o estado Wi-Fi.
+Driver/stub de LED WS28xx. Ele recebe apenas sinal fisico: padrao e cor.
+
+API nova:
+
+```c
+status_led_signal_t signal = {
+    .pattern = STATUS_LED_PATTERN_BLINK_FAST,
+    .color = {.red = 0x00, .green = 0x40, .blue = 0xFF},
+};
+ESP_ERROR_CHECK(status_led_set_signal(&signal));
+```
+
+A API antiga por `status_led_state_t` continua como wrapper interno, mas novas
+integrações devem preferir `status_led_set_signal()`.
+
+### `components/tele_indicator`
+
+Registry generico de indicadores logicos. Cada fonte registra prioridade e
+publica um estado com `pattern`, `color`, `reason` e `active`. O estado ativo de
+maior prioridade vence e e aplicado por um callback, atualmente conectado ao
+`status_led`.
+
+Exemplo:
+
+```c
+tele_indicator_set_state(&(tele_indicator_state_t) {
+    .source_id = "wifi",
+    .pattern = TELE_INDICATOR_PATTERN_BLINK_FAST,
+    .color = {.red = 0x00, .green = 0x40, .blue = 0xFF},
+    .reason = "connecting",
+    .active = true,
+});
+```
 
 ## Versao De Firmware
 

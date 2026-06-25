@@ -16,6 +16,8 @@ Principais subsistemas:
 - `components/tele_mqtt`: cliente MQTT reutilizavel.
 - `components/tele_presence`: adaptador de presenca MQTT do firmware.
 - `components/tele_system`: OTA, versao, VBAT e POWER_GOOD.
+- `components/tele_indicator`: registry de indicadores logicos com prioridade,
+  padrao e cor.
 - `components/status_led`: driver/stub de LED WS28xx.
 - `firmware_assets/web`: paginas HTML embarcadas no firmware.
 - `docs`: documentacao de arquitetura e operacao.

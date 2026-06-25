@@ -1,0 +1,5 @@
+version: "0.1.0"
+description: Generic prioritized status indicator registry
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_indicator
+dependencies:
+  idf: ">=5.0"

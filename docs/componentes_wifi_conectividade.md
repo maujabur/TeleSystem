@@ -44,7 +44,8 @@ Adaptador de aplicacao. Responsavel por:
 
 - montar `wifi_manager_config_t`;
 - iniciar o Wi-Fi;
-- sincronizar portal e LED de status com estado Wi-Fi;
+- sincronizar portal com estado Wi-Fi;
+- publicar estado Wi-Fi no `tele_indicator`;
 - acionar sincronismo de tempo quando a STA conecta;
 - lidar com botao de boot para forcar provisionamento.
 

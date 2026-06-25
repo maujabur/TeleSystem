@@ -10,6 +10,7 @@
 #include "device_config.h"
 #include "status_led.h"
 #include "tele_config.h"
+#include "tele_indicator.h"
 #include "time_sync.h"
 #include "web_portal.h"
 #include "wifi_manager.h"
@@ -19,6 +20,61 @@ static const char *TAG = "connectivity";
 static bool s_started;
 static bool s_has_synced_wifi_state;
 static wifi_manager_state_t s_last_synced_wifi_state;
+
+static const tele_indicator_source_t s_boot_indicator_source = {
+    .id = "boot",
+    .label = "Boot",
+    .priority = 10,
+};
+
+static const tele_indicator_source_t s_wifi_indicator_source = {
+    .id = "wifi",
+    .label = "Wi-Fi",
+    .priority = 30,
+};
+
+static const tele_indicator_source_t s_connectivity_error_indicator_source = {
+    .id = "connectivity_error",
+    .label = "Erro de conectividade",
+    .priority = 90,
+};
+
+static status_led_pattern_t status_led_pattern_from_indicator(tele_indicator_pattern_t pattern)
+{
+    switch (pattern) {
+    case TELE_INDICATOR_PATTERN_OFF:
+        return STATUS_LED_PATTERN_OFF;
+    case TELE_INDICATOR_PATTERN_SOLID:
+        return STATUS_LED_PATTERN_SOLID;
+    case TELE_INDICATOR_PATTERN_BREATH:
+        return STATUS_LED_PATTERN_BREATH;
+    case TELE_INDICATOR_PATTERN_BLINK_SLOW:
+        return STATUS_LED_PATTERN_BLINK_SLOW;
+    case TELE_INDICATOR_PATTERN_BLINK_FAST:
+        return STATUS_LED_PATTERN_BLINK_FAST;
+    default:
+        return STATUS_LED_PATTERN_OFF;
+    }
+}
+
+static esp_err_t connectivity_apply_indicator(const tele_indicator_state_t *state, void *ctx)
+{
+    (void)ctx;
+
+    if (!state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const status_led_signal_t signal = {
+        .pattern = status_led_pattern_from_indicator(state->pattern),
+        .color = {
+            .red = state->color.red,
+            .green = state->color.green,
+            .blue = state->color.blue,
+        },
+    };
+    return status_led_set_signal(&signal);
+}
 
 static void trim_trailing_whitespace(char *text)
 {
@@ -110,27 +166,44 @@ static void sync_web_portal_with_wifi_state(const wifi_manager_status_t *status)
 static void sync_status_led_with_wifi_state(const wifi_manager_status_t *status)
 {
     esp_err_t err = ESP_OK;
-    status_led_state_t led_state = STATUS_LED_STATE_BOOT;
+    tele_indicator_state_t state = {
+        .active = true,
+    };
+
+    strlcpy(state.source_id, "wifi", sizeof(state.source_id));
 
     switch (status->state) {
     case WIFI_MANAGER_STATE_STA_CONNECTING:
-        led_state = STATUS_LED_STATE_WIFI_CONNECTING;
+        state.pattern = TELE_INDICATOR_PATTERN_BLINK_FAST;
+        state.color = (tele_indicator_color_t) {.red = 0x00, .green = 0x40, .blue = 0xFF};
+        strlcpy(state.reason, "connecting", sizeof(state.reason));
         break;
     case WIFI_MANAGER_STATE_STA_CONNECTED:
-        led_state = STATUS_LED_STATE_WIFI_CONNECTED;
+        state.pattern = TELE_INDICATOR_PATTERN_SOLID;
+        state.color = (tele_indicator_color_t) {.red = 0x00, .green = 0xB0, .blue = 0x50};
+        strlcpy(state.reason, "connected", sizeof(state.reason));
         break;
     case WIFI_MANAGER_STATE_PROVISIONING_AP:
-        led_state = STATUS_LED_STATE_WIFI_PROVISIONING;
+        state.pattern = TELE_INDICATOR_PATTERN_BLINK_SLOW;
+        state.color = (tele_indicator_color_t) {.red = 0xFF, .green = 0x90, .blue = 0x00};
+        strlcpy(state.reason, "provisioning", sizeof(state.reason));
         break;
     case WIFI_MANAGER_STATE_INIT:
     default:
-        led_state = STATUS_LED_STATE_BOOT;
+        state.pattern = TELE_INDICATOR_PATTERN_BREATH;
+        state.color = (tele_indicator_color_t) {.red = 0x20, .green = 0x20, .blue = 0x20};
+        strlcpy(state.reason, "init", sizeof(state.reason));
         break;
     }
 
-    err = status_led_set_state(led_state);
+    err = tele_indicator_clear_state("connectivity_error");
+    if (err != ESP_OK && err != ESP_ERR_NOT_FOUND) {
+        ESP_LOGW(TAG, "Nao foi possivel limpar indicador de erro: %s", esp_err_to_name(err));
+    }
+
+    err = tele_indicator_set_state(&state);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Nao foi possivel atualizar LED de status: %s", esp_err_to_name(err));
+        ESP_LOGW(TAG, "Nao foi possivel atualizar indicador Wi-Fi: %s", esp_err_to_name(err));
     }
 }
 
@@ -141,7 +214,13 @@ static void sync_connectivity_outputs(bool force)
 
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Nao foi possivel consultar estado Wi-Fi: %s", esp_err_to_name(err));
-        status_led_set_state(STATUS_LED_STATE_ERROR);
+        (void)tele_indicator_set_state(&(tele_indicator_state_t) {
+            .source_id = "connectivity_error",
+            .pattern = TELE_INDICATOR_PATTERN_BLINK_FAST,
+            .color = {.red = 0xFF, .green = 0x00, .blue = 0x00},
+            .reason = "wifi_status_error",
+            .active = true,
+        });
         return;
     }
 
@@ -212,6 +291,23 @@ esp_err_t connectivity_controller_start(void)
     err = status_led_start();
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "LED de status indisponivel: %s", esp_err_to_name(err));
+    }
+    err = tele_indicator_init(&(tele_indicator_config_t) {
+        .apply = connectivity_apply_indicator,
+    });
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Indicador de status indisponivel: %s", esp_err_to_name(err));
+    } else {
+        ESP_ERROR_CHECK(tele_indicator_register_source(&s_boot_indicator_source));
+        ESP_ERROR_CHECK(tele_indicator_register_source(&s_wifi_indicator_source));
+        ESP_ERROR_CHECK(tele_indicator_register_source(&s_connectivity_error_indicator_source));
+        ESP_ERROR_CHECK(tele_indicator_set_state(&(tele_indicator_state_t) {
+            .source_id = "boot",
+            .pattern = TELE_INDICATOR_PATTERN_BREATH,
+            .color = {.red = 0x20, .green = 0x20, .blue = 0x20},
+            .reason = "starting",
+            .active = true,
+        }));
     }
 
     err = time_sync_init();

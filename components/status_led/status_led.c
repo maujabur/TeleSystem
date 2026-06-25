@@ -167,17 +167,11 @@ typedef struct {
 } status_led_ws28xx_encoder_t;
 
 typedef struct {
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-} status_led_color_t;
-
-typedef struct {
     status_led_color_t color;
+    status_led_pattern_t pattern;
     uint32_t on_ms;
     uint32_t off_ms;
-    bool solid;
-} status_led_pattern_t;
+} status_led_timing_t;
 
 static const char *TAG = "status-led";
 
@@ -185,6 +179,14 @@ static rmt_channel_handle_t s_tx_channel;
 static rmt_encoder_handle_t s_led_encoder;
 static uint8_t s_led_pixels[CONFIG_STATUS_LED_COUNT * 3];
 static volatile status_led_state_t s_state = STATUS_LED_STATE_BOOT;
+static status_led_signal_t s_signal = {
+    .pattern = STATUS_LED_PATTERN_BREATH,
+    .color = {
+        .red = 0x20,
+        .green = 0x20,
+        .blue = 0x20,
+    },
+};
 static volatile bool s_capture_overlay;
 static TaskHandle_t s_task_handle;
 static bool s_started;
@@ -209,73 +211,115 @@ static uint32_t ns_to_rmt_ticks(uint32_t ns)
     return ticks > 0 ? (uint32_t)ticks : 1;
 }
 
-static status_led_pattern_t pattern_for_state(status_led_state_t state)
+static status_led_signal_t signal_for_state(status_led_state_t state)
 {
     switch (state) {
     case STATUS_LED_STATE_WIFI_CONNECTING:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_BLINK_FAST,
             .color = color_from_rgb(CONFIG_STATUS_LED_WIFI_CONNECTING_COLOR),
-            .on_ms = CONFIG_STATUS_LED_WIFI_CONNECTING_ON_MS,
-            .off_ms = CONFIG_STATUS_LED_WIFI_CONNECTING_OFF_MS,
         };
     case STATUS_LED_STATE_WIFI_PROVISIONING:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_BLINK_SLOW,
             .color = color_from_rgb(CONFIG_STATUS_LED_WIFI_PROVISIONING_COLOR),
-            .on_ms = CONFIG_STATUS_LED_WIFI_PROVISIONING_ON_MS,
-            .off_ms = CONFIG_STATUS_LED_WIFI_PROVISIONING_OFF_MS,
         };
     case STATUS_LED_STATE_WIFI_CONNECTED:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_SOLID,
             .color = color_from_rgb(CONFIG_STATUS_LED_WIFI_CONNECTED_COLOR),
-            .solid = true,
         };
     case STATUS_LED_STATE_PRODUCT_TRANSMITTING:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_BLINK_FAST,
             .color = color_from_rgb(CONFIG_STATUS_LED_PRODUCT_TRANSMITTING_COLOR),
-            .on_ms = CONFIG_STATUS_LED_PRODUCT_TRANSMITTING_ON_MS,
-            .off_ms = CONFIG_STATUS_LED_PRODUCT_TRANSMITTING_OFF_MS,
         };
     case STATUS_LED_STATE_PRODUCT_WAITING:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_BLINK_SLOW,
             .color = color_from_rgb(CONFIG_STATUS_LED_PRODUCT_WAITING_COLOR),
-            .on_ms = CONFIG_STATUS_LED_PRODUCT_WAITING_ON_MS,
-            .off_ms = CONFIG_STATUS_LED_PRODUCT_WAITING_OFF_MS,
         };
     case STATUS_LED_STATE_PRODUCT_RESULT_OK:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_SOLID,
             .color = color_from_rgb(CONFIG_STATUS_LED_PRODUCT_RESULT_OK_COLOR),
-            .solid = true,
         };
     case STATUS_LED_STATE_PRODUCT_RESULT_ALERT:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_SOLID,
             .color = color_from_rgb(CONFIG_STATUS_LED_PRODUCT_RESULT_ALERT_COLOR),
-            .solid = true,
         };
     case STATUS_LED_STATE_OUTPUT_ACTIVE:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_SOLID,
             .color = color_from_rgb(CONFIG_STATUS_LED_OUTPUT_ACTIVE_COLOR),
-            .solid = true,
         };
     case STATUS_LED_STATE_ERROR:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_BLINK_FAST,
             .color = color_from_rgb(CONFIG_STATUS_LED_ERROR_COLOR),
-            .on_ms = CONFIG_STATUS_LED_ERROR_ON_MS,
-            .off_ms = CONFIG_STATUS_LED_ERROR_OFF_MS,
         };
     case STATUS_LED_STATE_LOW_BATTERY:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_BLINK_SLOW,
             .color = color_from_rgb(CONFIG_STATUS_LED_LOW_BATTERY_COLOR),
-            .on_ms = CONFIG_STATUS_LED_LOW_BATTERY_ON_MS,
-            .off_ms = CONFIG_STATUS_LED_LOW_BATTERY_OFF_MS,
         };
     case STATUS_LED_STATE_BOOT:
     default:
-        return (status_led_pattern_t) {
+        return (status_led_signal_t) {
+            .pattern = STATUS_LED_PATTERN_BREATH,
             .color = color_from_rgb(CONFIG_STATUS_LED_BOOT_COLOR),
-            .on_ms = CONFIG_STATUS_LED_BOOT_ON_MS,
-            .off_ms = CONFIG_STATUS_LED_BOOT_OFF_MS,
         };
     }
+}
+
+static status_led_timing_t timing_for_signal(const status_led_signal_t *signal)
+{
+    if (!signal) {
+        return (status_led_timing_t) {0};
+    }
+
+    switch (signal->pattern) {
+    case STATUS_LED_PATTERN_SOLID:
+        return (status_led_timing_t) {
+            .pattern = signal->pattern,
+            .color = signal->color,
+        };
+    case STATUS_LED_PATTERN_BREATH:
+        return (status_led_timing_t) {
+            .pattern = signal->pattern,
+            .color = signal->color,
+            .on_ms = 1800,
+        };
+    case STATUS_LED_PATTERN_BLINK_FAST:
+        return (status_led_timing_t) {
+            .pattern = signal->pattern,
+            .color = signal->color,
+            .on_ms = 150,
+            .off_ms = 150,
+        };
+    case STATUS_LED_PATTERN_BLINK_SLOW:
+        return (status_led_timing_t) {
+            .pattern = signal->pattern,
+            .color = signal->color,
+            .on_ms = 700,
+            .off_ms = 700,
+        };
+    case STATUS_LED_PATTERN_OFF:
+    default:
+        return (status_led_timing_t) {
+            .pattern = STATUS_LED_PATTERN_OFF,
+        };
+    }
+}
+
+static status_led_color_t scale_color(status_led_color_t color, uint8_t scale)
+{
+    return (status_led_color_t) {
+        .red = (uint8_t)(((uint32_t)color.red * scale) / 255U),
+        .green = (uint8_t)(((uint32_t)color.green * scale) / 255U),
+        .blue = (uint8_t)(((uint32_t)color.blue * scale) / 255U),
+    };
 }
 
 static void set_pixel_buffer(status_led_color_t color)
@@ -470,35 +514,51 @@ static void status_led_task(void *arg)
 {
     (void)arg;
 
-    status_led_state_t last_state = (status_led_state_t)(STATUS_LED_STATE_ERROR + 1);
+    status_led_signal_t last_signal = {0};
+    bool has_last_signal = false;
     uint32_t state_phase_start_ms = 0;
     status_led_color_t last_applied_color = {0};
     bool has_last_applied_color = false;
 
     while (true) {
-        status_led_state_t state = s_state;
-        status_led_pattern_t pattern = pattern_for_state(state);
+        status_led_signal_t signal = s_signal;
+        status_led_timing_t timing = timing_for_signal(&signal);
         uint32_t now_ms = esp_log_timestamp();
         bool base_on = true;
         status_led_color_t target_color = {0};
 
-        if (state != last_state) {
-            last_state = state;
+        if (!has_last_signal || memcmp(&signal, &last_signal, sizeof(signal)) != 0) {
+            last_signal = signal;
+            has_last_signal = true;
             state_phase_start_ms = now_ms;
         }
 
-        if (!pattern.solid) {
-            uint32_t cycle_ms = pattern.on_ms + pattern.off_ms;
-            if (cycle_ms == 0 || pattern.on_ms == 0) {
+        if (timing.pattern == STATUS_LED_PATTERN_OFF) {
+            base_on = false;
+        } else if (timing.pattern == STATUS_LED_PATTERN_SOLID) {
+            base_on = true;
+        } else if (timing.pattern == STATUS_LED_PATTERN_BREATH) {
+            uint32_t period_ms = timing.on_ms > 0 ? timing.on_ms : 1800;
+            uint32_t phase_ms = (now_ms - state_phase_start_ms) % period_ms;
+            uint32_t half_period_ms = period_ms / 2U;
+            uint32_t ramp = half_period_ms > 0 ?
+                            (phase_ms < half_period_ms ? phase_ms : period_ms - phase_ms) :
+                            0;
+            uint8_t scale = (uint8_t)(32U + ((ramp * 223U) / (half_period_ms > 0 ? half_period_ms : 1U)));
+            target_color = scale_color(timing.color, scale);
+            base_on = false;
+        } else {
+            uint32_t cycle_ms = timing.on_ms + timing.off_ms;
+            if (cycle_ms == 0 || timing.on_ms == 0) {
                 base_on = false;
             } else {
                 uint32_t phase_ms = (now_ms - state_phase_start_ms) % cycle_ms;
-                base_on = phase_ms < pattern.on_ms;
+                base_on = phase_ms < timing.on_ms;
             }
         }
 
         if (base_on) {
-            target_color = pattern.color;
+            target_color = timing.color;
         }
 
         if (s_capture_overlay) {
@@ -562,6 +622,7 @@ esp_err_t status_led_start(void)
     }
 
     s_state = STATUS_LED_STATE_BOOT;
+    s_signal = signal_for_state(STATUS_LED_STATE_BOOT);
     if (xTaskCreate(status_led_task,
                     "status_led",
                     CONFIG_STATUS_LED_TASK_STACK_SIZE,
@@ -591,11 +652,37 @@ esp_err_t status_led_set_state(status_led_state_t state)
     }
 
     s_state = state;
-    return ESP_OK;
+    status_led_signal_t signal = signal_for_state(state);
+    return status_led_set_signal(&signal);
 #else
     (void)state;
     return ESP_OK;
 #endif
+}
+
+esp_err_t status_led_set_signal(const status_led_signal_t *signal)
+{
+#if CONFIG_STATUS_LED_ENABLED
+    if (!signal || signal->pattern > STATUS_LED_PATTERN_BLINK_FAST) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    s_signal = *signal;
+    return ESP_OK;
+#else
+    (void)signal;
+    return ESP_OK;
+#endif
+}
+
+esp_err_t status_led_get_signal(status_led_signal_t *out_signal)
+{
+    if (!out_signal) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *out_signal = s_signal;
+    return ESP_OK;
 }
 
 esp_err_t status_led_set_capture_overlay(bool enabled)
