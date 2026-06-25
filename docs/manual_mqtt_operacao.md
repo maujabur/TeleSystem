@@ -81,22 +81,22 @@ Base topic:
 Default atual:
 
 ```text
-v1/device/{device_id}
+v1/telesystem/{device_id}
 ```
 
 Topicos usados:
 
 ```text
-v1/device/{device_id}/availability
-v1/device/{device_id}/seen
-v1/device/{device_id}/state
-v1/device/{device_id}/heartbeat
-v1/device/{device_id}/event
-v1/device/{device_id}/meta/config
-v1/device/{device_id}/meta/status
-v1/device/{device_id}/meta/commands
-v1/device/{device_id}/cmd/in
-v1/device/{device_id}/cmd/out
+v1/telesystem/{device_id}/availability
+v1/telesystem/{device_id}/seen
+v1/telesystem/{device_id}/state
+v1/telesystem/{device_id}/heartbeat
+v1/telesystem/{device_id}/event
+v1/telesystem/{device_id}/meta/config
+v1/telesystem/{device_id}/meta/status
+v1/telesystem/{device_id}/meta/commands
+v1/telesystem/{device_id}/cmd/in
+v1/telesystem/{device_id}/cmd/out
 ```
 
 ## Publicacoes automaticas
@@ -324,13 +324,13 @@ Eventos discretos de firmware.
 Comandos entram em:
 
 ```text
-v1/device/{device_id}/cmd/in
+v1/telesystem/{device_id}/cmd/in
 ```
 
 Respostas saem em:
 
 ```text
-v1/device/{device_id}/cmd/out
+v1/telesystem/{device_id}/cmd/out
 ```
 
 Formato base:

@@ -181,7 +181,7 @@ static const char *firmware_version(void)
 static const char *base_topic(void)
 {
     return s_config.base_topic && s_config.base_topic[0] != '\0' ?
-           s_config.base_topic : "v1/device";
+           s_config.base_topic : "v1/telesystem";
 }
 
 static int qos_critical(void)

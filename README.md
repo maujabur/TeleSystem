@@ -113,13 +113,30 @@ O portal tambem atua como captive portal quando o dispositivo entra em modo de p
 
 ## MQTT
 
-Quando habilitado, o firmware publica presenca, estado e heartbeat em topicos no namespace:
+Quando habilitado, o firmware publica presenca, estado, heartbeat, eventos e metadados no namespace configurado por `CONFIG_MQTT_BASE_TOPIC`.
+
+Default atual:
 
 ```text
-v1/led/{device_id}
+v1/telesystem/{device_id}
 ```
 
-Tambem existe canal de comando para operacoes como `ping`, leitura de estado/configuracoes e reboot remoto. Veja [docs/manual_mqtt_operacao.md](docs/manual_mqtt_operacao.md).
+Topicos principais:
+
+```text
+v1/telesystem/{device_id}/availability
+v1/telesystem/{device_id}/seen
+v1/telesystem/{device_id}/state
+v1/telesystem/{device_id}/heartbeat
+v1/telesystem/{device_id}/event
+v1/telesystem/{device_id}/meta/config
+v1/telesystem/{device_id}/meta/status
+v1/telesystem/{device_id}/meta/commands
+v1/telesystem/{device_id}/cmd/in
+v1/telesystem/{device_id}/cmd/out
+```
+
+Tambem existe canal de comando para operacoes como `ping`, leitura de estado/configuracoes, updates por manifest e reboot remoto. Veja [docs/manual_mqtt_operacao.md](docs/manual_mqtt_operacao.md).
 
 ## Particoes
 

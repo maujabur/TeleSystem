@@ -42,7 +42,7 @@
 #endif
 
 #ifndef CONFIG_MQTT_BASE_TOPIC
-#define CONFIG_MQTT_BASE_TOPIC "v1/device"
+#define CONFIG_MQTT_BASE_TOPIC "v1/telesystem"
 #endif
 
 #ifndef CONFIG_MQTT_DEVICE_ID_PREFIX

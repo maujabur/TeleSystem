@@ -179,7 +179,7 @@ Use em `config.json`:
   "mqtt": {
     "host": "d77a33536b2143ba8d70a3abd3188ae5.s1.eu.hivemq.cloud",
     "port": 8883,
-    "base_topic": "v1/device",
+    "base_topic": "v1/telesystem",
     "username": "SEU_USUARIO_HIVEMQ",
     "password": "SUA_SENHA_HIVEMQ",
     "tls": true

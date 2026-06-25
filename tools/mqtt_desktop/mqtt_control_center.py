@@ -16,7 +16,7 @@ from tkinter import END, StringVar, TclError
 from tkinter import ttk
 
 
-DEFAULT_BASE_TOPIC = "v1/device"
+DEFAULT_BASE_TOPIC = "v1/telesystem"
 APP_DIR = Path(__file__).resolve().parent
 PRESENCE_MESSAGE_TYPES = {"availability", "seen", "heartbeat", "state", "event"}
 PENDING_COMMAND_TIMEOUT_SEC = 30

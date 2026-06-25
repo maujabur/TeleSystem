@@ -27,7 +27,7 @@ config MQTT_PASSWORD
 config MQTT_BASE_TOPIC
     string "MQTT base topic"
     depends on MQTT_PRESENCE_ENABLED
-    default "v1/device"
+    default "v1/telesystem"
     help
         Base topic usado pelo dispositivo. O device_id sera
         anexado automaticamente.
