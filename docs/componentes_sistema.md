@@ -41,7 +41,6 @@ APIs principais:
 esp_err_t firmware_ota_init(void);
 esp_err_t firmware_ota_register_artifact(void);
 esp_err_t firmware_ota_start(const char *url);
-esp_err_t firmware_ota_start_manifest(const firmware_ota_manifest_config_t *config);
 esp_err_t firmware_ota_upload_begin(void);
 esp_err_t firmware_ota_upload_write(const uint8_t *data, size_t data_len);
 esp_err_t firmware_ota_upload_finalize(void);

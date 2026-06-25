@@ -577,8 +577,8 @@ static void firmware_ota_manifest_task(void *arg)
     vTaskDelete(NULL);
 }
 
-esp_err_t firmware_ota_check_manifest(const firmware_ota_manifest_config_t *config,
-                                      tele_manifest_artifact_t *out_artifact)
+static esp_err_t check_manifest_artifact_request(const tele_artifact_request_t *config,
+                                                 tele_manifest_artifact_t *out_artifact)
 {
     if (!config || !config->manifest_url || config->manifest_url[0] == '\0' || !out_artifact) {
         return ESP_ERR_INVALID_ARG;
@@ -611,7 +611,7 @@ esp_err_t firmware_ota_check_manifest(const firmware_ota_manifest_config_t *conf
     return decision == TELE_MANIFEST_VERSION_REJECT ? ESP_ERR_INVALID_STATE : ESP_OK;
 }
 
-esp_err_t firmware_ota_start_manifest(const firmware_ota_manifest_config_t *config)
+static esp_err_t start_manifest_artifact_request(const tele_artifact_request_t *config)
 {
     if (!config || !config->manifest_url || config->manifest_url[0] == '\0') {
         return ESP_ERR_INVALID_ARG;
@@ -678,14 +678,7 @@ static esp_err_t check_firmware_artifact(const tele_artifact_request_t *request,
         return ESP_ERR_INVALID_ARG;
     }
 
-    const firmware_ota_manifest_config_t config = {
-        .manifest_url = request->manifest_url,
-        .channel = request->channel,
-        .allow_same_version = request->allow_same_version,
-        .restart_on_success = request->restart_on_success,
-    };
-
-    esp_err_t err = firmware_ota_check_manifest(&config, &out_result->artifact);
+    esp_err_t err = check_manifest_artifact_request(request, &out_result->artifact);
     if (err != ESP_OK) {
         return err;
     }
@@ -711,14 +704,7 @@ static esp_err_t apply_firmware_artifact(const tele_artifact_request_t *request,
         return ESP_ERR_INVALID_ARG;
     }
 
-    const firmware_ota_manifest_config_t config = {
-        .manifest_url = request->manifest_url,
-        .channel = request->channel,
-        .allow_same_version = request->allow_same_version,
-        .restart_on_success = request->restart_on_success,
-    };
-
-    esp_err_t err = firmware_ota_start_manifest(&config);
+    esp_err_t err = start_manifest_artifact_request(request);
     if (err != ESP_OK) {
         return err;
     }
