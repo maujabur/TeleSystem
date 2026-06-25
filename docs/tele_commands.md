@@ -163,11 +163,16 @@ mostrar comandos agrupados, argumentos e ajuda por hover.
 
 ## Uso Pelo Portal Ou Serial
 
-O dispatcher ja pode ser chamado por portal HTTP ou serial no funcionamento
-atual, desde que o transporte construa um `cJSON *args` e escolha as flags
-permitidas para aquele canal. Hoje nao existe endpoint HTTP nem console serial
-generico para comandos; o portal ainda tem rotas especificas, como upload OTA.
-Adicionar esses adapters nao exige depender de `tele_mqtt`.
+O dispatcher ja e usado pelo adapter HTTP `components/tele_portal_commands`.
+Ele expoe:
+
+- `GET /api/commands`, usando `TELE_COMMAND_FLAG_WEB`;
+- `POST /api/commands/execute`, chamando `tele_commands_execute()` com
+  `TELE_COMMAND_FLAG_WEB`.
+
+Serial pode seguir o mesmo modelo: ler um JSON com `cmd_id`, `name` e `args`,
+chamar o dispatcher com a flag adequada e imprimir a resposta normalizada.
+Upload OTA por arquivo continua fora desse fluxo, porque e streaming binario.
 
 ## Fora De Escopo Por Enquanto
 

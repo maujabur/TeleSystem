@@ -1,7 +1,7 @@
 idf_component_register(
     SRCS
         "boot_config_button.c"
-        "device_config_store.c"
+        "device_config.c"
         "time_sync.c"
         "wifi_config.c"
         "wifi_manager.c"

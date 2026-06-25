@@ -188,6 +188,7 @@ esp_err_t tele_commands_execute(const tele_command_request_t *request,
                            request->args,
                            &response->result,
                            &handler_error,
+                           request->required_flags,
                            command->ctx);
     if (err == ESP_OK) {
         response->ok = true;

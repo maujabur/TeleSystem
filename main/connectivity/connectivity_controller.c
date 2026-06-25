@@ -1,12 +1,15 @@
 #include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "esp_event.h"
 #include "esp_log.h"
 
 #include "boot_config_button.h"
 #include "connectivity_controller.h"
-#include "device_config_store.h"
+#include "device_config.h"
 #include "status_led.h"
+#include "tele_config.h"
 #include "time_sync.h"
 #include "web_portal.h"
 #include "wifi_manager.h"
@@ -16,6 +19,73 @@ static const char *TAG = "connectivity";
 static bool s_started;
 static bool s_has_synced_wifi_state;
 static wifi_manager_state_t s_last_synced_wifi_state;
+
+static void trim_trailing_whitespace(char *text)
+{
+    size_t len = 0;
+
+    if (!text) {
+        return;
+    }
+
+    len = strlen(text);
+    while (len > 0) {
+        char c = text[len - 1];
+        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+            break;
+        }
+        text[len - 1] = '\0';
+        len--;
+    }
+}
+
+static esp_err_t load_string_config(const char *id, char *out, size_t out_size)
+{
+    tele_config_value_t value = {0};
+
+    if (!id || !out || out_size == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    memset(out, 0, out_size);
+    esp_err_t err = tele_config_get_effective(id, &value, out, out_size, NULL);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    trim_trailing_whitespace(out);
+    return out[0] == '\0' ? ESP_ERR_INVALID_ARG : ESP_OK;
+}
+
+static esp_err_t load_u32_config(const char *id, uint32_t *out_value)
+{
+    tele_config_value_t value = {0};
+
+    if (!id || !out_value) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = tele_config_get_effective(id, &value, NULL, 0, NULL);
+    if (err == ESP_OK) {
+        *out_value = value.u32;
+    }
+    return err;
+}
+
+static esp_err_t load_i32_config(const char *id, int32_t *out_value)
+{
+    tele_config_value_t value = {0};
+
+    if (!id || !out_value) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = tele_config_get_effective(id, &value, NULL, 0, NULL);
+    if (err == ESP_OK) {
+        *out_value = value.i32;
+    }
+    return err;
+}
 
 static void sync_web_portal_with_wifi_state(const wifi_manager_status_t *status)
 {
@@ -116,8 +186,8 @@ static void wifi_manager_event_handler(void *arg,
 esp_err_t connectivity_controller_start(void)
 {
     char provisioning_ssid[DEVICE_CONFIG_PROVISIONING_SSID_BUFFER_SIZE] = {0};
-    uint8_t sta_max_retry = 0;
-    device_config_apsta_policy_t apsta_policy = DEVICE_CONFIG_APSTA_AUTO_TIMEOUT;
+    uint32_t sta_max_retry = 0;
+    int32_t apsta_policy = DEVICE_CONFIG_APSTA_AUTO_TIMEOUT;
     uint32_t apsta_grace_period_s = 600;
     wifi_manager_config_t wifi_config = {0};
     esp_err_t err = ESP_OK;
@@ -149,21 +219,32 @@ esp_err_t connectivity_controller_start(void)
         ESP_LOGW(TAG, "Sincronizacao NTP indisponivel: %s", esp_err_to_name(err));
     }
 
-    err = device_config_store_load_provisioning_ssid(provisioning_ssid, sizeof(provisioning_ssid));
+    err = device_config_register_fields();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao registrar configuracoes de dispositivo: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = load_string_config(DEVICE_CONFIG_ID_PROVISIONING_SSID,
+                             provisioning_ssid,
+                             sizeof(provisioning_ssid));
     if (err == ESP_OK && provisioning_ssid[0] != '\0') {
         wifi_config.provisioning_ssid = provisioning_ssid;
     } else if (err != ESP_OK) {
         ESP_LOGW(TAG, "SSID de provisionamento indisponivel: %s", esp_err_to_name(err));
     }
 
-    err = device_config_store_load_sta_max_retry(&sta_max_retry);
+    err = load_u32_config(DEVICE_CONFIG_ID_STA_MAX_RETRY, &sta_max_retry);
     if (err == ESP_OK) {
         wifi_config.sta_max_retry = (int)sta_max_retry;
     } else {
         ESP_LOGW(TAG, "Retry STA de configuracao indisponivel: %s", esp_err_to_name(err));
     }
 
-    err = device_config_store_load_apsta_policy(&apsta_policy, &apsta_grace_period_s);
+    err = load_i32_config(DEVICE_CONFIG_ID_APSTA_POLICY, &apsta_policy);
+    if (err == ESP_OK) {
+        err = load_u32_config(DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S, &apsta_grace_period_s);
+    }
     if (err == ESP_OK) {
         wifi_config.apsta_policy = (wifi_manager_apsta_policy_t)apsta_policy;
         wifi_config.apsta_grace_period_s = apsta_grace_period_s;

@@ -29,6 +29,21 @@ fonte de verdade quando possivel.
 APIs HTTP para status. Deve usar `tele_status` quando o dado ja esta no
 registry.
 
+### `components/tele_portal_commands`
+
+Adapter HTTP para comandos JSON. Usa `tele_commands` como fonte de verdade e
+executa apenas comandos expostos com `TELE_COMMAND_FLAG_WEB`.
+
+Rotas:
+
+- `GET /api/commands`: manifesto de comandos web;
+- `POST /api/commands/execute`: executa `{ "cmd_id": "...", "name": "...",
+  "args": {} }` e responde `{ "cmd_id": "...", "ok": true|false, "error":
+  "...", "result": {} }`.
+
+O adapter e para comandos administrativos pequenos. Upload OTA por arquivo
+continua em `tele_portal_ota`.
+
 ### `components/tele_portal_wifi`
 
 Rotas de Wi-Fi:
@@ -82,6 +97,7 @@ Fluxo atual:
 
 ```c
 tele_portal_logs_init();
+ESP_ERROR_CHECK(tele_portal_core_register_routes(tele_portal_commands_register_routes));
 ESP_ERROR_CHECK(register_portal_ota_routes());
 ESP_ERROR_CHECK(connectivity_controller_start());
 ```
@@ -121,3 +137,7 @@ Upload manual usa `artifact_url = "upload"` e `manifest_url = ""`.
 
 Handlers HTTP devem validar entrada, chamar API de dominio e responder JSON
 curto.
+
+Para comandos JSON, prefira registrar o comando em `tele_commands` com
+`TELE_COMMAND_FLAG_WEB` e usar `tele_portal_commands`, em vez de criar uma rota
+nova para cada acao pontual.

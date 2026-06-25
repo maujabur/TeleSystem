@@ -19,7 +19,7 @@
 #include "tele_mqtt.h"
 #include "tele_status.h"
 
-#include "device_config_store.h"
+#include "device_config.h"
 #include "firmware_version.h"
 #include "time_sync.h"
 #include "vbat_monitor.h"
@@ -94,7 +94,8 @@ static esp_err_t mqtt_presence_handle_command(const char *cmd_name,
                                               const cJSON *args,
                                               cJSON **out_result,
                                               const char **out_error,
-                                              void *ctx);
+                                              uint32_t required_flags,
+                                     void *ctx);
 
 static const tele_command_arg_t s_update_manifest_args[] = {
     {
@@ -151,7 +152,7 @@ static const tele_command_t s_update_commands[] = {
         .label = "Verificar OTA",
         .description = "Consulta um manifest remoto de firmware sem aplicar a atualizacao.",
         .group = "updates",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
         .args = s_update_manifest_args,
         .arg_count = 2,
         .handler = mqtt_presence_handle_command,
@@ -161,7 +162,7 @@ static const tele_command_t s_update_commands[] = {
         .label = "Aplicar OTA",
         .description = "Inicia OTA de firmware por manifest em streaming.",
         .group = "updates",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB | TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
         .args = s_update_manifest_args,
         .arg_count = 4,
         .handler = mqtt_presence_handle_command,
@@ -171,7 +172,7 @@ static const tele_command_t s_update_commands[] = {
         .label = "Verificar CA",
         .description = "Consulta um manifest remoto de bundle CA sem aplicar.",
         .group = "updates",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
         .args = s_ca_manifest_args,
         .arg_count = 2,
         .handler = mqtt_presence_handle_command,
@@ -181,7 +182,7 @@ static const tele_command_t s_update_commands[] = {
         .label = "Aplicar CA",
         .description = "Baixa, verifica e ativa um bundle CA por manifest.",
         .group = "updates",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB | TELE_COMMAND_FLAG_MUTATING,
         .args = s_ca_manifest_args,
         .arg_count = 3,
         .handler = mqtt_presence_handle_command,
@@ -1027,9 +1028,11 @@ static esp_err_t mqtt_presence_handle_command(const char *cmd_name,
                                               const cJSON *args,
                                               cJSON **out_result,
                                               const char **out_error,
+                                              uint32_t required_flags,
                                               void *ctx)
 {
     (void)ctx;
+    (void)required_flags;
 
     if (!cmd_name || !out_result || !out_error) {
         return ESP_ERR_INVALID_ARG;
@@ -1213,7 +1216,7 @@ esp_err_t mqtt_presence_start(void)
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = device_config_store_register_fields();
+    esp_err_t err = device_config_register_fields();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar configuracoes MQTT: %s", esp_err_to_name(err));
         return err;

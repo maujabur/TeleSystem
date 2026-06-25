@@ -67,6 +67,7 @@ typedef esp_err_t (*tele_command_handler_t)(const char *cmd_name,
                                             const cJSON *args,
                                             cJSON **out_result,
                                             const char **out_error,
+                                            uint32_t required_flags,
                                             void *ctx);
 
 typedef struct {

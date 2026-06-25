@@ -25,7 +25,7 @@ esp_err_t wifi_manager_get_status(wifi_manager_status_t *status);
 esp_err_t wifi_manager_apply_wifi_credentials(const char *ssid, const char *password);
 ```
 
-### `components/tele_wifi/device_config_store.c`
+### `components/tele_wifi/device_config.c`
 
 Registra configuracoes Wi-Fi no `tele_config`:
 
@@ -34,8 +34,9 @@ Registra configuracoes Wi-Fi no `tele_config`:
 - `wifi.apsta_policy`;
 - `wifi.apsta_grace_period_s`.
 
-Tambem mantem wrappers antigos para pontos do codigo que ainda leem
-configuracao pelo store.
+O componente nao tem mais wrappers `load/save`. Consumidores devem usar
+`tele_config_get_effective()`, `tele_config_update_value()` ou
+`tele_config_reset_value()` conforme o caso.
 
 ### `main/connectivity`
 

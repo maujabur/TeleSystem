@@ -66,41 +66,49 @@ static esp_err_t handle_ping_command(const char *cmd_name,
                                      const cJSON *args,
                                      cJSON **out_result,
                                      const char **out_error,
+                                     uint32_t required_flags,
                                      void *ctx);
 static esp_err_t handle_get_state_command(const char *cmd_name,
                                           const cJSON *args,
                                           cJSON **out_result,
                                           const char **out_error,
+                                          uint32_t required_flags,
                                           void *ctx);
 static esp_err_t handle_get_technical_status_command(const char *cmd_name,
                                                      const cJSON *args,
                                                      cJSON **out_result,
                                                      const char **out_error,
+                                                     uint32_t required_flags,
                                                      void *ctx);
 static esp_err_t handle_config_get_command(const char *cmd_name,
                                            const cJSON *args,
                                            cJSON **out_result,
                                            const char **out_error,
+                                           uint32_t required_flags,
                                            void *ctx);
 static esp_err_t handle_commands_get_command(const char *cmd_name,
                                              const cJSON *args,
                                              cJSON **out_result,
                                              const char **out_error,
+                                             uint32_t required_flags,
                                              void *ctx);
 static esp_err_t handle_config_set_command(const char *cmd_name,
                                            const cJSON *args,
                                            cJSON **out_result,
                                            const char **out_error,
+                                           uint32_t required_flags,
                                            void *ctx);
 static esp_err_t handle_config_reset_command(const char *cmd_name,
                                              const cJSON *args,
                                              cJSON **out_result,
                                              const char **out_error,
+                                             uint32_t required_flags,
                                              void *ctx);
 static esp_err_t handle_apply_and_reboot_command(const char *cmd_name,
                                                  const cJSON *args,
                                                  cJSON **out_result,
                                                  const char **out_error,
+                                                 uint32_t required_flags,
                                                  void *ctx);
 
 static const tele_command_arg_t s_cmd_config_field_args[] = {
@@ -144,7 +152,7 @@ static const tele_command_t s_builtin_commands[] = {
         .label = "Ping",
         .description = "Solicita uma resposta imediata do equipamento.",
         .group = "system",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
         .handler = handle_ping_command,
     },
     {
@@ -152,7 +160,7 @@ static const tele_command_t s_builtin_commands[] = {
         .label = "Ler estado",
         .description = "Solicita um snapshot curto de estado/conectividade.",
         .group = "status",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
         .handler = handle_get_state_command,
     },
     {
@@ -160,7 +168,7 @@ static const tele_command_t s_builtin_commands[] = {
         .label = "Status tecnico",
         .description = "Solicita diagnostico detalhado de runtime, energia e sensores.",
         .group = "status",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
         .handler = handle_get_technical_status_command,
     },
     {
@@ -168,7 +176,7 @@ static const tele_command_t s_builtin_commands[] = {
         .label = "Ler configuracao",
         .description = "Solicita o manifesto de configuracao atual.",
         .group = "config",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
         .handler = handle_config_get_command,
     },
     {
@@ -176,7 +184,7 @@ static const tele_command_t s_builtin_commands[] = {
         .label = "Ler comandos",
         .description = "Solicita o manifesto de comandos suportados.",
         .group = "system",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
         .handler = handle_commands_get_command,
     },
     {
@@ -184,7 +192,7 @@ static const tele_command_t s_builtin_commands[] = {
         .label = "Salvar configuracao",
         .description = "Atualiza um campo configuravel exposto por MQTT.",
         .group = "config",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB | TELE_COMMAND_FLAG_MUTATING,
         .args = s_cmd_config_set_args,
         .arg_count = 2,
         .handler = handle_config_set_command,
@@ -194,7 +202,7 @@ static const tele_command_t s_builtin_commands[] = {
         .label = "Resetar configuracao",
         .description = "Remove o override de um campo e volta ao default.",
         .group = "config",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB | TELE_COMMAND_FLAG_MUTATING,
         .args = s_cmd_config_field_args,
         .arg_count = 1,
         .handler = handle_config_reset_command,
@@ -204,7 +212,7 @@ static const tele_command_t s_builtin_commands[] = {
         .label = "Aplicar e reiniciar",
         .description = "Agenda um reboot curto depois do ACK.",
         .group = "system",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
+        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB | TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
         .args = s_cmd_reboot_args,
         .arg_count = 1,
         .handler = handle_apply_and_reboot_command,
@@ -726,15 +734,30 @@ static cJSON *build_config_update_result(const char *id, const tele_config_updat
     return result;
 }
 
+static uint32_t config_flags_from_command_flags(uint32_t command_flags)
+{
+    uint32_t config_flags = 0;
+
+    if ((command_flags & TELE_COMMAND_FLAG_MQTT) != 0) {
+        config_flags |= TELE_CONFIG_FLAG_MQTT;
+    }
+    if ((command_flags & TELE_COMMAND_FLAG_WEB) != 0) {
+        config_flags |= TELE_CONFIG_FLAG_WEB;
+    }
+    return config_flags;
+}
+
 static esp_err_t handle_ping_command(const char *cmd_name,
                                      const cJSON *args,
                                      cJSON **out_result,
                                      const char **out_error,
+                                     uint32_t required_flags,
                                      void *ctx)
 {
     (void)cmd_name;
     (void)args;
     (void)out_error;
+    (void)required_flags;
     (void)ctx;
 
     *out_result = build_ping_result();
@@ -745,11 +768,13 @@ static esp_err_t handle_get_state_command(const char *cmd_name,
                                           const cJSON *args,
                                           cJSON **out_result,
                                           const char **out_error,
+                                          uint32_t required_flags,
                                           void *ctx)
 {
     (void)cmd_name;
     (void)args;
     (void)out_error;
+    (void)required_flags;
     (void)ctx;
 
     *out_result = build_state_payload();
@@ -760,11 +785,13 @@ static esp_err_t handle_get_technical_status_command(const char *cmd_name,
                                                      const cJSON *args,
                                                      cJSON **out_result,
                                                      const char **out_error,
+                                                     uint32_t required_flags,
                                                      void *ctx)
 {
     (void)cmd_name;
     (void)args;
     (void)out_error;
+    (void)required_flags;
     (void)ctx;
 
     *out_result = s_config.build_technical_status ?
@@ -776,12 +803,27 @@ static esp_err_t handle_config_get_command(const char *cmd_name,
                                            const cJSON *args,
                                            cJSON **out_result,
                                            const char **out_error,
+                                           uint32_t required_flags,
                                            void *ctx)
 {
     (void)cmd_name;
     (void)args;
     (void)out_error;
     (void)ctx;
+
+    if ((required_flags & TELE_COMMAND_FLAG_WEB) != 0) {
+        *out_result = cJSON_CreateObject();
+        if (!*out_result) {
+            return ESP_ERR_NO_MEM;
+        }
+        esp_err_t err = tele_config_add_manifest_to_json(*out_result, TELE_CONFIG_FLAG_WEB);
+        if (err != ESP_OK) {
+            cJSON_Delete(*out_result);
+            *out_result = NULL;
+            return err;
+        }
+        return ESP_OK;
+    }
 
     *out_result = build_config_manifest_payload();
     return *out_result ? ESP_OK : ESP_ERR_NO_MEM;
@@ -791,6 +833,7 @@ static esp_err_t handle_commands_get_command(const char *cmd_name,
                                              const cJSON *args,
                                              cJSON **out_result,
                                              const char **out_error,
+                                             uint32_t required_flags,
                                              void *ctx)
 {
     (void)cmd_name;
@@ -801,7 +844,7 @@ static esp_err_t handle_commands_get_command(const char *cmd_name,
     if (!*out_result) {
         return ESP_ERR_NO_MEM;
     }
-    esp_err_t err = tele_commands_add_manifest_to_json(*out_result, TELE_COMMAND_FLAG_MQTT);
+    esp_err_t err = tele_commands_add_manifest_to_json(*out_result, required_flags);
     if (err != ESP_OK) {
         cJSON_Delete(*out_result);
         *out_result = NULL;
@@ -817,10 +860,12 @@ static esp_err_t handle_config_set_command(const char *cmd_name,
                                            const cJSON *args,
                                            cJSON **out_result,
                                            const char **out_error,
+                                           uint32_t required_flags,
                                            void *ctx)
 {
     (void)cmd_name;
     (void)ctx;
+    uint32_t config_flags = config_flags_from_command_flags(required_flags);
 
     cJSON *field_id_item = cJSON_IsObject(args) ?
                            cJSON_GetObjectItemCaseSensitive(args, "id") : NULL;
@@ -841,7 +886,7 @@ static esp_err_t handle_config_set_command(const char *cmd_name,
     }
 
     field = tele_config_find_field(field_id_item->valuestring);
-    if (!field || (field->flags & TELE_CONFIG_FLAG_MQTT) == 0) {
+    if (!field || config_flags == 0 || (field->flags & config_flags) != config_flags) {
         *out_error = "config_field_not_found";
         return ESP_ERR_NOT_FOUND;
     }
@@ -866,10 +911,12 @@ static esp_err_t handle_config_reset_command(const char *cmd_name,
                                              const cJSON *args,
                                              cJSON **out_result,
                                              const char **out_error,
+                                             uint32_t required_flags,
                                              void *ctx)
 {
     (void)cmd_name;
     (void)ctx;
+    uint32_t config_flags = config_flags_from_command_flags(required_flags);
 
     cJSON *field_id_item = cJSON_IsObject(args) ?
                            cJSON_GetObjectItemCaseSensitive(args, "id") : NULL;
@@ -887,7 +934,7 @@ static esp_err_t handle_config_reset_command(const char *cmd_name,
     }
 
     field = tele_config_find_field(field_id_item->valuestring);
-    if (!field || (field->flags & TELE_CONFIG_FLAG_MQTT) == 0) {
+    if (!field || config_flags == 0 || (field->flags & config_flags) != config_flags) {
         *out_error = "config_field_not_found";
         return ESP_ERR_NOT_FOUND;
     }
@@ -907,10 +954,12 @@ static esp_err_t handle_apply_and_reboot_command(const char *cmd_name,
                                                  const cJSON *args,
                                                  cJSON **out_result,
                                                  const char **out_error,
+                                                 uint32_t required_flags,
                                                  void *ctx)
 {
     (void)cmd_name;
     (void)out_error;
+    (void)required_flags;
     (void)ctx;
 
     cJSON *delay_item = cJSON_IsObject(args) ? cJSON_GetObjectItemCaseSensitive(args, "delay_ms") : NULL;

@@ -32,11 +32,13 @@ static esp_err_t handle_ping_command(const char *cmd_name,
                                      const cJSON *args,
                                      cJSON **out_result,
                                      const char **out_error,
+                                     uint32_t required_flags,
                                      void *ctx)
 {
     int *call_count = (int *)ctx;
     (void)args;
     (void)out_error;
+    (void)required_flags;
 
     assert(strcmp(cmd_name, "ping") == 0);
     assert(out_result != NULL);
@@ -52,6 +54,7 @@ static esp_err_t handle_reboot_command(const char *cmd_name,
                                        const cJSON *args,
                                        cJSON **out_result,
                                        const char **out_error,
+                                       uint32_t required_flags,
                                        void *ctx)
 {
     int *call_count = (int *)ctx;
@@ -59,6 +62,7 @@ static esp_err_t handle_reboot_command(const char *cmd_name,
     (void)args;
     (void)out_result;
     (void)out_error;
+    (void)required_flags;
 
     (*call_count)++;
     return ESP_OK;
@@ -144,6 +148,17 @@ int main(void)
     assert(response.ok);
     assert(response.error == NULL);
     assert(response.result != NULL);
+    assert(ping_calls == 1);
+    tele_commands_response_cleanup(&response);
+
+    const tele_command_request_t ping_web_request = {
+        .cmd_id = "cmd-web-1",
+        .name = "ping",
+        .required_flags = TELE_COMMAND_FLAG_WEB,
+    };
+    assert(tele_commands_execute(&ping_web_request, &response) == ESP_OK);
+    assert(!response.ok);
+    assert(response.error && strcmp(response.error, "unsupported_command") == 0);
     assert(ping_calls == 1);
     tele_commands_response_cleanup(&response);
 

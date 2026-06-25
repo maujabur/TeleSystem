@@ -14,6 +14,8 @@
 #include "power_good.h"
 #include "tele_ca_store.h"
 #include "tele_ca_updater.h"
+#include "tele_portal_commands.h"
+#include "tele_portal_core.h"
 #include "tele_portal_ota.h"
 #include "tele_portal_logs.h"
 #include "vbat_monitor.h"
@@ -266,6 +268,7 @@ void app_main(void)
 
     ESP_ERROR_CHECK(tele_ca_store_init());
     ESP_ERROR_CHECK(firmware_ota_init());
+    ESP_ERROR_CHECK(tele_portal_core_register_routes(tele_portal_commands_register_routes));
     ESP_ERROR_CHECK(register_portal_ota_routes());
     ESP_ERROR_CHECK(connectivity_controller_start());
     maybe_start_ca_updater_boot_task();

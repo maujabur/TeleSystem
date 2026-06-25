@@ -11,8 +11,8 @@ Principais subsistemas:
 - `main`: boot e cola da aplicacao.
 - `main/connectivity`: controller de conectividade e rotas de configuracao.
 - `components/tele_wifi`: Wi-Fi, provisionamento, credenciais, APSTA e NTP.
-- `components/tele_portal`: servidor HTTP, captive portal, helpers JSON/HTTP,
-  buffer de logs e portal OTA.
+- `components/tele_portal*`: servidor HTTP, captive portal, helpers JSON/HTTP,
+  buffer de logs, comandos e portal OTA.
 - `components/tele_mqtt`: cliente MQTT reutilizavel.
 - `components/tele_presence`: adaptador de presenca MQTT do firmware.
 - `components/tele_system`: OTA, versao, VBAT e POWER_GOOD.

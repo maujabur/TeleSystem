@@ -107,20 +107,18 @@ adivinhar estado interno.
 
 ## Uso no TeleSystem
 
-`components/tele_wifi/device_config_store.c` ja usa `tele_config` para:
+`components/tele_wifi/device_config.c` registra no `tele_config` os campos:
 
 - `wifi.provisioning_ssid`;
 - `wifi.sta_max_retry`;
 - `wifi.apsta_policy`;
 - `wifi.apsta_grace_period_s`.
 
-As funcoes antigas `device_config_store_*` continuam existindo para manter
-compatibilidade com o portal e com os pontos de leitura de configuracao, mas
-agora elas chamam `tele_config` internamente. Fluxos de atualizacao MQTT usam o
-comando generico `config/set`, que chama `tele_config_update_value()`: valida,
-aplica callback opcional de runtime e persiste o override.
-O comando `config/reset` remove o override e reaplica o default quando existe
-callback de runtime.
+Consumidores leem valores efetivos diretamente com `tele_config_get_effective()`.
+Fluxos de atualizacao por MQTT ou portal usam o comando generico `config/set`,
+que chama `tele_config_update_value()`: valida, aplica callback opcional de
+runtime e persiste o override. O comando `config/reset` remove o override e
+reaplica o default quando existe callback de runtime.
 
 ## Fora de escopo por enquanto
 
