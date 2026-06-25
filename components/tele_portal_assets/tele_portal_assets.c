@@ -11,6 +11,8 @@ static bool s_enable_logs_page;
 
 extern const unsigned char _binary_index_html_start[];
 extern const unsigned char _binary_index_html_end[];
+extern const unsigned char _binary_app_css_start[];
+extern const unsigned char _binary_app_css_end[];
 extern const unsigned char _binary_status_html_start[];
 extern const unsigned char _binary_status_html_end[];
 extern const unsigned char _binary_settings_html_start[];
@@ -26,6 +28,15 @@ static esp_err_t send_embedded_html(httpd_req_t *req,
 {
     size_t len = (size_t)(end - start);
     httpd_resp_set_type(req, "text/html; charset=utf-8");
+    return httpd_resp_send(req, (const char *)start, (ssize_t)len);
+}
+
+static esp_err_t send_embedded_css(httpd_req_t *req,
+                                   const unsigned char *start,
+                                   const unsigned char *end)
+{
+    size_t len = (size_t)(end - start);
+    httpd_resp_set_type(req, "text/css; charset=utf-8");
     return httpd_resp_send(req, (const char *)start, (ssize_t)len);
 }
 
@@ -58,6 +69,11 @@ static esp_err_t logs_page_get_handler(httpd_req_t *req)
     return send_embedded_html(req, _binary_logs_html_start, _binary_logs_html_end);
 }
 
+static esp_err_t app_css_get_handler(httpd_req_t *req)
+{
+    return send_embedded_css(req, _binary_app_css_start, _binary_app_css_end);
+}
+
 static esp_err_t status_page_get_handler(httpd_req_t *req)
 {
     return send_embedded_html(req, _binary_status_html_start, _binary_status_html_end);
@@ -85,6 +101,11 @@ esp_err_t tele_portal_assets_register_routes(httpd_handle_t server)
         .method = HTTP_GET,
         .handler = logs_page_get_handler,
     };
+    httpd_uri_t app_css = {
+        .uri = "/app.css",
+        .method = HTTP_GET,
+        .handler = app_css_get_handler,
+    };
     httpd_uri_t status_page = {
         .uri = "/status",
         .method = HTTP_GET,
@@ -102,6 +123,9 @@ esp_err_t tele_portal_assets_register_routes(httpd_handle_t server)
     };
 
     esp_err_t err = register_uri_checked(server, &root);
+    if (err == ESP_OK) {
+        err = register_uri_checked(server, &app_css);
+    }
     if (err == ESP_OK) {
         err = register_uri_checked(server, &logs_page);
     }
