@@ -28,8 +28,8 @@ typedef enum {
 } tele_config_type_t;
 
 typedef enum {
-    TELE_CONFIG_FLAG_WEB = 1U << 0,
-    TELE_CONFIG_FLAG_MQTT = 1U << 1,
+    TELE_CONFIG_FLAG_MQTT = 1U << 0,
+    TELE_CONFIG_FLAG_WEB = 1U << 1,
     TELE_CONFIG_FLAG_SECRET = 1U << 2,
     TELE_CONFIG_FLAG_REBOOT_REQUIRED = 1U << 3,
     TELE_CONFIG_FLAG_READ_ONLY = 1U << 4,

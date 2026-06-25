@@ -127,8 +127,12 @@ int main(void)
     assert(strstr(text, "\"name\":\"config/set\"") != NULL);
     assert(strstr(text, "\"group\":\"config\"") != NULL);
     assert(strstr(text, "\"mutating\":true") != NULL);
+    assert(strstr(text, "\"flags\"") != NULL);
+    assert(strstr(text, "\"flag\":\"mqtt\"") != NULL);
+    assert(strstr(text, "\"flag\":\"mutating\"") != NULL);
     assert(strstr(text, "\"name\":\"apply_and_reboot\"") != NULL);
     assert(strstr(text, "\"reboot_required\":true") != NULL);
+    assert(strstr(text, "\"flag\":\"reboot_required\"") != NULL);
     assert(strstr(text, "\"id\":\"delay_ms\"") != NULL);
     assert(strstr(text, "\"type\":\"u32\"") != NULL);
     assert(strstr(text, "\"min\":100") != NULL);

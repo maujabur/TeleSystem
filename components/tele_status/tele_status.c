@@ -124,6 +124,9 @@ esp_err_t tele_status_add_fields_to_json(cJSON *root, uint32_t required_flags)
         if (!field || (field->flags & required_flags) != required_flags) {
             continue;
         }
+        if ((field->flags & TELE_STATUS_FLAG_SENSITIVE) != 0) {
+            continue;
+        }
 
         switch (field->type) {
         case TELE_STATUS_TYPE_BOOL:

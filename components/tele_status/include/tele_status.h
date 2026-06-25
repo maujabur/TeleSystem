@@ -25,11 +25,11 @@ typedef enum {
 } tele_status_type_t;
 
 typedef enum {
-    TELE_STATUS_FLAG_STATE = 1U << 0,
-    TELE_STATUS_FLAG_HEARTBEAT = 1U << 1,
-    TELE_STATUS_FLAG_TECHNICAL = 1U << 2,
-    TELE_STATUS_FLAG_MQTT = 1U << 3,
-    TELE_STATUS_FLAG_WEB = 1U << 4,
+    TELE_STATUS_FLAG_MQTT = 1U << 0,
+    TELE_STATUS_FLAG_WEB = 1U << 1,
+    TELE_STATUS_FLAG_STATE = 1U << 2,
+    TELE_STATUS_FLAG_HEARTBEAT = 1U << 3,
+    TELE_STATUS_FLAG_TECHNICAL = 1U << 4,
     TELE_STATUS_FLAG_SENSITIVE = 1U << 5,
 } tele_status_flags_t;
 

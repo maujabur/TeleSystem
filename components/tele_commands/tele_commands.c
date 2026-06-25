@@ -29,6 +29,18 @@ static cJSON *add_object_to_array(cJSON *array)
     return object;
 }
 
+static void add_flag_if_set(cJSON *flags, uint32_t command_flags, uint32_t flag, const char *name)
+{
+    if ((command_flags & flag) == 0) {
+        return;
+    }
+
+    cJSON *entry = add_object_to_array(flags);
+    if (entry) {
+        cJSON_AddStringToObject(entry, "flag", name);
+    }
+}
+
 static const char *arg_type_name(tele_command_arg_type_t type)
 {
     switch (type) {
@@ -234,6 +246,7 @@ esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flag
         const tele_command_t *command = s_commands[i];
         cJSON *item = NULL;
         cJSON *args = NULL;
+        cJSON *flags = NULL;
 
         if (!command || (command->flags & required_flags) != required_flags) {
             continue;
@@ -257,6 +270,16 @@ esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flag
         cJSON_AddBoolToObject(item, "mutating", (command->flags & TELE_COMMAND_FLAG_MUTATING) != 0);
         cJSON_AddBoolToObject(item, "reboot_required", (command->flags & TELE_COMMAND_FLAG_REBOOT_REQUIRED) != 0);
         cJSON_AddBoolToObject(item, "internal", (command->flags & TELE_COMMAND_FLAG_INTERNAL) != 0);
+
+        flags = cJSON_AddArrayToObject(item, "flags");
+        if (!flags) {
+            return ESP_ERR_NO_MEM;
+        }
+        add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_MQTT, "mqtt");
+        add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_WEB, "web");
+        add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_MUTATING, "mutating");
+        add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_REBOOT_REQUIRED, "reboot_required");
+        add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_INTERNAL, "internal");
 
         args = cJSON_AddArrayToObject(item, "args");
         if (!args) {

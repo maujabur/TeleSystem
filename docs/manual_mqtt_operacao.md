@@ -293,6 +293,11 @@ mutavel ou relacionado a reboot.
       "mutating": true,
       "reboot_required": false,
       "internal": false,
+      "flags": [
+        {"flag": "mqtt"},
+        {"flag": "web"},
+        {"flag": "mutating"}
+      ],
       "args": [
         {"id": "id", "type": "string", "required": true, "min_len": 1, "max_len": 48},
         {"id": "value", "type": "any", "required": true}

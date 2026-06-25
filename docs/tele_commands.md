@@ -76,6 +76,10 @@ Para cada comando, o JSON inclui:
 - `args`, quando existem, com `id`, `type`, `required`, limites numericos e
   limites de string.
 
+As flags de canal seguem o mesmo contrato de `tele_config` e `tele_status`:
+`MQTT` e `WEB` sao os dois primeiros bits; flags especificas do registry vêm
+depois.
+
 Comandos com flag `INTERNAL` podem aparecer no manifesto para ferramentas que
 precisam entender o contrato completo, mas UIs comuns podem oculta-los da lista
 principal. `config/set` e `config/reset`, por exemplo, sao usados internamente

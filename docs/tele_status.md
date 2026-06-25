@@ -85,6 +85,8 @@ manifesto de status. Para cada campo, o JSON inclui:
 O manifesto nao carrega valores. Valores chegam por `state`, `heartbeat`,
 `cmd/out` de `get_state` e, quando fizer sentido, `get_technical_status`.
 Ferramentas devem cruzar `id` do manifesto com as chaves dos payloads de valor.
+Campos com `SENSITIVE` aparecem no manifesto, mas sao omitidos dos payloads de
+valor gerados por `tele_status_add_fields_to_json()`.
 
 ## Uso no TeleSystem
 

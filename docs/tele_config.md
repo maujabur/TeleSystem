@@ -92,6 +92,10 @@ Para cada campo, o JSON inclui:
 nao devem expor valor real para a UI; o consumidor deve tratar o valor como
 opaco.
 
+As flags de canal seguem o mesmo contrato dos registries de status e comandos:
+`MQTT` e `WEB` sao os dois primeiros bits; flags especificas de cada registry
+vêm depois.
+
 ## Fluxo MQTT
 
 O Control Center e outras ferramentas nao precisam conhecer campos de produto.
