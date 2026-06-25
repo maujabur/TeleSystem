@@ -729,6 +729,39 @@ static esp_err_t apply_firmware_artifact(const tele_artifact_request_t *request,
     return ESP_OK;
 }
 
+static esp_err_t get_firmware_artifact_status(tele_artifact_status_t *out_status, void *ctx)
+{
+    (void)ctx;
+
+    if (!out_status) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    firmware_ota_status_t status = {0};
+    firmware_ota_get_status(&status);
+
+    copy_text(out_status->artifact_type,
+              sizeof(out_status->artifact_type),
+              FIRMWARE_OTA_ARTIFACT_TYPE);
+    copy_text(out_status->state,
+              sizeof(out_status->state),
+              firmware_ota_state_name(status.state));
+    copy_text(out_status->current_version,
+              sizeof(out_status->current_version),
+              status.current_version);
+    copy_text(out_status->target_version,
+              sizeof(out_status->target_version),
+              status.target_version);
+    copy_text(out_status->last_error,
+              sizeof(out_status->last_error),
+              status.last_error);
+    out_status->in_progress = status.in_progress;
+    out_status->bytes_done = status.bytes_written;
+    out_status->total_size = status.total_size;
+    out_status->progress_pct = status.progress_pct;
+    return ESP_OK;
+}
+
 esp_err_t firmware_ota_register_artifact(void)
 {
     static const tele_artifact_handler_t handler = {
@@ -738,6 +771,7 @@ esp_err_t firmware_ota_register_artifact(void)
         .default_restart_on_success = true,
         .check = check_firmware_artifact,
         .apply = apply_firmware_artifact,
+        .status = get_firmware_artifact_status,
     };
 
     esp_err_t err = tele_artifacts_register(&handler);

@@ -152,14 +152,17 @@ descobrivel por `meta/config` e evita duplicar semantica.
 O TeleSystem tambem registra comandos genericos de artefatos por manifest pelo
 componente `components/tele_artifacts`:
 
+- `artifacts/get`;
 - `artifact/check`;
+- `artifact/status`;
 - `artifact/apply`.
 
 Todos usam `args.artifact_type`, `args.manifest_url` e aceitam `args.channel`.
 `artifact/apply` para `artifact_type = "firmware"` inicia uma task de OTA em
 streaming e responde apenas que o processo comecou. `artifact/apply` para
 `artifact_type = "ca_bundle"` baixa, valida e ativa o bundle CA pelo storage
-runtime.
+runtime. `artifacts/get` lista os tipos registrados e `artifact/status` retorna
+estado local e progresso quando o handler implementa status.
 
 O firmware publica `{base_topic}/{device_id}/meta/commands` como mensagem
 retida ao conectar ao broker. O Control Center consome esse manifesto para

@@ -480,6 +480,21 @@ Agenda reboot curto depois do ACK.
 {"cmd_id":"r1","name":"apply_and_reboot","args":{"delay_ms":800}}
 ```
 
+### artifacts/get
+
+Lista os tipos de artefato registrados no firmware.
+
+```json
+{
+  "cmd_id": "artifacts-1",
+  "name": "artifacts/get",
+  "args": {}
+}
+```
+
+Resposta inclui `registry_revision` e `artifacts`, com `artifact_type`,
+`label`, `mode`, `default_restart_on_success` e `status_available`.
+
 ### artifact/check
 
 Consulta um manifest remoto de qualquer artefato registrado sem aplicar.
@@ -499,6 +514,23 @@ Consulta um manifest remoto de qualquer artefato registrado sem aplicar.
 Resposta bem-sucedida inclui `current_version`, `available`,
 `target_version`, `build_id`, `artifact_type`, `mode`, `size`, `critical` e
 `artifact_url`.
+
+### artifact/status
+
+Consulta estado local e progresso de um artefato registrado.
+
+```json
+{
+  "cmd_id": "ota-status-1",
+  "name": "artifact/status",
+  "args": {
+    "artifact_type": "firmware"
+  }
+}
+```
+
+Resposta inclui `state`, `current_version`, `target_version`, `last_error`,
+`in_progress`, `bytes_done`, `total_size` e `progress_pct`.
 
 ### artifact/apply para firmware
 

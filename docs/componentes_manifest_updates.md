@@ -54,12 +54,20 @@ esp_err_t tele_artifacts_check(const tele_artifact_request_t *request,
                                tele_artifact_check_result_t *out_result);
 esp_err_t tele_artifacts_apply(const tele_artifact_request_t *request,
                                tele_artifact_apply_result_t *out_result);
+esp_err_t tele_artifacts_get_status(const char *artifact_type,
+                                    tele_artifact_status_t *out_status);
+esp_err_t tele_artifacts_add_manifest_to_json(cJSON *root);
+esp_err_t tele_artifacts_add_status_to_json(cJSON *root);
 esp_err_t tele_artifacts_register_commands(void);
 ```
 
 `tele_artifacts_register_commands()` registra comandos genericos no dispatcher
 `tele_commands`, sem depender de MQTT. MQTT, portal e uma futura serial podem
 chamar o mesmo dispatcher.
+
+`tele_artifacts_add_manifest_to_json()` expõe os tipos registrados para UI e
+ferramentas. `tele_artifacts_add_status_to_json()` expõe estado local dos
+handlers que implementam callback de status.
 
 ### `components/tele_ca_store`
 
@@ -163,8 +171,14 @@ Regras:
 
 Registrados por `components/tele_artifacts`:
 
+- `artifacts/get`;
 - `artifact/check`;
+- `artifact/status`;
 - `artifact/apply`.
+
+`artifacts/get` lista tipos registrados, seus modos (`file` ou `stream`) e o
+default de reboot. `artifact/status` consulta progresso/estado local de um
+tipo.
 
 Exemplo OTA:
 
@@ -177,6 +191,18 @@ Exemplo OTA:
     "manifest_url": "https://updates.example.com/telesystem/pilot/manifest.json",
     "channel": "pilot",
     "restart_on_success": true
+  }
+}
+```
+
+Exemplo status OTA:
+
+```json
+{
+  "cmd_id": "ota-status-1",
+  "name": "artifact/status",
+  "args": {
+    "artifact_type": "firmware"
   }
 }
 ```

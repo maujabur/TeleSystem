@@ -152,6 +152,23 @@ static esp_err_t apply_ca_artifact(const tele_artifact_request_t *config,
     return err;
 }
 
+static esp_err_t get_ca_artifact_status(tele_artifact_status_t *out_status, void *ctx)
+{
+    (void)ctx;
+
+    if (!out_status) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    strlcpy(out_status->artifact_type,
+            TELE_CA_UPDATER_ARTIFACT_TYPE,
+            sizeof(out_status->artifact_type));
+    strlcpy(out_status->state, "idle", sizeof(out_status->state));
+    (void)tele_ca_store_get_version(out_status->current_version,
+                                    sizeof(out_status->current_version));
+    return ESP_OK;
+}
+
 esp_err_t tele_ca_updater_register_artifact(void)
 {
     static const tele_artifact_handler_t handler = {
@@ -160,6 +177,7 @@ esp_err_t tele_ca_updater_register_artifact(void)
         .mode = TELE_ARTIFACT_MODE_FILE,
         .check = check_ca_artifact,
         .apply = apply_ca_artifact,
+        .status = get_ca_artifact_status,
     };
 
     esp_err_t err = tele_artifacts_register(&handler);
