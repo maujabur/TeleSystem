@@ -13,6 +13,8 @@ extern const unsigned char _binary_index_html_start[];
 extern const unsigned char _binary_index_html_end[];
 extern const unsigned char _binary_app_css_start[];
 extern const unsigned char _binary_app_css_end[];
+extern const unsigned char _binary_portal_css_start[];
+extern const unsigned char _binary_portal_css_end[];
 extern const unsigned char _binary_status_html_start[];
 extern const unsigned char _binary_status_html_end[];
 extern const unsigned char _binary_settings_html_start[];
@@ -74,6 +76,11 @@ static esp_err_t app_css_get_handler(httpd_req_t *req)
     return send_embedded_css(req, _binary_app_css_start, _binary_app_css_end);
 }
 
+static esp_err_t portal_css_get_handler(httpd_req_t *req)
+{
+    return send_embedded_css(req, _binary_portal_css_start, _binary_portal_css_end);
+}
+
 static esp_err_t status_page_get_handler(httpd_req_t *req)
 {
     return send_embedded_html(req, _binary_status_html_start, _binary_status_html_end);
@@ -106,6 +113,11 @@ esp_err_t tele_portal_assets_register_routes(httpd_handle_t server)
         .method = HTTP_GET,
         .handler = app_css_get_handler,
     };
+    httpd_uri_t portal_css = {
+        .uri = "/portal.css",
+        .method = HTTP_GET,
+        .handler = portal_css_get_handler,
+    };
     httpd_uri_t status_page = {
         .uri = "/status",
         .method = HTTP_GET,
@@ -125,6 +137,9 @@ esp_err_t tele_portal_assets_register_routes(httpd_handle_t server)
     esp_err_t err = register_uri_checked(server, &root);
     if (err == ESP_OK) {
         err = register_uri_checked(server, &app_css);
+    }
+    if (err == ESP_OK) {
+        err = register_uri_checked(server, &portal_css);
     }
     if (err == ESP_OK) {
         err = register_uri_checked(server, &logs_page);

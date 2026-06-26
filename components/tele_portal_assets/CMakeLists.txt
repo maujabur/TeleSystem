@@ -3,8 +3,9 @@ idf_component_register(
         "tele_portal_assets.c"
     INCLUDE_DIRS "include"
     EMBED_TXTFILES
-        "../../firmware_assets/web/app.css"
         "../../firmware_assets/web/index.html"
+        "../../firmware_assets/web/app.css"
+        "../../firmware_assets/web/portal.css"
         "../../firmware_assets/web/status.html"
         "../../firmware_assets/web/settings.html"
         "../../firmware_assets/web/networks.html"
