@@ -43,7 +43,7 @@ body {
 
 .tech-nav {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
   align-items: center;
   min-height: 44px;
@@ -58,6 +58,19 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.tech-nav .links {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tech-nav .links a,
+.tech-nav > a {
+  white-space: nowrap;
 }
 
 a {
@@ -452,13 +465,47 @@ button.danger:hover,
   font-weight: 700;
 }
 
+.progress-wrap {
+  margin-top: 1rem;
+}
+
+progress {
+  width: 100%;
+  height: 1.15rem;
+  border: 0;
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+  background: var(--surface, rgba(127, 127, 127, 0.18));
+  color: var(--primary, var(--accent, #3b82f6));
+  box-shadow: inset 0 0 0 1px var(--line, rgba(127, 127, 127, 0.24));
+}
+
+progress::-webkit-progress-bar {
+  background: var(--surface, rgba(127, 127, 127, 0.18));
+  border-radius: var(--radius, 8px);
+}
+
+progress::-webkit-progress-value {
+  border-radius: var(--radius, 8px);
+  background: var(--primary, var(--accent, #3b82f6));
+}
+
+progress::-moz-progress-bar {
+  border-radius: var(--radius, 8px);
+  background: var(--primary, var(--accent, #3b82f6));
+}
+
+#ota_progress_text {
+  margin-top: 0.5rem;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 860px) {
   .shell {
     width: min(100% - 24px, 1040px);
     padding: 16px 0;
   }
 
-  .tech-nav,
   header,
   .grid,
   .metrics,
@@ -473,6 +520,16 @@ button.danger:hover,
   }
 }
 
+@media (max-width: 520px) {
+  .tech-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .tech-nav .links {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 600px) {
   .network-item {
     grid-template-columns: 1fr auto;
@@ -483,7 +540,6 @@ button.danger:hover,
     flex-direction: row;
   }
 }
-
 
 /* Hacker theme refinements */
 body {
@@ -773,4 +829,8 @@ form > select + a.button {
   padding-top: 2px;
   color: var(--text);
   line-height: 1.45;
+}
+
+.progress-wrap + .mini-status {
+  margin-top: 14px;
 }
