@@ -104,19 +104,27 @@ static esp_err_t register_base_routes(httpd_handle_t server)
         .handler = api_restart_post_handler,
     };
 
-    esp_err_t err = tele_portal_assets_register_routes(server);
-    if (err == ESP_OK) {
-        err = tele_portal_logs_register_routes(server);
-    }
+    esp_err_t err = ESP_OK;
+
+    /*
+     * Primeiro: rotas específicas.
+     * Estas precisam ser registradas antes da rota wildcard dos assets.
+     */
+
+    err = tele_portal_logs_register_routes(server);
+
     if (err == ESP_OK) {
         err = tele_portal_status_register_routes(server);
     }
+
     if (err == ESP_OK) {
         err = tele_portal_config_register_routes(server);
     }
+
     if (err == ESP_OK) {
         err = register_uri_checked(server, &api_restart);
     }
+
     if (err == ESP_OK) {
         err = tele_portal_wifi_register_routes(server);
     }
@@ -125,9 +133,32 @@ static esp_err_t register_base_routes(httpd_handle_t server)
         return err;
     }
 
-    err = tele_portal_captive_register_handlers(server, tele_portal_assets_root_handler);
+    /*
+     * Captive portal: também deve vir antes dos assets se registrar
+     * endpoints específicos como /generate_204, /hotspot-detect.html etc.
+     */
+    err = tele_portal_captive_register_handlers(
+        server,
+        tele_portal_assets_root_handler
+    );
+
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao registrar rotas de captive portal: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG,
+                 "Falha ao registrar rotas de captive portal: %s",
+                 esp_err_to_name(err));
+        return err;
+    }
+
+    /*
+     * Por último: assets estáticos.
+     * Esta função agora registra *, então precisa ficar no fim.
+     */
+    err = tele_portal_assets_register_routes(server);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG,
+                 "Falha ao registrar rotas de assets: %s",
+                 esp_err_to_name(err));
         return err;
     }
 

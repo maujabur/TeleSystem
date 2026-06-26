@@ -1,5 +1,8 @@
 #include "tele_portal_assets.h"
+#include "tele_portal_assets_generated.h"
 
+#include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 
 #include "esp_http_server.h"
@@ -9,37 +12,65 @@ static const char *TAG = "portal-assets";
 
 static bool s_enable_logs_page;
 
-extern const unsigned char _binary_index_html_start[];
-extern const unsigned char _binary_index_html_end[];
-extern const unsigned char _binary_app_css_start[];
-extern const unsigned char _binary_app_css_end[];
-extern const unsigned char _binary_portal_css_start[];
-extern const unsigned char _binary_portal_css_end[];
-extern const unsigned char _binary_status_html_start[];
-extern const unsigned char _binary_status_html_end[];
-extern const unsigned char _binary_settings_html_start[];
-extern const unsigned char _binary_settings_html_end[];
-extern const unsigned char _binary_networks_html_start[];
-extern const unsigned char _binary_networks_html_end[];
-extern const unsigned char _binary_logs_html_start[];
-extern const unsigned char _binary_logs_html_end[];
-
-static esp_err_t send_embedded_html(httpd_req_t *req,
-                                    const unsigned char *start,
-                                    const unsigned char *end)
+static esp_err_t send_embedded_asset(httpd_req_t *req,
+                                     const unsigned char *start,
+                                     const unsigned char *end,
+                                     const char *content_type)
 {
     size_t len = (size_t)(end - start);
-    httpd_resp_set_type(req, "text/html; charset=utf-8");
+
+    httpd_resp_set_type(req, content_type);
+
     return httpd_resp_send(req, (const char *)start, (ssize_t)len);
 }
 
-static esp_err_t send_embedded_css(httpd_req_t *req,
-                                   const unsigned char *start,
-                                   const unsigned char *end)
+static const tele_portal_asset_t *find_asset_by_uri(const char *uri)
 {
-    size_t len = (size_t)(end - start);
-    httpd_resp_set_type(req, "text/css; charset=utf-8");
-    return httpd_resp_send(req, (const char *)start, (ssize_t)len);
+    for (size_t i = 0; i < tele_portal_assets_count; i++) {
+        const tele_portal_asset_t *asset = &tele_portal_assets[i];
+
+        if (asset->requires_logs_enabled && !s_enable_logs_page) {
+            continue;
+        }
+
+        if (strcmp(asset->uri, uri) == 0) {
+            return asset;
+        }
+    }
+
+    return NULL;
+}
+
+static esp_err_t asset_get_handler(httpd_req_t *req)
+{
+    const tele_portal_asset_t *asset = find_asset_by_uri(req->uri);
+
+    if (!asset && strcmp(req->uri, "/") != 0) {
+        char html_uri[128];
+
+        int written = snprintf(
+            html_uri,
+            sizeof(html_uri),
+            "%s.html",
+            req->uri
+        );
+
+        if (written > 0 && written < (int)sizeof(html_uri)) {
+            asset = find_asset_by_uri(html_uri);
+        }
+    }
+
+    if (!asset) {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+
+    return send_embedded_asset(
+        req,
+        asset->start,
+        asset->end,
+        asset->content_type
+    );
 }
 
 static esp_err_t register_uri_checked(httpd_handle_t server, const httpd_uri_t *route)
@@ -59,100 +90,29 @@ esp_err_t tele_portal_assets_init(const tele_portal_assets_config_t *config)
 
 esp_err_t tele_portal_assets_root_handler(httpd_req_t *req)
 {
-    return send_embedded_html(req, _binary_index_html_start, _binary_index_html_end);
-}
+    const tele_portal_asset_t *asset = find_asset_by_uri("/");
 
-static esp_err_t logs_page_get_handler(httpd_req_t *req)
-{
-    if (!s_enable_logs_page) {
-        return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Pagina nao encontrada");
+    if (!asset) {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
     }
 
-    return send_embedded_html(req, _binary_logs_html_start, _binary_logs_html_end);
-}
-
-static esp_err_t app_css_get_handler(httpd_req_t *req)
-{
-    return send_embedded_css(req, _binary_app_css_start, _binary_app_css_end);
-}
-
-static esp_err_t portal_css_get_handler(httpd_req_t *req)
-{
-    return send_embedded_css(req, _binary_portal_css_start, _binary_portal_css_end);
-}
-
-static esp_err_t status_page_get_handler(httpd_req_t *req)
-{
-    return send_embedded_html(req, _binary_status_html_start, _binary_status_html_end);
-}
-
-static esp_err_t settings_page_get_handler(httpd_req_t *req)
-{
-    return send_embedded_html(req, _binary_settings_html_start, _binary_settings_html_end);
-}
-
-static esp_err_t networks_page_get_handler(httpd_req_t *req)
-{
-    return send_embedded_html(req, _binary_networks_html_start, _binary_networks_html_end);
+    return send_embedded_asset(
+        req,
+        asset->start,
+        asset->end,
+        asset->content_type
+    );
 }
 
 esp_err_t tele_portal_assets_register_routes(httpd_handle_t server)
 {
-    httpd_uri_t root = {
-        .uri = "/",
+    httpd_uri_t assets = {
+        .uri = "/*",
         .method = HTTP_GET,
-        .handler = tele_portal_assets_root_handler,
-    };
-    httpd_uri_t logs_page = {
-        .uri = "/logs",
-        .method = HTTP_GET,
-        .handler = logs_page_get_handler,
-    };
-    httpd_uri_t app_css = {
-        .uri = "/app.css",
-        .method = HTTP_GET,
-        .handler = app_css_get_handler,
-    };
-    httpd_uri_t portal_css = {
-        .uri = "/portal.css",
-        .method = HTTP_GET,
-        .handler = portal_css_get_handler,
-    };
-    httpd_uri_t status_page = {
-        .uri = "/status",
-        .method = HTTP_GET,
-        .handler = status_page_get_handler,
-    };
-    httpd_uri_t settings_page = {
-        .uri = "/settings",
-        .method = HTTP_GET,
-        .handler = settings_page_get_handler,
-    };
-    httpd_uri_t networks_page = {
-        .uri = "/networks",
-        .method = HTTP_GET,
-        .handler = networks_page_get_handler,
+        .handler = asset_get_handler,
+        .user_ctx = NULL,
     };
 
-    esp_err_t err = register_uri_checked(server, &root);
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &app_css);
-    }
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &portal_css);
-    }
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &logs_page);
-    }
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &status_page);
-    }
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &settings_page);
-    }
-    if (err == ESP_OK) {
-        err = register_uri_checked(server, &networks_page);
-    }
-
-    return err;
+    return register_uri_checked(server, &assets);
 }

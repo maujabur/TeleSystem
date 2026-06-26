@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/portal.css">
+    <title>TeleSystem - Portal</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <h1>TESTE TeleSystem</h1>
+          <p class="status" id="statusText">Ultima atualizacao: --</p>
+        </div>
+        <span class="badge" id="provisioningBadge">Provisionamento: --</span>
+      </header>
+
+      <section class="panel" id="wifiPanel">
+        <h2>Conectar ao Wi-Fi</h2>
+
+        <label for="networkSelect">Redes encontradas</label>
+        <div class="row">
+          <select id="networkSelect">
+            <option value="">Carregando redes...</option>
+          </select>
+          <button class="secondary" id="refreshNetworksButton" type="button" onclick="loadNetworks()">Atualizar</button>
+        </div>
+
+        <label for="ssid">SSID</label>
+        <input id="ssid" maxlength="32" autocomplete="off">
+
+        <label for="password">Senha</label>
+        <div class="password-row">
+          <input id="password" type="password" maxlength="64" autocomplete="current-password">
+          <button
+            class="secondary icon-button"
+            id="togglePasswordButton"
+            type="button"
+            aria-label="Mostrar senha digitada"
+            aria-pressed="false"
+            title="Mostrar senha digitada"
+            onclick="togglePasswordVisibility()"
+          ><span id="togglePasswordIcon" aria-hidden="true">&#128065;</span></button>
+        </div>
+
+        <div class="actions">
+          <button type="button" onclick="saveWifi()">Conectar</button>
+        </div>
+
+        <div id="wifiBanner" class="banner"></div>
+      </section>
+
+      <div class="meta">
+        <div>
+          <span>Rede atual</span>
+          <strong id="currentSsid">--</strong>
+        </div>
+        <div>
+          <span>IP</span>
+          <strong id="currentIp">--</strong>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      let lastWifiError = "";
+      let networkRefreshInProgress = false;
+      let pendingNetworkRefresh = false;
+      let queuedNetworkRefresh = false;
+
+      function showBanner(id, kind, text) {
+        const el = document.getElementById(id);
+        el.className = "banner show " + kind;
+        el.textContent = text;
+      }
+
+      function hideBanner(id) {
+        const el = document.getElementById(id);
+        el.className = "banner";
+        el.textContent = "";
+      }
+
+      function updateSelectedNetwork() {
+        const sel = document.getElementById("networkSelect");
+        if (sel.value) {
+          document.getElementById("ssid").value = sel.value;
+        }
+      }
+
+      function togglePasswordVisibility() {
+        const input = document.getElementById("password");
+        const button = document.getElementById("togglePasswordButton");
+        const showing = input.type === "text";
+
+        input.type = showing ? "password" : "text";
+        button.setAttribute("aria-pressed", showing ? "false" : "true");
+        button.setAttribute(
+          "aria-label",
+          showing ? "Mostrar senha digitada" : "Ocultar senha digitada"
+        );
+        button.title = showing ? "Mostrar senha digitada" : "Ocultar senha digitada";
+      }
+
+      function signalLabel(rssi) {
+        if (rssi >= -55) return "Excelente";
+        if (rssi >= -67) return "Bom";
+        if (rssi >= -75) return "Regular";
+        return "Fraco";
+      }
+
+      function hasListedNetworks(select) {
+        return Array.from(select.options).some((option) => option.value);
+      }
+
+      function renderNetworks(networks, currentSsid) {
+        const select = document.getElementById("networkSelect");
+
+        if (!networks || !networks.length) {
+          if (!hasListedNetworks(select)) {
+            select.innerHTML = '<option value="">Nenhuma rede encontrada</option>';
+          }
+          return;
+        }
+
+        select.innerHTML = '<option value="">Selecione uma rede</option>';
+        networks.forEach((net) => {
+          const option = document.createElement("option");
+          option.value = net.ssid;
+          option.textContent =
+            net.ssid +
+            " (" +
+            signalLabel(net.rssi) +
+            (net.auth_required ? ", protegida" : ", aberta") +
+            ")";
+          if (net.ssid === currentSsid) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        });
+      }
+
+      async function loadNetworks() {
+        if (networkRefreshInProgress) {
+          queuedNetworkRefresh = true;
+          return;
+        }
+
+        const select = document.getElementById("networkSelect");
+        const button = document.getElementById("refreshNetworksButton");
+        const originalText = button.textContent;
+
+        networkRefreshInProgress = true;
+        queuedNetworkRefresh = false;
+        button.disabled = true;
+        button.textContent = "Atualizando";
+
+        if (!hasListedNetworks(select)) {
+          select.innerHTML = '<option value="">Buscando redes...</option>';
+        }
+
+        try {
+          const currentSsid = document.getElementById("ssid").value;
+          const resp = await fetch("/api/wifi/networks");
+          const contentType = resp.headers.get("content-type") || "";
+          const data = contentType.includes("application/json") ? await resp.json() : {};
+
+          if (!resp.ok) {
+            if (!hasListedNetworks(select)) {
+              select.innerHTML = '<option value="">Nao foi possivel listar redes</option>';
+            }
+            showBanner("wifiBanner", "error", "Nao foi possivel atualizar a lista agora. Tente novamente em alguns segundos.");
+            return;
+          }
+
+          renderNetworks(data.networks, currentSsid);
+        } catch (err) {
+          const hadNetworks = hasListedNetworks(select);
+          if (!hasListedNetworks(select)) {
+            select.innerHTML = '<option value="">Erro ao buscar redes</option>';
+          }
+          showBanner(
+            "wifiBanner",
+            "error",
+            hadNetworks ?
+              "Nao foi possivel buscar redes agora. A lista anterior foi mantida." :
+              "Nao foi possivel buscar redes agora."
+          );
+        } finally {
+          button.disabled = false;
+          button.textContent = originalText;
+          networkRefreshInProgress = false;
+          if (queuedNetworkRefresh) {
+            loadNetworks();
+          }
+        }
+      }
+
+      async function refreshStatus() {
+        try {
+          const statusResp = await fetch("/api/status");
+          const status = await statusResp.json();
+          const ssidInput = document.getElementById("ssid");
+          const currentSsidInput = ssidInput.value.trim();
+
+          document.getElementById("provisioningBadge").textContent =
+            "Provisionamento: " + (status.provisioning_ssid || "--");
+          document.getElementById("currentSsid").textContent = status.ssid || "--";
+          document.getElementById("currentIp").textContent = status.ip || "--";
+          document.getElementById("statusText").textContent =
+            "Ultima atualizacao: " + new Date().toLocaleTimeString();
+
+          // Nao sobrescrever selecao do usuario; apenas preenche automatico quando vazio.
+          if (status.wifi_ready && status.ssid && currentSsidInput === "") {
+            ssidInput.value = status.ssid;
+          }
+
+          if (pendingNetworkRefresh && status.state !== "sta_connecting") {
+            pendingNetworkRefresh = false;
+            loadNetworks();
+          }
+
+          if (status.last_error) {
+            if (status.last_error !== lastWifiError) {
+              showBanner("wifiBanner", "error", status.last_error);
+              lastWifiError = status.last_error;
+            }
+          } else if (status.wifi_ready) {
+            showBanner("wifiBanner", "ok", "Wi-Fi conectado com sucesso.");
+            lastWifiError = "";
+          } else if (lastWifiError) {
+            hideBanner("wifiBanner");
+            lastWifiError = "";
+          }
+        } catch (err) {
+          document.getElementById("statusText").textContent = "Ultima atualizacao: indisponivel";
+        }
+      }
+
+      async function saveWifi() {
+        hideBanner("wifiBanner");
+        lastWifiError = "";
+
+        const ssidValue = document.getElementById("ssid").value.trim();
+        if (!ssidValue) {
+          showBanner("wifiBanner", "error", "Informe o SSID da rede.");
+          return;
+        }
+
+        const payload = {
+          ssid: ssidValue,
+          password: document.getElementById("password").value,
+        };
+
+        const resp = await fetch("/api/wifi", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const text = await resp.text();
+        showBanner("wifiBanner", resp.ok ? "ok" : "error", text);
+        pendingNetworkRefresh = true;
+        refreshStatus();
+      }
+
+      document
+        .getElementById("networkSelect")
+        .addEventListener("change", updateSelectedNetwork);
+
+      loadNetworks();
+      refreshStatus();
+      setInterval(refreshStatus, 3000);
+    </script>
+  </body>
+</html>

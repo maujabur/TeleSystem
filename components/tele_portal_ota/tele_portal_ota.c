@@ -9,50 +9,6 @@
 
 static tele_portal_ota_config_t s_config;
 
-static const char *OTA_PAGE_HTML =
-"<!doctype html>"
-"<html lang='pt-BR'>"
-"<head>"
-"<meta charset='utf-8'>"
-"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-"<title>OTA</title>"
-"<link rel='stylesheet' href='/app.css'>"
-"</head>"
-"<body>"
-"<main class='shell'>"
-"<nav class='tech-nav' aria-label='Navegacao tecnica'>"
-"<a href='/'>Inicio</a>"
-"<div class='links'>"
-"<a href='/status'>Status</a>"
-"<a href='/networks'>Redes</a>"
-"<a href='/ota'>OTA</a>"
-"<a href='/settings'>Ajustes</a>"
-"<a href='/logs'>Logs</a>"
-"</div>"
-"</nav>"
-"<header><h1>Atualizacao OTA</h1><p class='status'>Upload direto do .bin para o dispositivo, sem URL remota.</p></header>"
-"<section class='panel'>"
-"<p class='hint'>Selecione um firmware .bin gerado pelo build atual e envie diretamente para a particao OTA.</p>"
-"<label for='ota_bin'>Arquivo de firmware (.bin)</label>"
-"<input id='ota_bin' type='file' accept='.bin,application/octet-stream'>"
-"<div class='actions'>"
-"<button type='button' onclick='uploadOtaBin()'>Enviar .bin e atualizar</button>"
-"<button class='secondary' type='button' onclick='refreshOtaStatus()'>Atualizar status</button>"
-"</div>"
-"<div id='ota_status' class='mini-status'>Status OTA: --</div>"
-"<div id='banner' class='banner'></div>"
-"</section>"
-"</main>"
-"<script>"
-"function showBanner(kind,text){const el=document.getElementById('banner');el.className='banner show '+kind;el.textContent=text;}"
-"function renderOtaStatus(status){const lines=['Estado: '+(status.state||'--'),'Versao atual: '+(status.current_version||'--'),'Particao atual: '+(status.running_partition||'--'),'Proxima particao OTA: '+(status.next_update_partition||'--')];if(status.last_error){lines.push('Erro: '+status.last_error);}if(status.restart_pending){lines.push('Reboot pendente apos gravacao bem-sucedida.');}document.getElementById('ota_status').textContent=lines.join('\\n');}"
-"async function refreshOtaStatus(){try{const resp=await fetch('/api/ota/status',{cache:'no-store'});const status=await resp.json();renderOtaStatus(status);}catch(err){document.getElementById('ota_status').textContent='Falha ao carregar status OTA.';}}"
-"async function uploadOtaBin(){const input=document.getElementById('ota_bin');const file=input.files&&input.files[0]?input.files[0]:null;if(!file){showBanner('error','Selecione um arquivo .bin.');return;}if(!file.name.toLowerCase().endsWith('.bin')){showBanner('error','Arquivo invalido: use um .bin.');return;}showBanner('ok','Upload em andamento...');const resp=await fetch('/api/ota/upload',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});const text=await resp.text();showBanner(resp.ok?'ok':'error',text);await refreshOtaStatus();}"
-"refreshOtaStatus();"
-"</script>"
-"</body>"
-"</html>";
-
 static bool callbacks_ready(void)
 {
     return s_config.begin &&
@@ -60,12 +16,6 @@ static bool callbacks_ready(void)
            s_config.finalize &&
            s_config.abort &&
            s_config.status;
-}
-
-static esp_err_t ota_page_get_handler(httpd_req_t *req)
-{
-    httpd_resp_set_type(req, "text/html; charset=utf-8");
-    return httpd_resp_sendstr(req, OTA_PAGE_HTML);
 }
 
 static esp_err_t api_ota_status_get_handler(httpd_req_t *req)
@@ -155,26 +105,20 @@ static esp_err_t api_ota_upload_post_handler(httpd_req_t *req)
 
 static esp_err_t register_ota_routes(httpd_handle_t server)
 {
-    httpd_uri_t page = {
-        .uri = "/ota",
-        .method = HTTP_GET,
-        .handler = ota_page_get_handler,
-    };
     httpd_uri_t api_status = {
         .uri = "/api/ota/status",
         .method = HTTP_GET,
         .handler = api_ota_status_get_handler,
     };
+
     httpd_uri_t api_upload = {
         .uri = "/api/ota/upload",
         .method = HTTP_POST,
         .handler = api_ota_upload_post_handler,
     };
 
-    esp_err_t err = httpd_register_uri_handler(server, &page);
-    if (err == ESP_OK) {
-        err = httpd_register_uri_handler(server, &api_status);
-    }
+    esp_err_t err = httpd_register_uri_handler(server, &api_status);
+
     if (err == ESP_OK) {
         err = httpd_register_uri_handler(server, &api_upload);
     }

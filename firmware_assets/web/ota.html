@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OTA</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="shell">
+    <nav class="tech-nav" aria-label="Navegacao tecnica">
+      <a href="/">Inicio</a>
+      <div class="links">
+        <a href="/status">Status</a>
+        <a href="/networks">Redes</a>
+        <a href="/ota">OTA</a>
+        <a href="/settings">Ajustes</a>
+        <a href="/logs">Logs</a>
+      </div>
+    </nav>
+
+    <header>
+      <h1>Atualizacao OTA</h1>
+      <p class="status">Upload direto do .bin para o dispositivo, sem URL remota.</p>
+    </header>
+
+    <section class="panel">
+      <p class="hint">Selecione um firmware .bin gerado pelo build atual e envie diretamente para a particao OTA.</p>
+
+      <label for="ota_bin">Arquivo de firmware (.bin)</label>
+      <input id="ota_bin" type="file" accept=".bin,application/octet-stream">
+
+      <div class="actions">
+        <button type="button" onclick="uploadOtaBin()">Enviar .bin e atualizar</button>
+        <button class="secondary" type="button" onclick="refreshOtaStatus()">Atualizar status</button>
+      </div>
+
+      <div class="progress-wrap">
+        <progress id="ota_progress" value="0" max="100"></progress>
+        <div id="ota_progress_text" class="mini-status">Progresso: --</div>
+      </div>
+
+      <div id="ota_status" class="mini-status">Status OTA: --</div>
+      <div id="banner" class="banner"></div>
+    </section>
+  </main>
+
+  <script>
+    function showBanner(kind, text) {
+      const el = document.getElementById('banner');
+      el.className = 'banner show ' + kind;
+      el.textContent = text;
+    }
+
+    function renderOtaStatus(status) {
+      const lines = [
+        'Estado: ' + (status.state || '--'),
+        'Versao atual: ' + (status.current_version || '--'),
+        'Particao atual: ' + (status.running_partition || '--'),
+        'Proxima particao OTA: ' + (status.next_update_partition || '--')
+      ];
+
+      if (status.last_error) {
+        lines.push('Erro: ' + status.last_error);
+      }
+
+      if (status.restart_pending) {
+        lines.push('Reboot pendente apos gravacao bem-sucedida.');
+      }
+
+      document.getElementById('ota_status').textContent = lines.join('\n');
+    }
+
+    function showBanner(kind, text) {
+      const el = document.getElementById('banner');
+      el.className = 'banner show ' + kind;
+      el.textContent = text;
+    }
+
+    function setOtaProgress(percent, text) {
+      const bar = document.getElementById('ota_progress');
+      const label = document.getElementById('ota_progress_text');
+
+      bar.value = percent;
+      label.textContent = text || ('Progresso: ' + percent + '%');
+    }
+
+    function renderOtaStatus(status) {
+      const lines = [
+        'Estado: ' + (status.state || '--'),
+        'Versao atual: ' + (status.current_version || '--'),
+        'Particao atual: ' + (status.running_partition || '--'),
+        'Proxima particao OTA: ' + (status.next_update_partition || '--')
+      ];
+
+      if (status.last_error) {
+        lines.push('Erro: ' + status.last_error);
+      }
+
+      if (status.restart_pending) {
+        lines.push('Reboot pendente apos gravacao bem-sucedida.');
+      }
+
+      document.getElementById('ota_status').textContent = lines.join('\n');
+    }
+
+    async function refreshOtaStatus() {
+      try {
+        const resp = await fetch('/api/ota/status', { cache: 'no-store' });
+        const status = await resp.json();
+        renderOtaStatus(status);
+      } catch (err) {
+        document.getElementById('ota_status').textContent = 'Falha ao carregar status OTA.';
+      }
+    }
+
+    function uploadOtaBin() {
+      const input = document.getElementById('ota_bin');
+      const file = input.files && input.files[0] ? input.files[0] : null;
+
+      if (!file) {
+        showBanner('error', 'Selecione um arquivo .bin.');
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith('.bin')) {
+        showBanner('error', 'Arquivo invalido: use um .bin.');
+        return;
+      }
+
+      setOtaProgress(0, 'Preparando upload...');
+      showBanner('ok', 'Upload em andamento...');
+
+      const xhr = new XMLHttpRequest();
+
+      xhr.open('POST', '/api/ota/upload', true);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+      xhr.upload.onprogress = function(event) {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+
+          setOtaProgress(
+            percent,
+            'Enviando firmware: ' + percent + '% (' +
+            Math.round(event.loaded / 1024) + ' / ' +
+            Math.round(event.total / 1024) + ' KiB)'
+          );
+        } else {
+          setOtaProgress(0, 'Enviando firmware...');
+        }
+      };
+
+      xhr.onload = async function() {
+        const ok = xhr.status >= 200 && xhr.status < 300;
+
+        if (ok) {
+          setOtaProgress(100, 'Upload enviado. Finalizando OTA e reiniciando...');
+        } else {
+          setOtaProgress(0, 'Falha no upload.');
+        }
+
+        showBanner(ok ? 'ok' : 'error', xhr.responseText || 'Resposta vazia do dispositivo.');
+
+        try {
+          await refreshOtaStatus();
+        } catch (err) {
+          // Se o ESP reiniciar rápido, é normal a atualização de status falhar aqui.
+        }
+      };
+
+      xhr.onerror = function() {
+        setOtaProgress(0, 'Erro de conexao durante upload.');
+        showBanner('error', 'Erro de conexao durante upload do firmware.');
+      };
+
+      xhr.ontimeout = function() {
+        setOtaProgress(0, 'Timeout durante upload.');
+        showBanner('error', 'Timeout durante upload do firmware.');
+      };
+
+      xhr.onabort = function() {
+        setOtaProgress(0, 'Upload cancelado.');
+        showBanner('error', 'Upload cancelado.');
+      };
+
+      xhr.send(file);
+    }
+
+    refreshOtaStatus();
+  </script>
+</body>
+</html>

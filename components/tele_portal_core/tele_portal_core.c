@@ -68,22 +68,37 @@ esp_err_t tele_portal_core_start(bool captive_mode)
     }
 
     httpd_config_t http_config = HTTPD_DEFAULT_CONFIG();
-    http_config.max_uri_handlers = (int)bounded_or_default(s_config.max_uri_handlers,
-                                                           TELE_PORTAL_CORE_DEFAULT_MAX_URI_HANDLERS);
-    http_config.max_open_sockets = (int)bounded_or_default(s_config.max_open_sockets,
-                                                           TELE_PORTAL_CORE_DEFAULT_MAX_OPEN_SOCKETS);
+
+    http_config.max_uri_handlers = (int)bounded_or_default(
+        s_config.max_uri_handlers,
+        TELE_PORTAL_CORE_DEFAULT_MAX_URI_HANDLERS
+    );
+
+    http_config.max_open_sockets = (int)bounded_or_default(
+        s_config.max_open_sockets,
+        TELE_PORTAL_CORE_DEFAULT_MAX_OPEN_SOCKETS
+    );
+
     http_config.lru_purge_enable = true;
-    http_config.recv_wait_timeout = (uint16_t)bounded_timeout_or_default(s_config.socket_timeout_s);
-    http_config.send_wait_timeout = (uint16_t)bounded_timeout_or_default(s_config.socket_timeout_s);
+
+    http_config.recv_wait_timeout =
+        (uint16_t)bounded_timeout_or_default(s_config.socket_timeout_s);
+
+    http_config.send_wait_timeout =
+        (uint16_t)bounded_timeout_or_default(s_config.socket_timeout_s);
+
     http_config.uri_match_fn = httpd_uri_match_wildcard;
 
     ESP_LOGI(TAG,
-             "Servidor HTTP: max_open_sockets=%d lru_purge=%s timeout=%ds",
+             "Servidor HTTP: max_open_sockets=%d max_uri_handlers=%d "
+             "lru_purge=%s timeout=%ds wildcard=sim",
              http_config.max_open_sockets,
+             http_config.max_uri_handlers,
              http_config.lru_purge_enable ? "sim" : "nao",
              (int)http_config.recv_wait_timeout);
 
     esp_err_t err = httpd_start(&s_server, &http_config);
+
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao iniciar servidor HTTP: %s", esp_err_to_name(err));
         return err;
@@ -91,11 +106,16 @@ esp_err_t tele_portal_core_start(bool captive_mode)
 
     for (size_t i = 0; i < s_route_registrar_count; ++i) {
         err = s_route_registrars[i](s_server);
+
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Falha ao registrar rotas %u: %s",
-                     (unsigned)i, esp_err_to_name(err));
+            ESP_LOGE(TAG,
+                     "Falha ao registrar rotas %u: %s",
+                     (unsigned)i,
+                     esp_err_to_name(err));
+
             httpd_stop(s_server);
             s_server = NULL;
+
             return err;
         }
     }
