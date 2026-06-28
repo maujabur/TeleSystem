@@ -1,0 +1,8 @@
+dependencies:
+  idf: ">=5.3"
+
+description: Boot-time configuration button helper.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_boot_config_button
+version: 0.1.0

@@ -111,7 +111,8 @@ adivinhar estado interno.
 
 ## Uso no TeleSystem
 
-`components/tele_wifi/device_config.c` registra no `tele_config` os campos:
+`components/tele_wifi_device_config/device_config.c` registra no `tele_config`
+os campos de Wi-Fi usados pela aplicacao:
 
 - `wifi.provisioning_ssid`;
 - `wifi.sta_max_retry`;

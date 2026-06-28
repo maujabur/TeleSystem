@@ -1,0 +1,8 @@
+dependencies:
+  idf: ">=5.3"
+
+description: TeleSystem Wi-Fi configuration bridge for tele_config.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_wifi_device_config
+version: 0.1.0

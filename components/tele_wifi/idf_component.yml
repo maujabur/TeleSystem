@@ -1,7 +1,7 @@
 dependencies:
   idf: ">=5.3"
 
-description: TeleSystem Wi-Fi manager, provisioning and time sync component.
+description: Reusable TeleSystem Wi-Fi manager and credential storage component.
 license: MIT
 repository: https://github.com/maujabur/TeleSystem.git
 url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_wifi
