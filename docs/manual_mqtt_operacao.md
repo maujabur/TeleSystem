@@ -52,6 +52,308 @@ Os builders `build_state`, `build_heartbeat`, `build_config_manifest` e
 gera os payloads a partir dos registries `tele_status` e `tele_config`. Esse e
 o caminho recomendado para projetos novos.
 
+## Implementando em outro projeto do zero
+
+Para reaproveitar este sistema em outro firmware, separe mentalmente duas
+camadas:
+
+- componentes base e reutilizaveis: `tele_channels`, `tele_config`,
+  `tele_status`, `tele_commands`, `tele_core_commands` e `tele_mqtt`;
+- componentes especificos deste produto: `tele_presence` e
+  `tele_system_registry`.
+
+Em um projeto novo, comece pelos componentes base. Use `tele_presence` apenas
+como exemplo de bootstrap MQTT e crie um registry proprio para os status,
+settings e handlers do seu produto.
+
+### 1. Leve os componentes necessarios
+
+Copie ou inclua no workspace do novo projeto:
+
+```text
+components/tele_channels
+components/tele_config
+components/tele_status
+components/tele_commands
+components/tele_core_commands
+components/tele_mqtt
+managed_components/espressif__cjson
+managed_components/espressif__mqtt
+```
+
+Se o projeto usar o gerenciador de componentes do ESP-IDF, `cJSON` e `mqtt`
+podem vir como dependencias em vez de serem copiados como `managed_components`.
+
+No `CMakeLists.txt` do componente que faz o bootstrap do produto, declare pelo
+menos:
+
+```cmake
+idf_component_register(
+    SRCS "app_telemetry.c"
+    INCLUDE_DIRS "include"
+    REQUIRES esp_event esp_netif nvs_flash
+             tele_channels tele_config tele_status tele_commands tele_mqtt
+             espressif__cjson
+)
+```
+
+`tele_mqtt` ja depende de `tele_core_commands`, portanto os comandos base
+`ping`, `get_state`, `get_technical_status`, `config/get`, `commands/get`,
+`config/set`, `config/reset` e `apply_and_reboot` sao registrados durante
+`tele_mqtt_start()`.
+
+Os snippets abaixo pressupõem os includes usuais do modulo de bootstrap:
+`string.h`, `cJSON.h`, `esp_check.h`, `esp_event.h`, `esp_netif.h`,
+`nvs_flash.h`, `tele_config.h`, `tele_status.h`, `tele_commands.h` e
+`tele_mqtt.h`.
+
+### 2. Inicialize a base do ESP-IDF
+
+Antes de registrar settings ou iniciar MQTT, inicialize o que o seu produto
+usa como infraestrutura:
+
+```c
+ESP_ERROR_CHECK(nvs_flash_init());
+ESP_ERROR_CHECK(esp_event_loop_create_default());
+ESP_ERROR_CHECK(esp_netif_init());
+
+/* Inicialize Wi-Fi, Ethernet, modem ou outro transporte IP do produto. */
+```
+
+`tele_config` usa NVS para overrides. `tele_mqtt` so deve conectar quando o
+produto tiver rede pronta; use o callback `is_ready` para bloquear o start ate
+esse prerequisito estar satisfeito.
+
+### 3. Registre settings reutilizaveis
+
+Cada setting e um `tele_config_field_t`. Use `channel_flags` para dizer por
+quais transportes ele aparece e `flags` apenas para comportamento do campo.
+
+```c
+static const tele_config_field_t s_product_config[] = {
+    {
+        .id = "pump.target_temp_c",
+        .nvs_key = "p_temp",
+        .type = TELE_CONFIG_TYPE_I32,
+        .default_value.i32 = 92,
+        .min.i32 = 70,
+        .max.i32 = 100,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = TELE_CONFIG_FLAG_REBOOT_REQUIRED,
+    },
+};
+
+static esp_err_t apply_product_config(const tele_config_field_t *field,
+                                      const tele_config_value_t *value,
+                                      void *ctx)
+{
+    (void)ctx;
+
+    if (strcmp(field->id, "pump.target_temp_c") == 0) {
+        return product_set_target_temp(value->i32);
+    }
+    return ESP_OK;
+}
+
+static esp_err_t product_register_config(void)
+{
+    ESP_RETURN_ON_ERROR(tele_config_register_fields(
+                            s_product_config,
+                            sizeof(s_product_config) / sizeof(s_product_config[0])),
+                        TAG,
+                        "falha ao registrar config");
+
+    return tele_config_set_apply_handler("pump.target_temp_c",
+                                         apply_product_config,
+                                         NULL);
+}
+```
+
+Quando um comando `config/set` ou `config/reset` chega por MQTT, o nucleo valida
+o tipo, grava o override em NVS e chama o apply handler quando existir.
+
+### 4. Registre status e telemetria
+
+Cada status e um `tele_status_field_t`. Os flags `STATE`, `HEARTBEAT` e
+`TECHNICAL` definem em quais payloads o campo aparece.
+
+```c
+static int32_t read_target_temp(void *ctx)
+{
+    (void)ctx;
+    return product_get_target_temp();
+}
+
+static int32_t read_current_temp(void *ctx)
+{
+    (void)ctx;
+    return product_get_current_temp();
+}
+
+static const tele_status_field_t s_product_status[] = {
+    {
+        .id = "pump.target_temp_c",
+        .label = "Temperatura alvo",
+        .description = "Setpoint atual de temperatura.",
+        .group = "pump",
+        .type = TELE_STATUS_TYPE_I32,
+        .unit = "C",
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL,
+        .read.i32 = read_target_temp,
+    },
+    {
+        .id = "pump.current_temp_c",
+        .label = "Temperatura atual",
+        .description = "Temperatura medida no bloco.",
+        .group = "pump",
+        .type = TELE_STATUS_TYPE_I32,
+        .unit = "C",
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
+        .read.i32 = read_current_temp,
+    },
+};
+
+static esp_err_t product_register_status(void)
+{
+    return tele_status_register_fields(
+        s_product_status,
+        sizeof(s_product_status) / sizeof(s_product_status[0]));
+}
+```
+
+Com os builders de payload em `NULL`, `tele_mqtt` publica `state`,
+`heartbeat` e `meta/status` a partir desse registry.
+
+### 5. Registre comandos de dominio
+
+Use `tele_commands` apenas para acoes pontuais. Settings persistentes devem
+ficar em `tele_config`.
+
+```c
+static esp_err_t handle_prime_pump(const char *cmd_name,
+                                   const cJSON *args,
+                                   cJSON **out_result,
+                                   const char **out_error,
+                                   uint32_t channel_flags,
+                                   void *ctx)
+{
+    (void)cmd_name;
+    (void)args;
+    (void)channel_flags;
+    (void)ctx;
+
+    esp_err_t err = product_prime_pump();
+    if (err != ESP_OK) {
+        *out_error = "prime_failed";
+        return err;
+    }
+
+    *out_result = cJSON_CreateObject();
+    if (!*out_result) {
+        return ESP_ERR_NO_MEM;
+    }
+    cJSON_AddBoolToObject(*out_result, "started", true);
+    return ESP_OK;
+}
+
+static const tele_command_t s_product_commands[] = {
+    {
+        .name = "pump/prime",
+        .label = "Escorvar bomba",
+        .description = "Aciona a bomba por um ciclo curto.",
+        .group = "pump",
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = TELE_COMMAND_FLAG_MUTATING,
+        .handler = handle_prime_pump,
+    },
+};
+
+static esp_err_t product_register_commands(void)
+{
+    return tele_commands_register(
+        s_product_commands,
+        sizeof(s_product_commands) / sizeof(s_product_commands[0]));
+}
+```
+
+O dispatcher deduplica comandos mutaveis por `cmd_id`. Para Serial ou LoRa,
+basta criar um adapter que monte `tele_command_request_t` com
+`required_channel_flags = TELE_CHANNEL_FLAG_SERIAL` ou
+`TELE_CHANNEL_FLAG_LORA` e serialize `tele_command_response_t`.
+
+### 6. Inicie o MQTT
+
+Depois de registrar config, status e comandos de dominio, chame
+`tele_mqtt_start()`:
+
+```c
+static bool product_mqtt_ready(void *ctx)
+{
+    (void)ctx;
+    return product_network_ready() && product_time_ready();
+}
+
+static bool product_timestamp(char *buffer, size_t buffer_len, void *ctx)
+{
+    (void)ctx;
+    return product_build_iso_timestamp(buffer, buffer_len) == ESP_OK;
+}
+
+static void product_restart(uint32_t delay_ms, void *ctx)
+{
+    (void)ctx;
+    product_schedule_restart(delay_ms);
+}
+
+esp_err_t product_telemetry_start(void)
+{
+    ESP_RETURN_ON_ERROR(product_register_config(), TAG, "config");
+    ESP_RETURN_ON_ERROR(product_register_status(), TAG, "status");
+    ESP_RETURN_ON_ERROR(product_register_commands(), TAG, "commands");
+
+    const tele_mqtt_config_t mqtt_config = {
+        .broker_uri = CONFIG_PRODUCT_MQTT_BROKER_URI,
+        .username = CONFIG_PRODUCT_MQTT_USERNAME,
+        .password = CONFIG_PRODUCT_MQTT_PASSWORD,
+        .base_topic = CONFIG_PRODUCT_MQTT_BASE_TOPIC,
+        .device_id_prefix = CONFIG_PRODUCT_DEVICE_ID_PREFIX,
+        .firmware_version = APP_VERSION_STRING,
+        .heartbeat_interval_s = CONFIG_PRODUCT_HEARTBEAT_INTERVAL_S,
+        .keepalive_s = CONFIG_PRODUCT_MQTT_KEEPALIVE_S,
+        .qos_critical = 1,
+        .qos_telemetry = 0,
+        .is_ready = product_mqtt_ready,
+        .build_timestamp = product_timestamp,
+        .restart = product_restart,
+    };
+
+    return tele_mqtt_start(&mqtt_config);
+}
+```
+
+Se algum prerequisito ficar pronto depois, chame
+`tele_mqtt_start_client_if_ready()` no evento correspondente. O componente
+tambem chama essa funcao internamente em alguns eventos Wi-Fi/IP, mas projetos
+com Ethernet, modem, LoRa gateway ou outra pilha devem sinalizar a prontidao no
+seu proprio adapter.
+
+### 7. Escolha o que e generico e o que e produto
+
+Regras praticas para manter isolamento:
+
+- `tele_config`, `tele_status`, `tele_commands`, `tele_core_commands` e
+  `tele_mqtt` nao devem conhecer sensores, atuadores, GPIOs ou politica de
+  produto;
+- um componente de produto registra campos e callbacks, como
+  `product_system_registry`;
+- adapters de transporte so traduzem protocolo: MQTT, HTTP, Serial ou LoRa
+  entram em registries comuns;
+- `channel_flags` define onde algo aparece; `flags` define comportamento;
+- nao duplique comandos como `config/set` em cada transporte. Reuse
+  `tele_commands_execute()`.
+
 ## Identificacao do dispositivo
 
 O `device_id` segue o formato:
@@ -202,10 +504,12 @@ ajuda por hover.
       "group": "network",
       "type": "i32",
       "unit": "dBm",
+      "channels": [
+        {"channel": "mqtt"}
+      ],
       "flags": [
         {"flag": "state"},
-        {"flag": "heartbeat"},
-        {"flag": "mqtt"}
+        {"flag": "heartbeat"}
       ]
     }
   ]
@@ -235,9 +539,11 @@ campo exposto por MQTT.
       "value": 3,
       "min": 1,
       "max": 20,
+      "channels": [
+        {"channel": "web"},
+        {"channel": "mqtt"}
+      ],
       "flags": [
-        {"flag": "web"},
-        {"flag": "mqtt"},
         {"flag": "runtime_apply"}
       ]
     },
@@ -254,9 +560,11 @@ campo exposto por MQTT.
         {"value": 1, "label": "auto_timeout"},
         {"value": 2, "label": "sta_only"}
       ],
+      "channels": [
+        {"channel": "web"},
+        {"channel": "mqtt"}
+      ],
       "flags": [
-        {"flag": "web"},
-        {"flag": "mqtt"},
         {"flag": "reboot_required"}
       ]
     }
@@ -294,9 +602,11 @@ mutavel ou relacionado a reboot.
       "mutating": true,
       "reboot_required": false,
       "internal": false,
+      "channels": [
+        {"channel": "mqtt"},
+        {"channel": "web"}
+      ],
       "flags": [
-        {"flag": "mqtt"},
-        {"flag": "web"},
         {"flag": "mutating"}
       ],
       "args": [
@@ -432,7 +742,7 @@ Resposta bem-sucedida:
 
 Regras:
 
-- `id` deve existir no registry e ter flag `mqtt`;
+- `id` deve existir no registry e estar exposto no canal `mqtt`;
 - `value` deve combinar com o tipo declarado em `meta/config`;
 - cada comando atualiza um campo por vez;
 - todos os valores passam por `tele_config_update_value()`;
@@ -578,8 +888,8 @@ tipos de arquivo atualizaveis por manifest devem registrar um handler em
 - `.handler`, para executar o comando e devolver `result`;
 - `TELE_COMMAND_FLAG_MUTATING`, para comandos que alteram estado e precisam de
   deduplicacao por `cmd_id`;
-- flags de exposicao, como `TELE_COMMAND_FLAG_MQTT` ou
-  `TELE_COMMAND_FLAG_WEB`, para limitar quais transportes podem executar.
+- canais de exposicao, como `TELE_CHANNEL_FLAG_MQTT` ou
+  `TELE_CHANNEL_FLAG_WEB`, para limitar quais transportes podem executar.
 
 O componente `tele_mqtt` permanece responsavel por topicos, conexao, JSON e
 ACK/NACK. A execucao e a deduplicacao de comandos mutaveis ficam em

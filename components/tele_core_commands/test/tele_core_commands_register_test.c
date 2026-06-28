@@ -12,9 +12,9 @@ static int technical_calls;
 static int config_changed_calls;
 static uint32_t restart_delay_ms;
 
-esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_flags)
+esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_channel_flags)
 {
-    cJSON_AddNumberToObject(root, "config_flags", (double)required_flags);
+    cJSON_AddNumberToObject(root, "config_channels", (double)required_channel_flags);
     return ESP_OK;
 }
 
@@ -45,15 +45,18 @@ esp_err_t tele_config_reset_value(const char *id, tele_config_update_result_t *o
     return ESP_OK;
 }
 
-esp_err_t tele_status_add_fields_to_json(cJSON *root, uint32_t required_flags)
+esp_err_t tele_status_add_fields_to_json(cJSON *root,
+                                         uint32_t required_channel_flags,
+                                         uint32_t required_flags)
 {
+    cJSON_AddNumberToObject(root, "status_channels", (double)required_channel_flags);
     cJSON_AddNumberToObject(root, "status_flags", (double)required_flags);
     return ESP_OK;
 }
 
-esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_flags)
+esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_channel_flags)
 {
-    cJSON_AddNumberToObject(root, "status_manifest_flags", (double)required_flags);
+    cJSON_AddNumberToObject(root, "status_manifest_channels", (double)required_channel_flags);
     return ESP_OK;
 }
 
@@ -112,7 +115,7 @@ int main(void)
     const tele_command_request_t state_request = {
         .cmd_id = "state-1",
         .name = "get_state",
-        .required_flags = TELE_COMMAND_FLAG_MQTT,
+        .required_channel_flags = 0,
     };
     assert(tele_commands_execute(&state_request, &response) == ESP_OK);
     assert(response.ok);
@@ -122,7 +125,7 @@ int main(void)
     const tele_command_request_t technical_request = {
         .cmd_id = "technical-1",
         .name = "get_technical_status",
-        .required_flags = TELE_COMMAND_FLAG_MQTT,
+        .required_channel_flags = 0,
     };
     assert(tele_commands_execute(&technical_request, &response) == ESP_OK);
     assert(response.ok);
@@ -136,7 +139,7 @@ int main(void)
         .cmd_id = "reboot-1",
         .name = "apply_and_reboot",
         .args = args,
-        .required_flags = TELE_COMMAND_FLAG_MQTT,
+        .required_channel_flags = 0,
     };
     assert(tele_commands_execute(&reboot_request, &response) == ESP_OK);
     assert(response.ok);

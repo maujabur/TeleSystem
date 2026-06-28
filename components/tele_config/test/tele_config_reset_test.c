@@ -14,7 +14,7 @@ static const tele_config_field_t fields[] = {
         .default_value.u32 = 3,
         .min.u32 = 1,
         .max.u32 = 20,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+        .flags = 0,
     },
     {
         .id = "wifi.apsta_policy",
@@ -23,7 +23,7 @@ static const tele_config_field_t fields[] = {
         .default_value.i32 = 1,
         .min.i32 = 0,
         .max.i32 = 2,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_REBOOT_REQUIRED,
+        .flags = TELE_CONFIG_FLAG_REBOOT_REQUIRED,
     },
 };
 

@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "tele_channels.h"
+
 #ifdef TELE_CONFIG_HOST_TEST
 #include "tele_config_host_stubs.h"
 #else
@@ -28,11 +30,9 @@ typedef enum {
 } tele_config_type_t;
 
 typedef enum {
-    TELE_CONFIG_FLAG_MQTT = 1U << 0,
-    TELE_CONFIG_FLAG_WEB = 1U << 1,
-    TELE_CONFIG_FLAG_SECRET = 1U << 2,
-    TELE_CONFIG_FLAG_REBOOT_REQUIRED = 1U << 3,
-    TELE_CONFIG_FLAG_READ_ONLY = 1U << 4,
+    TELE_CONFIG_FLAG_SECRET = 1U << 0,
+    TELE_CONFIG_FLAG_REBOOT_REQUIRED = 1U << 1,
+    TELE_CONFIG_FLAG_READ_ONLY = 1U << 2,
 } tele_config_flags_t;
 
 typedef union {
@@ -70,6 +70,7 @@ typedef struct {
     size_t choice_count;
     size_t min_len;
     size_t max_len;
+    uint32_t channel_flags;
     uint32_t flags;
 } tele_config_field_t;
 
@@ -104,7 +105,7 @@ esp_err_t tele_config_get_effective(const char *id,
                                     bool *out_from_nvs);
 esp_err_t tele_config_set_override(const char *id, const tele_config_value_t *value);
 esp_err_t tele_config_reset_override(const char *id);
-esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_flags);
+esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_channel_flags);
 
 #ifdef __cplusplus
 }

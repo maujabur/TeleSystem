@@ -32,13 +32,13 @@ static esp_err_t handle_ping_command(const char *cmd_name,
                                      const cJSON *args,
                                      cJSON **out_result,
                                      const char **out_error,
-                                     uint32_t required_flags,
+                                     uint32_t channel_flags,
                                      void *ctx)
 {
     int *call_count = (int *)ctx;
     (void)args;
     (void)out_error;
-    (void)required_flags;
+    (void)channel_flags;
 
     assert(strcmp(cmd_name, "ping") == 0);
     assert(out_result != NULL);
@@ -54,7 +54,7 @@ static esp_err_t handle_reboot_command(const char *cmd_name,
                                        const cJSON *args,
                                        cJSON **out_result,
                                        const char **out_error,
-                                       uint32_t required_flags,
+                                       uint32_t channel_flags,
                                        void *ctx)
 {
     int *call_count = (int *)ctx;
@@ -62,7 +62,7 @@ static esp_err_t handle_reboot_command(const char *cmd_name,
     (void)args;
     (void)out_result;
     (void)out_error;
-    (void)required_flags;
+    (void)channel_flags;
 
     (*call_count)++;
     return ESP_OK;
@@ -77,7 +77,8 @@ static const tele_command_t commands[] = {
         .label = "Ping",
         .description = "Solicita uma resposta imediata do equipamento.",
         .group = "system",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = 0,
         .handler = handle_ping_command,
         .ctx = &ping_calls,
     },
@@ -86,7 +87,8 @@ static const tele_command_t commands[] = {
         .label = "Salvar configuracao",
         .description = "Atualiza um campo configuravel.",
         .group = "config",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = TELE_COMMAND_FLAG_MUTATING,
         .args = config_set_args,
         .arg_count = 2,
     },
@@ -95,7 +97,8 @@ static const tele_command_t commands[] = {
         .label = "Aplicar e reiniciar",
         .description = "Agenda um reboot curto depois do ACK.",
         .group = "system",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MUTATING | TELE_COMMAND_FLAG_REBOOT_REQUIRED,
         .args = reboot_args,
         .arg_count = 1,
         .handler = handle_reboot_command,
@@ -115,7 +118,7 @@ int main(void)
 
     root = cJSON_CreateObject();
     assert(root != NULL);
-    assert(tele_commands_add_manifest_to_json(root, TELE_COMMAND_FLAG_MQTT) == ESP_OK);
+    assert(tele_commands_add_manifest_to_json(root, 0) == ESP_OK);
     text = cJSON_PrintUnformatted(root);
     assert(text != NULL);
     assert(strstr(text, "\"registry_revision\":1") != NULL);
@@ -128,7 +131,7 @@ int main(void)
     assert(strstr(text, "\"group\":\"config\"") != NULL);
     assert(strstr(text, "\"mutating\":true") != NULL);
     assert(strstr(text, "\"flags\"") != NULL);
-    assert(strstr(text, "\"flag\":\"mqtt\"") != NULL);
+    assert(strstr(text, "\"channel\":\"mqtt\"") != NULL);
     assert(strstr(text, "\"flag\":\"mutating\"") != NULL);
     assert(strstr(text, "\"name\":\"apply_and_reboot\"") != NULL);
     assert(strstr(text, "\"reboot_required\":true") != NULL);
@@ -146,7 +149,7 @@ int main(void)
     const tele_command_request_t ping_request = {
         .cmd_id = "cmd-1",
         .name = "ping",
-        .required_flags = TELE_COMMAND_FLAG_MQTT,
+        .required_channel_flags = 0,
     };
     assert(tele_commands_execute(&ping_request, &response) == ESP_OK);
     assert(response.ok);
@@ -158,7 +161,7 @@ int main(void)
     const tele_command_request_t ping_web_request = {
         .cmd_id = "cmd-web-1",
         .name = "ping",
-        .required_flags = TELE_COMMAND_FLAG_WEB,
+        .required_channel_flags = TELE_CHANNEL_FLAG_WEB,
     };
     assert(tele_commands_execute(&ping_web_request, &response) == ESP_OK);
     assert(!response.ok);
@@ -169,7 +172,7 @@ int main(void)
     const tele_command_request_t reboot_request = {
         .cmd_id = "mutating-1",
         .name = "apply_and_reboot",
-        .required_flags = TELE_COMMAND_FLAG_MQTT,
+        .required_channel_flags = 0,
     };
     assert(tele_commands_execute(&reboot_request, &response) == ESP_OK);
     assert(response.ok);
@@ -185,7 +188,7 @@ int main(void)
     const tele_command_request_t unknown_request = {
         .cmd_id = "missing-1",
         .name = "missing",
-        .required_flags = TELE_COMMAND_FLAG_MQTT,
+        .required_channel_flags = 0,
     };
     assert(tele_commands_execute(&unknown_request, &response) == ESP_OK);
     assert(!response.ok);

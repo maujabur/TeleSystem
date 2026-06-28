@@ -41,6 +41,18 @@ static void add_flag_if_set(cJSON *flags, uint32_t command_flags, uint32_t flag,
     }
 }
 
+static void add_channel_if_set(cJSON *channels, uint32_t channel_flags, uint32_t flag, const char *name)
+{
+    if ((channel_flags & flag) == 0) {
+        return;
+    }
+
+    cJSON *entry = add_object_to_array(channels);
+    if (entry) {
+        cJSON_AddStringToObject(entry, "channel", name);
+    }
+}
+
 static const char *arg_type_name(tele_command_arg_type_t type)
 {
     switch (type) {
@@ -179,8 +191,8 @@ esp_err_t tele_commands_execute(const tele_command_request_t *request,
     memset(response, 0, sizeof(*response));
     command = tele_commands_find(request->name);
     if (!command ||
-        (request->required_flags != 0 &&
-         (command->flags & request->required_flags) != request->required_flags)) {
+        (request->required_channel_flags != 0 &&
+         (command->channel_flags & request->required_channel_flags) != request->required_channel_flags)) {
         response_set_error(response, "unsupported_command");
         return ESP_OK;
     }
@@ -200,7 +212,7 @@ esp_err_t tele_commands_execute(const tele_command_request_t *request,
                            request->args,
                            &response->result,
                            &handler_error,
-                           request->required_flags,
+                           request->required_channel_flags,
                            command->ctx);
     if (err == ESP_OK) {
         response->ok = true;
@@ -228,7 +240,7 @@ void tele_commands_response_cleanup(tele_command_response_t *response)
     memset(response, 0, sizeof(*response));
 }
 
-esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flags)
+esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_channel_flags)
 {
     cJSON *commands = NULL;
 
@@ -246,9 +258,10 @@ esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flag
         const tele_command_t *command = s_commands[i];
         cJSON *item = NULL;
         cJSON *args = NULL;
+        cJSON *channels = NULL;
         cJSON *flags = NULL;
 
-        if (!command || (command->flags & required_flags) != required_flags) {
+        if (!command || (command->channel_flags & required_channel_flags) != required_channel_flags) {
             continue;
         }
 
@@ -271,12 +284,19 @@ esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flag
         cJSON_AddBoolToObject(item, "reboot_required", (command->flags & TELE_COMMAND_FLAG_REBOOT_REQUIRED) != 0);
         cJSON_AddBoolToObject(item, "internal", (command->flags & TELE_COMMAND_FLAG_INTERNAL) != 0);
 
+        channels = cJSON_AddArrayToObject(item, "channels");
+        if (!channels) {
+            return ESP_ERR_NO_MEM;
+        }
+        add_channel_if_set(channels, command->channel_flags, TELE_CHANNEL_FLAG_MQTT, "mqtt");
+        add_channel_if_set(channels, command->channel_flags, TELE_CHANNEL_FLAG_WEB, "web");
+        add_channel_if_set(channels, command->channel_flags, TELE_CHANNEL_FLAG_SERIAL, "serial");
+        add_channel_if_set(channels, command->channel_flags, TELE_CHANNEL_FLAG_LORA, "lora");
+
         flags = cJSON_AddArrayToObject(item, "flags");
         if (!flags) {
             return ESP_ERR_NO_MEM;
         }
-        add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_MQTT, "mqtt");
-        add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_WEB, "web");
         add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_MUTATING, "mutating");
         add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_REBOOT_REQUIRED, "reboot_required");
         add_flag_if_set(flags, command->flags, TELE_COMMAND_FLAG_INTERNAL, "internal");

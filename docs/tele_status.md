@@ -51,9 +51,9 @@ static const tele_status_field_t s_status_fields[] = {
         .group = "network",
         .type = TELE_STATUS_TYPE_I32,
         .unit = "dBm",
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
         .flags = TELE_STATUS_FLAG_STATE |
-                 TELE_STATUS_FLAG_HEARTBEAT |
-                 TELE_STATUS_FLAG_MQTT,
+                 TELE_STATUS_FLAG_HEARTBEAT,
         .read.i32 = read_rssi,
     },
 };
@@ -65,7 +65,7 @@ static const tele_status_field_t s_status_fields[] = {
 
 - `{base_topic}/{device_id}/state`, usando campos com flag `STATE`;
 - `{base_topic}/{device_id}/heartbeat`, usando campos com flag `HEARTBEAT`;
-- `{base_topic}/{device_id}/meta/status`, usando campos com flag `MQTT`.
+- `{base_topic}/{device_id}/meta/status`, usando campos expostos no canal MQTT.
 
 `state` e retained, pois representa o snapshot operacional mais recente.
 `heartbeat` nao e retained, pois e telemetria periodica. `meta/status` e
@@ -74,13 +74,13 @@ renderizar os dados.
 
 ## Manifesto MQTT
 
-`tele_status_add_manifest_to_json(root, TELE_STATUS_FLAG_MQTT)` gera o
+`tele_status_add_manifest_to_json(root, TELE_CHANNEL_FLAG_MQTT)` gera o
 manifesto de status. Para cada campo, o JSON inclui:
 
 - `id`, `label`, `description`, `group`, `type`;
 - `unit`, quando declarada;
-- `flags`, como `state`, `heartbeat`, `technical`, `mqtt`, `web` e
-  `sensitive`.
+- `channels`, como `mqtt`, `web`, `serial` e `lora`;
+- `flags`, como `state`, `heartbeat`, `technical` e `sensitive`.
 
 O manifesto nao carrega valores. Valores chegam por `state`, `heartbeat`,
 `cmd/out` de `get_state` e, quando fizer sentido, `get_technical_status`.

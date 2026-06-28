@@ -159,7 +159,7 @@ static esp_err_t api_status_meta_get_handler(httpd_req_t *req)
     }
 
     tele_portal_core_note_activity();
-    err = tele_status_add_manifest_to_json(json, TELE_STATUS_FLAG_WEB);
+    err = tele_status_add_manifest_to_json(json, TELE_CHANNEL_FLAG_WEB);
     if (err == ESP_OK) {
         err = http_helpers_send_json(req, json, 200);
     }

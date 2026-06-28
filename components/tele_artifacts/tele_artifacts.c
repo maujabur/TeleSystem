@@ -493,10 +493,10 @@ static esp_err_t handle_artifact_command(const char *cmd_name,
                                          const cJSON *args,
                                          cJSON **out_result,
                                          const char **out_error,
-                                         uint32_t required_flags,
+                                         uint32_t channel_flags,
                                          void *ctx)
 {
-    (void)required_flags;
+    (void)channel_flags;
     (void)ctx;
 
     if (!cmd_name || !out_result || !out_error) {
@@ -529,7 +529,8 @@ static const tele_command_t artifact_commands[] = {
         .label = "Consultar artefato",
         .description = "Consulta um manifest para um tipo de artefato registrado.",
         .group = "updates",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = 0,
         .args = artifact_command_args,
         .arg_count = sizeof(artifact_command_args) / sizeof(artifact_command_args[0]),
         .handler = handle_artifact_command,
@@ -539,7 +540,8 @@ static const tele_command_t artifact_commands[] = {
         .label = "Aplicar artefato",
         .description = "Aplica um artefato por manifest usando o handler registrado.",
         .group = "updates",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB | TELE_COMMAND_FLAG_MUTATING,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = TELE_COMMAND_FLAG_MUTATING,
         .args = artifact_command_args,
         .arg_count = sizeof(artifact_command_args) / sizeof(artifact_command_args[0]),
         .handler = handle_artifact_command,
@@ -549,7 +551,8 @@ static const tele_command_t artifact_commands[] = {
         .label = "Status do artefato",
         .description = "Consulta o status local de um tipo de artefato registrado.",
         .group = "updates",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = 0,
         .args = artifact_status_args,
         .arg_count = sizeof(artifact_status_args) / sizeof(artifact_status_args[0]),
         .handler = handle_artifact_command,
@@ -559,7 +562,8 @@ static const tele_command_t artifact_commands[] = {
         .label = "Listar artefatos",
         .description = "Lista os tipos de artefato registrados no firmware.",
         .group = "updates",
-        .flags = TELE_COMMAND_FLAG_MQTT | TELE_COMMAND_FLAG_WEB,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = 0,
         .handler = handle_artifact_command,
     },
 };

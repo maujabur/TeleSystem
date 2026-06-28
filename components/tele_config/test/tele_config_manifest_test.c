@@ -11,7 +11,8 @@ static const tele_config_field_t fields[] = {
         .default_value.string = "ESP32-Device",
         .min_len = 1,
         .max_len = 32,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = 0,
     },
     {
         .id = "wifi.sta_max_retry",
@@ -20,14 +21,16 @@ static const tele_config_field_t fields[] = {
         .default_value.u32 = 3,
         .min.u32 = 1,
         .max.u32 = 20,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = 0,
     },
     {
         .id = "wifi.internal_only",
         .nvs_key = "w_int",
         .type = TELE_CONFIG_TYPE_BOOL,
         .default_value.boolean = true,
-        .flags = TELE_CONFIG_FLAG_WEB,
+        .channel_flags = TELE_CHANNEL_FLAG_WEB,
+        .flags = 0,
     },
 };
 
@@ -40,7 +43,7 @@ int main(void)
 
     root = cJSON_CreateObject();
     assert(root != NULL);
-    assert(tele_config_add_manifest_to_json(root, TELE_CONFIG_FLAG_MQTT) == ESP_OK);
+    assert(tele_config_add_manifest_to_json(root, TELE_CHANNEL_FLAG_MQTT) == ESP_OK);
     text = cJSON_PrintUnformatted(root);
     assert(text != NULL);
 
@@ -59,7 +62,7 @@ int main(void)
     assert(strstr(text, "\"value\":3") != NULL);
     assert(strstr(text, "\"min\":1") != NULL);
     assert(strstr(text, "\"max\":20") != NULL);
-    assert(strstr(text, "\"flag\":\"mqtt\"") != NULL);
+    assert(strstr(text, "\"channel\":\"mqtt\"") != NULL);
 
     assert(strstr(text, "wifi.internal_only") == NULL);
 

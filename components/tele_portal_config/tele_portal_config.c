@@ -117,7 +117,7 @@ static esp_err_t api_config_meta_get_handler(httpd_req_t *req)
     }
 
     tele_portal_core_note_activity();
-    err = tele_config_add_manifest_to_json(json, TELE_CONFIG_FLAG_WEB);
+    err = tele_config_add_manifest_to_json(json, TELE_CHANNEL_FLAG_WEB);
     if (err == ESP_OK) {
         err = http_helpers_send_json(req, json, 200);
     }
@@ -156,7 +156,7 @@ static esp_err_t api_config_set_post_handler(httpd_req_t *req)
     }
 
     field = tele_config_find_field(id_item->valuestring);
-    if (!field || (field->flags & TELE_CONFIG_FLAG_WEB) == 0) {
+    if (!field || (field->channel_flags & TELE_CHANNEL_FLAG_WEB) == 0) {
         cJSON_Delete(json);
         return send_json_error(req, 404, "config_field_not_found");
     }
@@ -213,7 +213,7 @@ static esp_err_t api_config_reset_post_handler(httpd_req_t *req)
     }
 
     field = tele_config_find_field(id_item->valuestring);
-    if (!field || (field->flags & TELE_CONFIG_FLAG_WEB) == 0) {
+    if (!field || (field->channel_flags & TELE_CHANNEL_FLAG_WEB) == 0) {
         cJSON_Delete(json);
         return send_json_error(req, 404, "config_field_not_found");
     }

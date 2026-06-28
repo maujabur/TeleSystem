@@ -18,13 +18,13 @@ Cada comando registrado tem:
 - `description`: texto de ajuda para ferramentas e hover;
 - `group`: agrupamento livre definido pelo projeto, como `system`, `status`,
   `config` ou grupos de dominio;
-- flags de exposicao, como `MQTT`, `WEB`, `MUTATING`, `REBOOT_REQUIRED` e
-  `INTERNAL`;
+- canais de exposicao, como `MQTT`, `WEB`, `SERIAL` e `LORA`;
+- flags comportamentais, como `MUTATING`, `REBOOT_REQUIRED` e `INTERNAL`;
 - lista opcional de argumentos, com `id`, tipo, obrigatoriedade e limites.
 - handler opcional de execucao, independente do transporte.
 
 O componente tambem oferece `tele_commands_execute()`, que recebe um envelope
-normalizado (`cmd_id`, `name`, `args`, `required_flags`) e devolve uma resposta
+normalizado (`cmd_id`, `name`, `args`, `required_channel_flags`) e devolve uma resposta
 normalizada (`ok`, `error`, `result`). Transportes como MQTT, portal HTTP ou
 serial apenas traduzem seu protocolo para esse envelope.
 
@@ -52,8 +52,8 @@ static const tele_command_t s_commands[] = {
         .label = "Aplicar e reiniciar",
         .description = "Agenda reboot curto depois do ACK.",
         .group = "system",
-        .flags = TELE_COMMAND_FLAG_MQTT |
-                 TELE_COMMAND_FLAG_MUTATING |
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_COMMAND_FLAG_MUTATING |
                  TELE_COMMAND_FLAG_REBOOT_REQUIRED,
         .args = s_reboot_args,
         .arg_count = 1,
@@ -65,20 +65,20 @@ static const tele_command_t s_commands[] = {
 ## Manifesto MQTT
 
 `tele_mqtt` chama `tele_commands_add_manifest_to_json(root,
-TELE_COMMAND_FLAG_MQTT)` para publicar
+TELE_CHANNEL_FLAG_MQTT)` para publicar
 `{base_topic}/{device_id}/meta/commands`. O manifesto e retained e descreve
 comandos visiveis por MQTT.
 
 Para cada comando, o JSON inclui:
 
 - `name`, `label`, `description`, `group`;
-- `flags`, como `mqtt`, `web`, `mutating`, `reboot_required` e `internal`;
+- `channels`, como `mqtt`, `web`, `serial` e `lora`;
+- `flags`, como `mutating`, `reboot_required` e `internal`;
 - `args`, quando existem, com `id`, `type`, `required`, limites numericos e
   limites de string.
 
-As flags de canal seguem o mesmo contrato de `tele_config` e `tele_status`:
-`MQTT` e `WEB` sao os dois primeiros bits; flags especificas do registry vêm
-depois.
+`channel_flags` controla quais transportes podem ver/executar o comando.
+`flags` guarda apenas comportamento do dispatcher e da UI.
 
 Comandos com flag `INTERNAL` podem aparecer no manifesto para ferramentas que
 precisam entender o contrato completo, mas UIs comuns podem oculta-los da lista
@@ -95,7 +95,7 @@ const tele_command_request_t request = {
     .cmd_id = "cmd-20260614T120000Z",
     .name = "get_state",
     .args = args_json,
-    .required_flags = TELE_COMMAND_FLAG_MQTT,
+    .required_channel_flags = TELE_CHANNEL_FLAG_MQTT,
 };
 
 esp_err_t err = tele_commands_execute(&request, &response);
@@ -123,7 +123,7 @@ Respostas saem em `{base_topic}/{device_id}/cmd/out` e incluem o mesmo
 `cmd_id`, sucesso ou erro, timestamp e resultado quando houver.
 
 `tele_mqtt` apenas faz parse do payload, chama `tele_commands_execute()` com
-`TELE_COMMAND_FLAG_MQTT` e publica a resposta em `cmd/out`.
+`TELE_CHANNEL_FLAG_MQTT` e publica a resposta em `cmd/out`.
 
 ## Command ou setting?
 
@@ -166,7 +166,7 @@ runtime. `artifacts/get` lista os tipos registrados e `artifact/status` retorna
 estado local e progresso quando o handler implementa status.
 
 `components/tele_mqtt` apenas adapta esses comandos ao transporte MQTT:
-recebe `cmd/in`, chama `tele_commands_execute()` com `TELE_COMMAND_FLAG_MQTT`
+recebe `cmd/in`, chama `tele_commands_execute()` com `TELE_CHANNEL_FLAG_MQTT`
 e publica `cmd/out`. O firmware publica `{base_topic}/{device_id}/meta/commands`
 como mensagem retida ao conectar ao broker. O Control Center consome esse
 manifesto para mostrar comandos agrupados, argumentos e ajuda por hover.
@@ -176,9 +176,9 @@ manifesto para mostrar comandos agrupados, argumentos e ajuda por hover.
 O dispatcher ja e usado pelo adapter HTTP `components/tele_portal_commands`.
 Ele expoe:
 
-- `GET /api/commands`, usando `TELE_COMMAND_FLAG_WEB`;
+- `GET /api/commands`, usando `TELE_CHANNEL_FLAG_WEB`;
 - `POST /api/commands/execute`, chamando `tele_commands_execute()` com
-  `TELE_COMMAND_FLAG_WEB`.
+  `TELE_CHANNEL_FLAG_WEB`.
 
 Serial pode seguir o mesmo modelo: chamar `tele_core_commands_register()`, ler
 um JSON com `cmd_id`, `name` e `args`, chamar o dispatcher com a flag adequada

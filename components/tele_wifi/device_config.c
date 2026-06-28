@@ -39,7 +39,8 @@ static const tele_config_field_t s_device_config_fields[] = {
         .default_value.string = CONFIG_WIFI_PROVISIONING_SSID,
         .min_len = 1,
         .max_len = DEVICE_CONFIG_PROVISIONING_SSID_BUFFER_SIZE - 1,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_WEB | TELE_CHANNEL_FLAG_MQTT,
+        .flags = 0,
     },
     {
         .id = DEVICE_CONFIG_ID_STA_MAX_RETRY,
@@ -48,7 +49,8 @@ static const tele_config_field_t s_device_config_fields[] = {
         .default_value.u32 = CONFIG_WIFI_STA_MAX_RETRY,
         .min.u32 = DEVICE_CONFIG_STA_MAX_RETRY_MIN,
         .max.u32 = DEVICE_CONFIG_STA_MAX_RETRY_MAX,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_WEB | TELE_CHANNEL_FLAG_MQTT,
+        .flags = 0,
     },
     {
         .id = DEVICE_CONFIG_ID_APSTA_POLICY,
@@ -59,7 +61,8 @@ static const tele_config_field_t s_device_config_fields[] = {
         .max.i32 = DEVICE_CONFIG_APSTA_STA_ONLY,
         .choices = s_apsta_policy_choices,
         .choice_count = sizeof(s_apsta_policy_choices) / sizeof(s_apsta_policy_choices[0]),
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_REBOOT_REQUIRED,
+        .channel_flags = TELE_CHANNEL_FLAG_WEB | TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_CONFIG_FLAG_REBOOT_REQUIRED,
     },
     {
         .id = DEVICE_CONFIG_ID_APSTA_GRACE_PERIOD_S,
@@ -68,7 +71,8 @@ static const tele_config_field_t s_device_config_fields[] = {
         .default_value.u32 = CONFIG_WIFI_APSTA_GRACE_PERIOD_S,
         .min.u32 = DEVICE_CONFIG_APSTA_GRACE_PERIOD_S_MIN,
         .max.u32 = DEVICE_CONFIG_APSTA_GRACE_PERIOD_S_MAX,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_REBOOT_REQUIRED,
+        .channel_flags = TELE_CHANNEL_FLAG_WEB | TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_CONFIG_FLAG_REBOOT_REQUIRED,
     },
 };
 

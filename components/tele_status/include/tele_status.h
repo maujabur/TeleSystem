@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "tele_channels.h"
+
 #ifdef TELE_STATUS_HOST_TEST
 #include "tele_status_host_stubs.h"
 #else
@@ -25,12 +27,10 @@ typedef enum {
 } tele_status_type_t;
 
 typedef enum {
-    TELE_STATUS_FLAG_MQTT = 1U << 0,
-    TELE_STATUS_FLAG_WEB = 1U << 1,
-    TELE_STATUS_FLAG_STATE = 1U << 2,
-    TELE_STATUS_FLAG_HEARTBEAT = 1U << 3,
-    TELE_STATUS_FLAG_TECHNICAL = 1U << 4,
-    TELE_STATUS_FLAG_SENSITIVE = 1U << 5,
+    TELE_STATUS_FLAG_STATE = 1U << 0,
+    TELE_STATUS_FLAG_HEARTBEAT = 1U << 1,
+    TELE_STATUS_FLAG_TECHNICAL = 1U << 2,
+    TELE_STATUS_FLAG_SENSITIVE = 1U << 3,
 } tele_status_flags_t;
 
 typedef bool (*tele_status_bool_reader_t)(void *ctx);
@@ -52,6 +52,7 @@ typedef struct {
     const char *group;
     tele_status_type_t type;
     const char *unit;
+    uint32_t channel_flags;
     uint32_t flags;
     tele_status_reader_t read;
     void *ctx;
@@ -59,8 +60,10 @@ typedef struct {
 
 esp_err_t tele_status_register_fields(const tele_status_field_t *fields, size_t field_count);
 const tele_status_field_t *tele_status_find_field(const char *id);
-esp_err_t tele_status_add_fields_to_json(cJSON *root, uint32_t required_flags);
-esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_flags);
+esp_err_t tele_status_add_fields_to_json(cJSON *root,
+                                         uint32_t required_channel_flags,
+                                         uint32_t required_flags);
+esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_channel_flags);
 
 #ifdef __cplusplus
 }

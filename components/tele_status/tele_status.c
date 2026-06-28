@@ -50,6 +50,16 @@ static void add_flag_if_set(cJSON *flags, uint32_t field_flags, uint32_t flag, c
     }
 }
 
+static void add_channel_if_set(cJSON *channels, uint32_t channel_flags, uint32_t flag, const char *name)
+{
+    if ((channel_flags & flag) == flag) {
+        cJSON *entry = add_object_to_array(channels);
+        if (entry) {
+            cJSON_AddStringToObject(entry, "channel", name);
+        }
+    }
+}
+
 static bool field_has_reader(const tele_status_field_t *field)
 {
     if (!field) {
@@ -113,7 +123,9 @@ const tele_status_field_t *tele_status_find_field(const char *id)
     return NULL;
 }
 
-esp_err_t tele_status_add_fields_to_json(cJSON *root, uint32_t required_flags)
+esp_err_t tele_status_add_fields_to_json(cJSON *root,
+                                         uint32_t required_channel_flags,
+                                         uint32_t required_flags)
 {
     if (!root) {
         return ESP_ERR_INVALID_ARG;
@@ -121,7 +133,9 @@ esp_err_t tele_status_add_fields_to_json(cJSON *root, uint32_t required_flags)
 
     for (size_t i = 0; i < s_field_count; ++i) {
         const tele_status_field_t *field = s_fields[i];
-        if (!field || (field->flags & required_flags) != required_flags) {
+        if (!field ||
+            (field->channel_flags & required_channel_flags) != required_channel_flags ||
+            (field->flags & required_flags) != required_flags) {
             continue;
         }
         if ((field->flags & TELE_STATUS_FLAG_SENSITIVE) != 0) {
@@ -151,7 +165,7 @@ esp_err_t tele_status_add_fields_to_json(cJSON *root, uint32_t required_flags)
     return ESP_OK;
 }
 
-esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_flags)
+esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_channel_flags)
 {
     cJSON *fields = NULL;
 
@@ -168,9 +182,10 @@ esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_flags)
     for (size_t i = 0; i < s_field_count; ++i) {
         const tele_status_field_t *field = s_fields[i];
         cJSON *item = NULL;
+        cJSON *channels = NULL;
         cJSON *flags = NULL;
 
-        if (!field || (field->flags & required_flags) != required_flags) {
+        if (!field || (field->channel_flags & required_channel_flags) != required_channel_flags) {
             continue;
         }
 
@@ -194,6 +209,15 @@ esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_flags)
             cJSON_AddStringToObject(item, "unit", field->unit);
         }
 
+        channels = cJSON_AddArrayToObject(item, "channels");
+        if (!channels) {
+            return ESP_ERR_NO_MEM;
+        }
+        add_channel_if_set(channels, field->channel_flags, TELE_CHANNEL_FLAG_MQTT, "mqtt");
+        add_channel_if_set(channels, field->channel_flags, TELE_CHANNEL_FLAG_WEB, "web");
+        add_channel_if_set(channels, field->channel_flags, TELE_CHANNEL_FLAG_SERIAL, "serial");
+        add_channel_if_set(channels, field->channel_flags, TELE_CHANNEL_FLAG_LORA, "lora");
+
         flags = cJSON_AddArrayToObject(item, "flags");
         if (!flags) {
             return ESP_ERR_NO_MEM;
@@ -201,8 +225,6 @@ esp_err_t tele_status_add_manifest_to_json(cJSON *root, uint32_t required_flags)
         add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_STATE, "state");
         add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_HEARTBEAT, "heartbeat");
         add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_TECHNICAL, "technical");
-        add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_MQTT, "mqtt");
-        add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_WEB, "web");
         add_flag_if_set(flags, field->flags, TELE_STATUS_FLAG_SENSITIVE, "sensitive");
     }
 

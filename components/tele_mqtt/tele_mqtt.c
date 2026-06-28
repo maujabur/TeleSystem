@@ -427,7 +427,7 @@ static cJSON *build_status_fields_payload(tele_status_flags_t flags)
         return NULL;
     }
 
-    if (tele_status_add_fields_to_json(result, flags) != ESP_OK) {
+    if (tele_status_add_fields_to_json(result, TELE_CHANNEL_FLAG_MQTT, flags) != ESP_OK) {
         cJSON_Delete(result);
         return NULL;
     }
@@ -442,7 +442,7 @@ static cJSON *build_default_config_manifest(void)
         return NULL;
     }
 
-    if (tele_config_add_manifest_to_json(result, TELE_CONFIG_FLAG_MQTT) != ESP_OK) {
+    if (tele_config_add_manifest_to_json(result, TELE_CHANNEL_FLAG_MQTT) != ESP_OK) {
         cJSON_Delete(result);
         return NULL;
     }
@@ -457,7 +457,7 @@ static cJSON *build_default_status_manifest(void)
         return NULL;
     }
 
-    if (tele_status_add_manifest_to_json(result, TELE_STATUS_FLAG_MQTT) != ESP_OK) {
+    if (tele_status_add_manifest_to_json(result, TELE_CHANNEL_FLAG_MQTT) != ESP_OK) {
         cJSON_Delete(result);
         return NULL;
     }
@@ -563,7 +563,7 @@ static void handle_command_payload(const char *payload)
         .cmd_id = cmd_id,
         .name = cmd_name,
         .args = args,
-        .required_flags = TELE_COMMAND_FLAG_MQTT,
+        .required_channel_flags = TELE_CHANNEL_FLAG_MQTT,
     };
     esp_err_t err = tele_commands_execute(&request, &response);
     if (err == ESP_OK) {
@@ -630,7 +630,7 @@ static void publish_commands_manifest(void)
         return;
     }
 
-    if (tele_commands_add_manifest_to_json(payload, TELE_COMMAND_FLAG_MQTT) == ESP_OK) {
+    if (tele_commands_add_manifest_to_json(payload, TELE_CHANNEL_FLAG_MQTT) == ESP_OK) {
         publish_json_with_common(s_topic_meta_commands, payload, qos_critical(), 1);
     }
     cJSON_Delete(payload);

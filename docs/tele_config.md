@@ -25,8 +25,8 @@ Cada campo registrado tem:
 - tipo: `bool`, `i32`, `u32`, `string` ou `enum`;
 - default;
 - limites numericos ou tamanho minimo/maximo de string;
-- flags de exposicao, como `WEB`, `MQTT`, `SECRET`, `REBOOT_REQUIRED` e
-  `READ_ONLY`.
+- canais de exposicao, como `WEB`, `MQTT`, `SERIAL` e `LORA`;
+- flags comportamentais, como `SECRET`, `REBOOT_REQUIRED` e `READ_ONLY`.
 
 O `id` nao precisa respeitar o limite da NVS. Por isso `wifi.sta_max_retry`
 pode existir como API publica, enquanto a persistencia usa `w_retry`.
@@ -57,9 +57,9 @@ static const tele_config_field_t s_fields[] = {
         .max.i32 = 2,
         .choices = s_wifi_policy_choices,
         .choice_count = 3,
-        .flags = TELE_CONFIG_FLAG_WEB |
-                 TELE_CONFIG_FLAG_MQTT |
-                 TELE_CONFIG_FLAG_REBOOT_REQUIRED,
+        .channel_flags = TELE_CHANNEL_FLAG_WEB |
+                         TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_CONFIG_FLAG_REBOOT_REQUIRED,
     },
 };
 ```
@@ -76,8 +76,8 @@ callback. O resultado informa:
 ## Manifesto MQTT
 
 `tele_mqtt` chama `tele_config_add_manifest_to_json(root,
-TELE_CONFIG_FLAG_MQTT)` para publicar `{base_topic}/{device_id}/meta/config`.
-O manifesto e retained e descreve apenas campos com flag `MQTT`.
+TELE_CHANNEL_FLAG_MQTT)` para publicar `{base_topic}/{device_id}/meta/config`.
+O manifesto e retained e descreve apenas campos expostos no canal MQTT.
 
 Para cada campo, o JSON inclui:
 
@@ -85,16 +85,16 @@ Para cada campo, o JSON inclui:
 - `min`/`max` para numericos e enum;
 - `min_len`/`max_len` para strings;
 - `choices` para enum, quando declaradas;
-- `flags`, incluindo `web`, `mqtt`, `secret`, `read_only`,
-  `runtime_apply` e `reboot_required`.
+- `channels`, como `web`, `mqtt`, `serial` e `lora`;
+- `flags`, incluindo `secret`, `read_only`, `runtime_apply` e
+  `reboot_required`.
 
 `source` indica se o valor efetivo veio de `default` ou `nvs`. Campos `secret`
 nao devem expor valor real para a UI; o consumidor deve tratar o valor como
 opaco.
 
-As flags de canal seguem o mesmo contrato dos registries de status e comandos:
-`MQTT` e `WEB` sao os dois primeiros bits; flags especificas de cada registry
-vêm depois.
+`channel_flags` controla exposicao por transporte. `flags` guarda apenas
+comportamentos do campo, como segredo, read-only e reboot necessario.
 
 ## Fluxo MQTT
 

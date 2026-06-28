@@ -34,7 +34,8 @@ static const tele_status_field_t fields[] = {
         .description = "Indica se a rede Wi-Fi esta pronta para uso.",
         .group = "network",
         .type = TELE_STATUS_TYPE_BOOL,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
         .read.boolean = bool_value,
     },
     {
@@ -43,7 +44,8 @@ static const tele_status_field_t fields[] = {
         .description = "Sinal Wi-Fi recebido.",
         .group = "network",
         .type = TELE_STATUS_TYPE_I32,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
         .read.i32 = i32_value,
     },
     {
@@ -52,7 +54,8 @@ static const tele_status_field_t fields[] = {
         .description = "Tempo desde o boot em segundos.",
         .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
-        .flags = TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_TECHNICAL | TELE_STATUS_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_TECHNICAL,
         .read.u32 = u32_value,
         .ctx = &(uint32_t) {123},
     },
@@ -62,7 +65,8 @@ static const tele_status_field_t fields[] = {
         .description = "Endereco IPv4 atual.",
         .group = "network",
         .type = TELE_STATUS_TYPE_STRING,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_WEB,
+        .flags = TELE_STATUS_FLAG_STATE,
         .read.string = string_value,
         .ctx = "192.168.15.97",
     },
@@ -80,7 +84,7 @@ int main(void)
 
     root = cJSON_CreateObject();
     assert(root != NULL);
-    assert(tele_status_add_fields_to_json(root, TELE_STATUS_FLAG_HEARTBEAT) == ESP_OK);
+    assert(tele_status_add_fields_to_json(root, TELE_CHANNEL_FLAG_MQTT, TELE_STATUS_FLAG_HEARTBEAT) == ESP_OK);
     text = cJSON_PrintUnformatted(root);
     assert(text != NULL);
     assert(strstr(text, "\"wifi_ready\":true") != NULL);
@@ -92,11 +96,11 @@ int main(void)
 
     root = cJSON_CreateObject();
     assert(root != NULL);
-    assert(tele_status_add_fields_to_json(root, TELE_STATUS_FLAG_STATE) == ESP_OK);
+    assert(tele_status_add_fields_to_json(root, TELE_CHANNEL_FLAG_WEB, TELE_STATUS_FLAG_STATE) == ESP_OK);
     text = cJSON_PrintUnformatted(root);
     assert(text != NULL);
     assert(strstr(text, "\"wifi_ready\":true") != NULL);
-    assert(strstr(text, "\"rssi\":-42") != NULL);
+    assert(strstr(text, "\"rssi\"") == NULL);
     assert(strstr(text, "\"ip\":\"192.168.15.97\"") != NULL);
     assert(strstr(text, "\"uptime_s\"") == NULL);
     cJSON_free(text);
@@ -104,7 +108,7 @@ int main(void)
 
     root = cJSON_CreateObject();
     assert(root != NULL);
-    assert(tele_status_add_manifest_to_json(root, TELE_STATUS_FLAG_MQTT) == ESP_OK);
+    assert(tele_status_add_manifest_to_json(root, TELE_CHANNEL_FLAG_MQTT) == ESP_OK);
     text = cJSON_PrintUnformatted(root);
     assert(text != NULL);
     assert(strstr(text, "\"registry_revision\":1") != NULL);
@@ -115,14 +119,14 @@ int main(void)
     assert(strstr(text, "\"group\":\"network\"") != NULL);
     assert(strstr(text, "\"type\":\"bool\"") != NULL);
     assert(strstr(text, "\"flag\":\"state\"") != NULL);
+    assert(strstr(text, "\"channel\":\"mqtt\"") != NULL);
     assert(strstr(text, "\"id\":\"rssi\"") != NULL);
     assert(strstr(text, "\"type\":\"i32\"") != NULL);
     assert(strstr(text, "\"id\":\"uptime_s\"") != NULL);
     assert(strstr(text, "\"group\":\"runtime\"") != NULL);
     assert(strstr(text, "\"type\":\"u32\"") != NULL);
     assert(strstr(text, "\"flag\":\"technical\"") != NULL);
-    assert(strstr(text, "\"id\":\"ip\"") != NULL);
-    assert(strstr(text, "\"type\":\"string\"") != NULL);
+    assert(strstr(text, "\"id\":\"ip\"") == NULL);
     cJSON_free(text);
     cJSON_Delete(root);
 

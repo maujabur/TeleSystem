@@ -81,6 +81,16 @@ static void add_flag_if_set(cJSON *flags, uint32_t field_flags, uint32_t flag, c
     }
 }
 
+static void add_channel_if_set(cJSON *channels, uint32_t channel_flags, uint32_t flag, const char *name)
+{
+    if ((channel_flags & flag) == flag) {
+        cJSON *entry = add_object_to_array(channels);
+        if (entry) {
+            cJSON_AddStringToObject(entry, "channel", name);
+        }
+    }
+}
+
 static esp_err_t add_config_value_to_json(cJSON *item,
                                           const char *name,
                                           tele_config_type_t type,
@@ -612,7 +622,7 @@ esp_err_t tele_config_get_effective(const char *id,
 #endif
 }
 
-esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_flags)
+esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_channel_flags)
 {
     cJSON *fields = NULL;
 
@@ -630,6 +640,7 @@ esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_flags)
         const tele_config_registry_entry_t *registry_entry = &s_entries[i];
         const tele_config_field_t *field = registry_entry->field;
         cJSON *item = NULL;
+        cJSON *channels = NULL;
         cJSON *flags = NULL;
         tele_config_value_t default_value = {0};
         tele_config_value_t effective_value = {0};
@@ -639,7 +650,7 @@ esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_flags)
         bool hide_value = false;
         esp_err_t err = ESP_OK;
 
-        if (!field || (field->flags & required_flags) != required_flags) {
+        if (!field || (field->channel_flags & required_channel_flags) != required_channel_flags) {
             continue;
         }
 
@@ -682,12 +693,19 @@ esp_err_t tele_config_add_manifest_to_json(cJSON *root, uint32_t required_flags)
             return err;
         }
 
+        channels = cJSON_AddArrayToObject(item, "channels");
+        if (!channels) {
+            return ESP_ERR_NO_MEM;
+        }
+        add_channel_if_set(channels, field->channel_flags, TELE_CHANNEL_FLAG_WEB, "web");
+        add_channel_if_set(channels, field->channel_flags, TELE_CHANNEL_FLAG_MQTT, "mqtt");
+        add_channel_if_set(channels, field->channel_flags, TELE_CHANNEL_FLAG_SERIAL, "serial");
+        add_channel_if_set(channels, field->channel_flags, TELE_CHANNEL_FLAG_LORA, "lora");
+
         flags = cJSON_AddArrayToObject(item, "flags");
         if (!flags) {
             return ESP_ERR_NO_MEM;
         }
-        add_flag_if_set(flags, field->flags, TELE_CONFIG_FLAG_WEB, "web");
-        add_flag_if_set(flags, field->flags, TELE_CONFIG_FLAG_MQTT, "mqtt");
         add_flag_if_set(flags, field->flags, TELE_CONFIG_FLAG_SECRET, "secret");
         add_flag_if_set(flags, field->flags, TELE_CONFIG_FLAG_REBOOT_REQUIRED, "reboot_required");
         add_flag_if_set(flags, field->flags, TELE_CONFIG_FLAG_READ_ONLY, "read_only");

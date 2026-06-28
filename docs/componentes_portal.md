@@ -32,7 +32,7 @@ registry.
 ### `components/tele_portal_commands`
 
 Adapter HTTP para comandos JSON. Usa `tele_commands` como fonte de verdade e
-executa apenas comandos expostos com `TELE_COMMAND_FLAG_WEB`.
+executa apenas comandos expostos com `TELE_CHANNEL_FLAG_WEB`.
 
 Rotas:
 
@@ -139,5 +139,5 @@ Handlers HTTP devem validar entrada, chamar API de dominio e responder JSON
 curto.
 
 Para comandos JSON, prefira registrar o comando em `tele_commands` com
-`TELE_COMMAND_FLAG_WEB` e usar `tele_portal_commands`, em vez de criar uma rota
+`TELE_CHANNEL_FLAG_WEB` e usar `tele_portal_commands`, em vez de criar uma rota
 nova para cada acao pontual.

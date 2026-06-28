@@ -10,7 +10,7 @@ static const tele_config_field_t fields[] = {
         .default_value.u32 = 3,
         .min.u32 = 1,
         .max.u32 = 20,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+        .flags = 0,
     },
 };
 
@@ -22,7 +22,7 @@ static const tele_config_field_t more_fields[] = {
         .default_value.u32 = 60,
         .min.u32 = 15,
         .max.u32 = 3600,
-        .flags = TELE_CONFIG_FLAG_WEB | TELE_CONFIG_FLAG_MQTT,
+        .flags = 0,
     },
 };
 

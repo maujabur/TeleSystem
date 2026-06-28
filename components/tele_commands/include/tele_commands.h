@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "tele_channels.h"
+
 #ifdef TELE_COMMANDS_HOST_TEST
 #include "tele_commands_host_stubs.h"
 #else
@@ -28,11 +30,9 @@ typedef enum {
 } tele_command_arg_type_t;
 
 typedef enum {
-    TELE_COMMAND_FLAG_MQTT = 1U << 0,
-    TELE_COMMAND_FLAG_WEB = 1U << 1,
-    TELE_COMMAND_FLAG_MUTATING = 1U << 2,
-    TELE_COMMAND_FLAG_REBOOT_REQUIRED = 1U << 3,
-    TELE_COMMAND_FLAG_INTERNAL = 1U << 4,
+    TELE_COMMAND_FLAG_MUTATING = 1U << 0,
+    TELE_COMMAND_FLAG_REBOOT_REQUIRED = 1U << 1,
+    TELE_COMMAND_FLAG_INTERNAL = 1U << 2,
 } tele_command_flags_t;
 
 typedef union {
@@ -54,7 +54,7 @@ typedef struct {
     const char *cmd_id;
     const char *name;
     const cJSON *args;
-    uint32_t required_flags;
+    uint32_t required_channel_flags;
 } tele_command_request_t;
 
 typedef struct {
@@ -67,7 +67,7 @@ typedef esp_err_t (*tele_command_handler_t)(const char *cmd_name,
                                             const cJSON *args,
                                             cJSON **out_result,
                                             const char **out_error,
-                                            uint32_t required_flags,
+                                            uint32_t channel_flags,
                                             void *ctx);
 
 typedef struct {
@@ -75,6 +75,7 @@ typedef struct {
     const char *label;
     const char *description;
     const char *group;
+    uint32_t channel_flags;
     uint32_t flags;
     const tele_command_arg_t *args;
     size_t arg_count;
@@ -84,7 +85,7 @@ typedef struct {
 
 esp_err_t tele_commands_register(const tele_command_t *commands, size_t command_count);
 const tele_command_t *tele_commands_find(const char *name);
-esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_flags);
+esp_err_t tele_commands_add_manifest_to_json(cJSON *root, uint32_t required_channel_flags);
 esp_err_t tele_commands_execute(const tele_command_request_t *request,
                                 tele_command_response_t *response);
 void tele_commands_response_cleanup(tele_command_response_t *response);
