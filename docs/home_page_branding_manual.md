@@ -32,6 +32,11 @@ Ao adicionar imagens ou fontes locais, coloque os arquivos em `firmware_assets/w
 em uma subpasta dentro de `firmware_assets/web/`. Depois disso, e necessario gerar uma
 nova compilacao para embutir os assets atualizados no firmware.
 
+A geracao dos assets do portal acontece no componente
+`components/tele_portal_assets`: o `CMakeLists.txt` desse componente chama
+`components/tele_portal_assets/tools/gen_assets.py`, que monta a tabela de URI e
+content-type usada em runtime.
+
 ## O Que Deve Permanecer
 
 Nao remova nem renomeie estes elementos sem tambem alterar o JavaScript da
@@ -172,5 +177,6 @@ manutencao, mas a experiencia do usuario final deve permanecer centrada em `/`.
 - Nao ha link ou botao visivel para paginas tecnicas.
 - Nao ha informacao de firmware, logs, metricas internas ou controles tecnicos.
 - O layout funciona em celular e desktop.
-- Depois de alterar `firmware_assets/web/index.html`, o build regenerou os assets
+- Depois de alterar `firmware_assets/web/index.html`, o build de
+  `tele_portal_assets` chamou `tools/gen_assets.py` e regenerou os assets
   embutidos.

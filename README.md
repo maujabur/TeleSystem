@@ -128,7 +128,9 @@ Adapters ao redor dele:
 O portal e composto por componentes `tele_portal_*`:
 
 - `tele_portal_core`: servidor HTTP, helpers e fila de registro de rotas.
-- `tele_portal_assets`: HTML/CSS/JS embutidos a partir de `firmware_assets/web`.
+- `tele_portal_assets`: HTML/CSS/JS vindos de `firmware_assets/web`, com mapa
+  de assets gerado por `components/tele_portal_assets/tools/gen_assets.py`
+  durante o build do componente.
 - `tele_portal_captive`: endpoints de captive portal e redirecionamento.
 - `tele_portal_wifi`: rotas de scan, redes salvas e credenciais.
 - `tele_portal_status`: status local para UI.

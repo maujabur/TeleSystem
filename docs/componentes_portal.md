@@ -14,6 +14,13 @@ os detalhes do servidor.
 
 Arquivos estaticos/embutidos usados pelo portal.
 
+O componente le os fontes em `firmware_assets/web`. Durante o build, seu
+`CMakeLists.txt` chama `components/tele_portal_assets/tools/gen_assets.py` para
+gerar `tele_portal_assets_generated.c` e `tele_portal_assets_generated.h` com o
+mapa de URI, content-type e flags dos assets. Os arquivos continuam sendo
+embutidos via `EMBED_TXTFILES`, mas a tabela servida em runtime nasce desse
+script gerador, nao do agregador `tele_portal`.
+
 ### `components/tele_portal_captive`
 
 Rotas para deteccao de captive portal e redirecionamento durante
@@ -160,6 +167,10 @@ components/tele_system
 firmware_assets/web
 ```
 
+Ao copiar o portal completo para outro projeto, mantenha tambem
+`components/tele_portal_assets/tools/gen_assets.py`; ele e chamado pelo
+`CMakeLists.txt` de `tele_portal_assets` para construir a tabela de assets.
+
 Inicializacao minima:
 
 ```c
@@ -193,6 +204,10 @@ components/tele_portal_assets
 components/tele_portal_ota      # somente se quiser upload OTA
 firmware_assets/web             # se usar assets embutidos
 ```
+
+Se usar assets embutidos, o build precisa incluir o script
+`components/tele_portal_assets/tools/gen_assets.py`, pois ele gera o header e o
+source consumidos por `tele_portal_assets.c`.
 
 Nesse modo, o app inicializa `tele_portal_core`, registra rotas com
 `tele_portal_core_register_routes()` e chama `tele_portal_core_start()`. Para
