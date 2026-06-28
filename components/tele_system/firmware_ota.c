@@ -217,6 +217,124 @@ static void update_transfer_progress(size_t bytes_written, size_t total_size)
     portEXIT_CRITICAL(&s_ota_lock);
 }
 
+static esp_err_t ota_stream_begin(const esp_partition_t *partition,
+                                  size_t image_size,
+                                  size_t total_size,
+                                  const char *target_version,
+                                  const char *build_id,
+                                  const char *artifact_url)
+{
+    if (!partition) {
+        set_last_error_text("NEXT_PARTITION_NOT_FOUND");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    if (total_size > 0 && total_size > partition->size) {
+        set_last_error_text("ARTIFACT_TOO_LARGE_FOR_OTA_PARTITION");
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    esp_err_t err = esp_ota_begin(partition, image_size, &s_upload_handle);
+    if (err != ESP_OK) {
+        set_last_error_err(err);
+        return err;
+    }
+
+    portENTER_CRITICAL(&s_ota_lock);
+    s_upload_active = true;
+    s_upload_partition = partition;
+    copy_text(s_status.target_version, sizeof(s_status.target_version), target_version);
+    copy_text(s_status.build_id, sizeof(s_status.build_id), build_id);
+    copy_text(s_status.artifact_url, sizeof(s_status.artifact_url), artifact_url);
+    s_status.total_size = total_size;
+    s_status.bytes_written = 0;
+    s_status.progress_pct = 0;
+    portEXIT_CRITICAL(&s_ota_lock);
+
+    refresh_partition_labels();
+    return ESP_OK;
+}
+
+static esp_err_t ota_stream_write(const uint8_t *data, size_t data_len)
+{
+    if (!data || data_len == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    portENTER_CRITICAL(&s_ota_lock);
+    bool upload_active = s_upload_active;
+    size_t bytes_written = s_status.bytes_written;
+    size_t total_size = s_status.total_size;
+    portEXIT_CRITICAL(&s_ota_lock);
+
+    if (!upload_active) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t err = esp_ota_write(s_upload_handle, data, data_len);
+    if (err != ESP_OK) {
+        set_last_error_err(err);
+        return err;
+    }
+
+    update_transfer_progress(bytes_written + data_len, total_size);
+    return ESP_OK;
+}
+
+static esp_err_t ota_stream_finish(size_t complete_size)
+{
+    portENTER_CRITICAL(&s_ota_lock);
+    bool upload_active = s_upload_active;
+    const esp_partition_t *upload_partition = s_upload_partition;
+    s_upload_active = false;
+    s_upload_partition = NULL;
+    portEXIT_CRITICAL(&s_ota_lock);
+
+    if (!upload_active || !upload_partition) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t err = esp_ota_end(s_upload_handle);
+    if (err != ESP_OK) {
+        set_last_error_err(err);
+        set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
+        return err;
+    }
+
+    err = esp_ota_set_boot_partition(upload_partition);
+    if (err != ESP_OK) {
+        set_last_error_err(err);
+        set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
+        return err;
+    }
+
+    if (complete_size > 0) {
+        update_transfer_progress(complete_size, complete_size);
+    }
+
+    set_last_error_text("");
+    set_state(FIRMWARE_OTA_STATE_SUCCESS, false, true);
+    refresh_partition_labels();
+    ESP_LOGW(TAG, "OTA concluido com sucesso para %s", upload_partition->label);
+    return ESP_OK;
+}
+
+static void ota_stream_abort(void)
+{
+    portENTER_CRITICAL(&s_ota_lock);
+    bool upload_active = s_upload_active;
+    s_upload_active = false;
+    s_upload_partition = NULL;
+    portEXIT_CRITICAL(&s_ota_lock);
+
+    if (upload_active) {
+        (void)esp_ota_abort(s_upload_handle);
+    }
+
+    set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
+    refresh_partition_labels();
+}
+
 static void make_manifest_request(const firmware_ota_manifest_task_arg_t *config,
                                   tele_manifest_version_cb_t version_policy,
                                   void *ctx,
@@ -381,36 +499,21 @@ static esp_err_t manifest_stream_begin(const tele_manifest_artifact_t *artifact,
     }
 
     const esp_partition_t *next_partition = esp_ota_get_next_update_partition(NULL);
-    if (!next_partition) {
-        set_last_error_text("NEXT_PARTITION_NOT_FOUND");
-        return ESP_ERR_NOT_FOUND;
-    }
-
-    if (artifact->size == 0 || artifact->size > next_partition->size) {
+    if (artifact->size == 0) {
         set_last_error_text("ARTIFACT_TOO_LARGE_FOR_OTA_PARTITION");
         return ESP_ERR_INVALID_SIZE;
     }
 
-    esp_err_t err = esp_ota_begin(next_partition, artifact->size, &s_upload_handle);
+    esp_err_t err = ota_stream_begin(next_partition,
+                                     artifact->size,
+                                     artifact->size,
+                                     artifact->version,
+                                     artifact->build_id,
+                                     artifact->url_count > 0 ? artifact->urls[0] : "");
     if (err != ESP_OK) {
-        set_last_error_err(err);
         return err;
     }
 
-    portENTER_CRITICAL(&s_ota_lock);
-    s_upload_active = true;
-    s_upload_partition = next_partition;
-    copy_text(s_status.target_version, sizeof(s_status.target_version), artifact->version);
-    copy_text(s_status.build_id, sizeof(s_status.build_id), artifact->build_id);
-    copy_text(s_status.artifact_url,
-              sizeof(s_status.artifact_url),
-              artifact->url_count > 0 ? artifact->urls[0] : "");
-    s_status.total_size = artifact->size;
-    s_status.bytes_written = 0;
-    s_status.progress_pct = 0;
-    portEXIT_CRITICAL(&s_ota_lock);
-
-    refresh_partition_labels();
     ESP_LOGI(TAG,
              "Manifest OTA iniciado para particao %s, versao %s, %u bytes",
              next_partition->label,
@@ -422,92 +525,34 @@ static esp_err_t manifest_stream_begin(const tele_manifest_artifact_t *artifact,
 static esp_err_t manifest_stream_write(const uint8_t *data, size_t data_len, void *ctx)
 {
     (void)ctx;
-
-    if (!data || data_len == 0) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    portENTER_CRITICAL(&s_ota_lock);
-    bool upload_active = s_upload_active;
-    size_t bytes_written = s_status.bytes_written;
-    size_t total_size = s_status.total_size;
-    portEXIT_CRITICAL(&s_ota_lock);
-
-    if (!upload_active) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    esp_err_t err = esp_ota_write(s_upload_handle, data, data_len);
-    if (err != ESP_OK) {
-        set_last_error_err(err);
-        return err;
-    }
-
-    update_transfer_progress(bytes_written + data_len, total_size);
-    return ESP_OK;
+    return ota_stream_write(data, data_len);
 }
 
 static esp_err_t manifest_stream_finish(const tele_manifest_artifact_t *artifact, void *ctx)
 {
     (void)ctx;
-    esp_err_t err = ESP_OK;
 
-    portENTER_CRITICAL(&s_ota_lock);
-    bool upload_active = s_upload_active;
-    const esp_partition_t *upload_partition = s_upload_partition;
-    s_upload_active = false;
-    s_upload_partition = NULL;
-    portEXIT_CRITICAL(&s_ota_lock);
-
-    if (!upload_active || !upload_partition || !artifact) {
+    if (!artifact) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    err = esp_ota_end(s_upload_handle);
+    esp_err_t err = ota_stream_finish(artifact->size);
     if (err != ESP_OK) {
-        set_last_error_err(err);
-        set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
-        return err;
-    }
-
-    err = esp_ota_set_boot_partition(upload_partition);
-    if (err != ESP_OK) {
-        set_last_error_err(err);
-        set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
         return err;
     }
 
     portENTER_CRITICAL(&s_ota_lock);
     copy_text(s_status.target_version, sizeof(s_status.target_version), artifact->version);
     copy_text(s_status.build_id, sizeof(s_status.build_id), artifact->build_id);
-    s_status.bytes_written = artifact->size;
-    s_status.total_size = artifact->size;
-    s_status.progress_pct = 100;
     portEXIT_CRITICAL(&s_ota_lock);
 
-    set_last_error_text("");
-    set_state(FIRMWARE_OTA_STATE_SUCCESS, false, true);
-    refresh_partition_labels();
-    ESP_LOGW(TAG, "Manifest OTA concluido com sucesso para %s", upload_partition->label);
     return ESP_OK;
 }
 
 static void manifest_stream_abort(void *ctx)
 {
     (void)ctx;
-
-    portENTER_CRITICAL(&s_ota_lock);
-    bool upload_active = s_upload_active;
-    s_upload_active = false;
-    s_upload_partition = NULL;
-    portEXIT_CRITICAL(&s_ota_lock);
-
-    if (upload_active) {
-        (void)esp_ota_abort(s_upload_handle);
-    }
-
-    set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
-    refresh_partition_labels();
+    ota_stream_abort();
 }
 
 static void manifest_stream_progress(const tele_manifest_artifact_t *artifact,
@@ -767,7 +812,6 @@ esp_err_t firmware_ota_register_artifact(void)
 esp_err_t firmware_ota_upload_begin(void)
 {
     const esp_partition_t *next_partition = NULL;
-    esp_err_t err = ESP_OK;
 
     portENTER_CRITICAL(&s_ota_lock);
     if (s_status.in_progress || s_upload_active) {
@@ -785,108 +829,34 @@ esp_err_t firmware_ota_upload_begin(void)
     portEXIT_CRITICAL(&s_ota_lock);
 
     next_partition = esp_ota_get_next_update_partition(NULL);
-    if (!next_partition) {
-        set_last_error_text("NEXT_PARTITION_NOT_FOUND");
-        set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
-        return ESP_ERR_NOT_FOUND;
-    }
-
-    err = esp_ota_begin(next_partition, OTA_SIZE_UNKNOWN, &s_upload_handle);
+    esp_err_t err = ota_stream_begin(next_partition,
+                                     OTA_SIZE_UNKNOWN,
+                                     0,
+                                     "",
+                                     "",
+                                     "upload");
     if (err != ESP_OK) {
-        set_last_error_err(err);
         set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
         return err;
     }
 
-    portENTER_CRITICAL(&s_ota_lock);
-    s_upload_active = true;
-    s_upload_partition = next_partition;
-    portEXIT_CRITICAL(&s_ota_lock);
-
-    refresh_partition_labels();
     ESP_LOGI(TAG, "Upload OTA iniciado para particao %s", next_partition->label);
     return ESP_OK;
 }
 
 esp_err_t firmware_ota_upload_write(const uint8_t *data, size_t data_len)
 {
-    esp_err_t err = ESP_OK;
-
-    if (!data || data_len == 0) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    portENTER_CRITICAL(&s_ota_lock);
-    bool upload_active = s_upload_active;
-    portEXIT_CRITICAL(&s_ota_lock);
-    if (!upload_active) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    err = esp_ota_write(s_upload_handle, data, data_len);
-    if (err != ESP_OK) {
-        set_last_error_err(err);
-        return err;
-    }
-
-    portENTER_CRITICAL(&s_ota_lock);
-    size_t bytes_written = s_status.bytes_written + data_len;
-    s_status.bytes_written = bytes_written;
-    portEXIT_CRITICAL(&s_ota_lock);
-
-    return ESP_OK;
+    return ota_stream_write(data, data_len);
 }
 
 esp_err_t firmware_ota_upload_finalize(void)
 {
-    esp_err_t err = ESP_OK;
-
-    portENTER_CRITICAL(&s_ota_lock);
-    bool upload_active = s_upload_active;
-    const esp_partition_t *upload_partition = s_upload_partition;
-    s_upload_active = false;
-    s_upload_partition = NULL;
-    portEXIT_CRITICAL(&s_ota_lock);
-
-    if (!upload_active || !upload_partition) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    err = esp_ota_end(s_upload_handle);
-    if (err != ESP_OK) {
-        set_last_error_err(err);
-        set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
-        return err;
-    }
-
-    err = esp_ota_set_boot_partition(upload_partition);
-    if (err != ESP_OK) {
-        set_last_error_err(err);
-        set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
-        return err;
-    }
-
-    set_last_error_text("");
-    set_state(FIRMWARE_OTA_STATE_SUCCESS, false, true);
-    refresh_partition_labels();
-    ESP_LOGW(TAG, "Upload OTA concluido com sucesso para %s", upload_partition->label);
-    return ESP_OK;
+    return ota_stream_finish(0);
 }
 
 void firmware_ota_upload_abort(void)
 {
-    portENTER_CRITICAL(&s_ota_lock);
-    bool upload_active = s_upload_active;
-    s_upload_active = false;
-    s_upload_partition = NULL;
-    portEXIT_CRITICAL(&s_ota_lock);
-
-    if (upload_active) {
-        (void)esp_ota_abort(s_upload_handle);
-    }
-
-    set_state(FIRMWARE_OTA_STATE_FAILED, false, false);
-    refresh_partition_labels();
+    ota_stream_abort();
 }
 
 void firmware_ota_get_status(firmware_ota_status_t *status)

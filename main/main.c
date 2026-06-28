@@ -1,4 +1,3 @@
-#include "cJSON.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_psram.h"
@@ -17,7 +16,6 @@
 #include "tele_presence.h"
 #include "tele_portal_commands.h"
 #include "tele_portal_core.h"
-#include "tele_portal_ota.h"
 #include "tele_portal_logs.h"
 #include "vbat_monitor.h"
 #include "wifi_manager.h"
@@ -87,74 +85,6 @@
 #endif
 
 static const char *TAG = "telesystem";
-
-static esp_err_t portal_ota_begin_cb(void *ctx)
-{
-    (void)ctx;
-    return firmware_ota_upload_begin();
-}
-
-static esp_err_t portal_ota_write_cb(const uint8_t *data, size_t data_len, void *ctx)
-{
-    (void)ctx;
-    return firmware_ota_upload_write(data, data_len);
-}
-
-static esp_err_t portal_ota_finalize_cb(void *ctx)
-{
-    (void)ctx;
-    return firmware_ota_upload_finalize();
-}
-
-static void portal_ota_abort_cb(void *ctx)
-{
-    (void)ctx;
-    firmware_ota_upload_abort();
-}
-
-static esp_err_t portal_ota_status_cb(cJSON *json, void *ctx)
-{
-    (void)ctx;
-    firmware_ota_status_t status = {0};
-
-    if (!json) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    firmware_ota_get_status(&status);
-    cJSON_AddStringToObject(json, "state", firmware_ota_state_name(status.state));
-    cJSON_AddBoolToObject(json, "in_progress", status.in_progress);
-    cJSON_AddBoolToObject(json, "restart_pending", status.restart_pending);
-    cJSON_AddStringToObject(json, "current_version", status.current_version);
-    cJSON_AddStringToObject(json, "target_version", status.target_version);
-    cJSON_AddStringToObject(json, "build_id", status.build_id);
-    cJSON_AddStringToObject(json, "configured_url", status.url);
-    cJSON_AddStringToObject(json, "manifest_url", status.manifest_url);
-    cJSON_AddStringToObject(json, "artifact_url", status.artifact_url);
-    cJSON_AddStringToObject(json, "last_error", status.last_error);
-    cJSON_AddStringToObject(json, "running_partition", status.running_partition);
-    cJSON_AddStringToObject(json, "next_update_partition", status.next_update_partition);
-    cJSON_AddNumberToObject(json, "bytes_written", (double)status.bytes_written);
-    cJSON_AddNumberToObject(json, "total_size", (double)status.total_size);
-    cJSON_AddNumberToObject(json, "progress_pct", status.progress_pct);
-
-    return ESP_OK;
-}
-
-static esp_err_t register_portal_ota_routes(void)
-{
-    const tele_portal_ota_config_t config = {
-        .begin = portal_ota_begin_cb,
-        .write = portal_ota_write_cb,
-        .finalize = portal_ota_finalize_cb,
-        .abort = portal_ota_abort_cb,
-        .status = portal_ota_status_cb,
-        .restart_delay_ms = 1200,
-    };
-
-    ESP_RETURN_ON_ERROR(tele_portal_ota_init(&config), TAG, "Falha ao inicializar OTA web");
-    return tele_portal_ota_register_routes();
-}
 
 static void ca_updater_boot_task(void *ctx)
 {
@@ -274,7 +204,6 @@ void app_main(void)
     ESP_ERROR_CHECK(firmware_ota_register_artifact());
     ESP_ERROR_CHECK(tele_artifacts_register_commands());
     ESP_ERROR_CHECK(tele_portal_core_register_routes(tele_portal_commands_register_routes));
-    ESP_ERROR_CHECK(register_portal_ota_routes());
     ESP_ERROR_CHECK(connectivity_controller_start());
     maybe_start_ca_updater_boot_task();
     ESP_ERROR_CHECK(tele_presence_start());

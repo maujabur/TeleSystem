@@ -84,7 +84,8 @@ void firmware_ota_get_status(firmware_ota_status_t *status);
 
 Uso:
 
-- portal usa `firmware_ota_upload_*`;
+- portal usa `firmware_ota_upload_*` por meio do binding
+  `tele_firmware_portal_ota`;
 - `firmware_ota_register_artifact()` registra `artifact_type = "firmware"` no
   registry generico `tele_artifacts`;
 - comandos MQTT/portal usam `artifact/check` e `artifact/apply`;
@@ -125,10 +126,12 @@ ESP_ERROR_CHECK(vbat_monitor_init());
 ESP_ERROR_CHECK(power_good_init());
 ESP_ERROR_CHECK(tele_ca_store_init());
 ESP_ERROR_CHECK(firmware_ota_init());
-ESP_ERROR_CHECK(register_portal_ota_routes());
 ESP_ERROR_CHECK(connectivity_controller_start());
 ESP_ERROR_CHECK(tele_presence_start());
 ```
+
+As rotas de upload OTA sao registradas pelo agregador `tele_portal`, usando
+`tele_firmware_portal_ota` para conectar o portal ao servico `firmware_ota`.
 
 ## Como Adicionar Rotina De Sistema
 

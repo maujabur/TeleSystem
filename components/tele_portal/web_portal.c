@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "tele_firmware_portal_ota.h"
 #include "tele_portal_assets.h"
 #include "tele_portal_captive.h"
 #include "tele_portal_config.h"
@@ -127,6 +128,10 @@ static esp_err_t register_base_routes(httpd_handle_t server)
 
     if (err == ESP_OK) {
         err = tele_portal_wifi_register_routes(server);
+    }
+
+    if (err == ESP_OK) {
+        err = tele_firmware_portal_ota_register_handlers(server);
     }
 
     if (err != ESP_OK) {

@@ -58,7 +58,9 @@ Para reaproveitar este sistema em outro firmware, separe mentalmente duas
 camadas:
 
 - componentes base e reutilizaveis: `tele_channels`, `tele_config`,
-  `tele_status`, `tele_commands`, `tele_core_commands` e `tele_mqtt`;
+  `tele_status`, `tele_commands`, `tele_core_commands`, `tele_mqtt`,
+  `tele_manifest`, `tele_artifacts`, `tele_portal_ota` e
+  `tele_portal_core`;
 - componentes especificos deste produto: `tele_presence` e
   `tele_system_registry`.
 
@@ -66,9 +68,43 @@ Em um projeto novo, comece pelos componentes base. Use `tele_presence` apenas
 como exemplo de bootstrap MQTT e crie um registry proprio para os status,
 settings e handlers do seu produto.
 
+Escolha o perfil de integracao antes de copiar arquivos:
+
+- **MQTT minimo:** config/status/commands via MQTT, sem OTA remoto.
+- **MQTT + updates por manifest:** adiciona comandos `artifacts/get`,
+  `artifact/check`, `artifact/apply` e `artifact/status`.
+- **Portal web + upload OTA local:** adiciona servidor HTTP, assets e o binding
+  `tele_firmware_portal_ota`.
+
+Fluxo esperado de inicializacao em um produto novo:
+
+```c
+ESP_ERROR_CHECK(nvs_flash_init());
+ESP_ERROR_CHECK(esp_event_loop_create_default());
+ESP_ERROR_CHECK(esp_netif_init());
+
+ESP_ERROR_CHECK(product_network_start());
+
+ESP_ERROR_CHECK(product_register_config());
+ESP_ERROR_CHECK(product_register_status());
+ESP_ERROR_CHECK(product_register_commands());
+
+/* Somente se usar OTA/updates por manifest. */
+ESP_ERROR_CHECK(firmware_ota_init());
+ESP_ERROR_CHECK(firmware_ota_register_artifact());
+ESP_ERROR_CHECK(tele_artifacts_register_commands());
+
+ESP_ERROR_CHECK(product_telemetry_start());
+ESP_ERROR_CHECK(web_portal_start(false));          /* se usar portal HTTP */
+```
+
+Regra de ouro: componentes `tele_*` genericos nao devem conhecer sensores,
+atuadores, GPIOs, nomes comerciais ou politica de produto. O projeto novo deve
+fornecer esses detalhes por registries e callbacks.
+
 ### 1. Leve os componentes necessarios
 
-Copie ou inclua no workspace do novo projeto:
+Para o perfil MQTT minimo, copie ou inclua no workspace do novo projeto:
 
 ```text
 components/tele_channels
@@ -80,6 +116,38 @@ components/tele_mqtt
 managed_components/espressif__cjson
 managed_components/espressif__mqtt
 ```
+
+Para MQTT + updates por manifest, adicione:
+
+```text
+components/tele_manifest
+components/tele_artifacts
+components/tele_system
+```
+
+`tele_system` fornece `firmware_ota`. Se o novo projeto nao quiser levar bateria,
+power-good ou outros arquivos de sistema, mantenha pelo menos
+`firmware_ota.c`, `firmware_ota.h` e um `firmware_version.h` proprio.
+
+Para portal web + upload OTA local, adicione:
+
+```text
+components/tele_portal
+components/tele_portal_assets
+components/tele_portal_captive
+components/tele_portal_config
+components/tele_portal_core
+components/tele_portal_logs
+components/tele_portal_ota
+components/tele_portal_status
+components/tele_portal_wifi
+components/tele_firmware_portal_ota
+components/tele_wifi
+firmware_assets/web
+```
+
+Se o produto tiver outro backend de update, use `tele_portal_ota` diretamente
+com callbacks proprios e nao inclua `tele_firmware_portal_ota`.
 
 Se o projeto usar o gerenciador de componentes do ESP-IDF, `cJSON` e `mqtt`
 podem vir como dependencias em vez de serem copiados como `managed_components`.
@@ -353,6 +421,89 @@ Regras praticas para manter isolamento:
 - `channel_flags` define onde algo aparece; `flags` define comportamento;
 - nao duplique comandos como `config/set` em cada transporte. Reuse
   `tele_commands_execute()`.
+
+### 8. Habilite updates por manifest, se necessario
+
+Para expor `artifacts/get`, `artifact/check`, `artifact/apply` e
+`artifact/status` por MQTT, registre os handlers de artefato antes de iniciar o
+MQTT:
+
+```c
+#include "firmware_ota.h"
+#include "tele_artifacts.h"
+
+static esp_err_t product_updates_start(void)
+{
+    ESP_RETURN_ON_ERROR(firmware_ota_init(), TAG, "firmware ota");
+    ESP_RETURN_ON_ERROR(firmware_ota_register_artifact(), TAG, "artifact firmware");
+    return tele_artifacts_register_commands();
+}
+```
+
+O projeto deve fornecer `components/tele_system/include/firmware_version.h` com
+a versao do firmware:
+
+```c
+#define APP_VERSION_SEMVER "1.0.0"
+#define APP_VERSION_LABEL "Meu Produto"
+#define APP_BUILD_ID "1.0.0-local"
+#define APP_VERSION_STRING APP_VERSION_SEMVER " " APP_VERSION_LABEL
+```
+
+O manifest publicado pelo servidor de updates deve apontar para o `.bin`, tipo
+`firmware`, canal e SHA-256. Gere esse arquivo com
+`tools/update_artifacts/generate_manifest.py` ou com uma ferramenta equivalente
+que preserve o mesmo schema.
+
+Quando o novo produto tambem atualizar outros artefatos, crie outro componente
+adapter e registre um `tele_artifact_handler_t`. O MQTT nao muda: os comandos
+genericos continuam chamando o registry `tele_artifacts`.
+
+### 9. Habilite portal web e upload OTA local, se necessario
+
+Para usar o portal HTTP padrao, inicialize o firmware OTA e inicie o agregador
+`tele_portal` depois que a rede/AP do produto estiver pronta:
+
+```c
+#include "firmware_ota.h"
+#include "web_portal.h"
+
+static esp_err_t product_portal_start(void)
+{
+    ESP_RETURN_ON_ERROR(firmware_ota_init(), TAG, "firmware ota");
+    return web_portal_start(false);
+}
+```
+
+Se `product_updates_start()` ja inicializou `firmware_ota`, nao chame
+`firmware_ota_init()` novamente; mantenha uma unica inicializacao no bootstrap
+do produto.
+
+O agregador `tele_portal` registra as rotas de status, config, Wi-Fi, logs,
+assets e OTA local. O upload OTA e conectado por
+`tele_firmware_portal_ota`, que adapta `tele_portal_ota` para
+`firmware_ota_upload_begin()`, `firmware_ota_upload_write()`,
+`firmware_ota_upload_finalize()`, `firmware_ota_upload_abort()` e
+`firmware_ota_get_status()`.
+
+Se o produto nao usa `firmware_ota`, implemente outro binding:
+
+```c
+static const tele_portal_ota_config_t ota_config = {
+    .begin = product_ota_begin,
+    .write = product_ota_write,
+    .finalize = product_ota_finalize,
+    .abort = product_ota_abort,
+    .status = product_ota_status,
+    .restart_delay_ms = 1200,
+};
+
+ESP_ERROR_CHECK(tele_portal_ota_init(&ota_config));
+ESP_ERROR_CHECK(tele_portal_ota_register_routes());
+```
+
+Essa separacao permite reaproveitar o portal em outro embarcado sem levar a
+implementacao de OTA do TeleSystem.
 
 ## Identificacao do dispositivo
 

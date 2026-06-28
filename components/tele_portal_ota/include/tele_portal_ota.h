@@ -6,6 +6,7 @@
 
 #include "cJSON.h"
 #include "esp_err.h"
+#include "esp_http_server.h"
 
 typedef esp_err_t (*tele_portal_ota_begin_cb_t)(void *ctx);
 typedef esp_err_t (*tele_portal_ota_write_cb_t)(const uint8_t *data, size_t data_len, void *ctx);
@@ -24,6 +25,7 @@ typedef struct {
 } tele_portal_ota_config_t;
 
 esp_err_t tele_portal_ota_init(const tele_portal_ota_config_t *config);
+esp_err_t tele_portal_ota_register_handlers(httpd_handle_t server);
 esp_err_t tele_portal_ota_register_routes(void);
 
 #endif

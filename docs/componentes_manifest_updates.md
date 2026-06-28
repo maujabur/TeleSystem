@@ -227,10 +227,13 @@ Use somente o necessario:
 - `tele_system/firmware_ota.c`: servico de OTA de firmware, usado tanto por
   upload web quanto por URL direta ou manifest;
 - `tele_portal_ota`: opcional, se o projeto quiser upload manual via portal web;
+- `tele_firmware_portal_ota`: binding opcional que conecta `tele_portal_ota`
+  ao servico `firmware_ota`;
 - `tele_commands`: necessario se `tele_artifacts_register_commands()` for usado.
 
 Um projeto que quer somente upload OTA via web pode usar `firmware_ota` com
-`tele_portal_ota` e nao precisa expor `artifact/check` ou `artifact/apply`.
+`tele_firmware_portal_ota` e nao precisa expor `artifact/check` ou
+`artifact/apply`.
 
 ### 3. Configure CMake, Kconfig e versao
 
@@ -271,7 +274,15 @@ comandos genericos de artefato, nao chame `tele_artifacts_register_commands()`.
 
 ### 5. Conecte os transportes
 
-Para portal web manual, conecte `tele_portal_ota` por callbacks:
+Para portal web manual usando o servico `firmware_ota`, use o binding pronto:
+
+```c
+ESP_ERROR_CHECK(tele_firmware_portal_ota_register_routes());
+```
+
+O agregador `tele_portal` ja registra esse binding automaticamente. Se o app
+usar outro backend de update, conecte `tele_portal_ota` diretamente por
+callbacks:
 
 ```c
 static const tele_portal_ota_config_t ota_config = {
@@ -323,8 +334,9 @@ eventual troca de firmware.
 
 `firmware_ota` deve continuar sendo o dono unico da escrita na particao OTA, do
 boot partition, do estado de progresso e do reboot. `tele_portal_ota` deve
-continuar desacoplado por callbacks, e `tele_artifacts` deve atuar apenas como
-fachada generica para comandos de manifest.
+continuar desacoplado por callbacks, `tele_firmware_portal_ota` deve conter
+apenas o glue entre esses dois componentes, e `tele_artifacts` deve atuar apenas
+como fachada generica para comandos de manifest.
 
 Hoje o adapter do artefato `firmware` vive dentro de
 `tele_system/firmware_ota.c`, junto com upload web e OTA por URL direta. Isso e

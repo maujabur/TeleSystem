@@ -103,7 +103,7 @@ static esp_err_t api_ota_upload_post_handler(httpd_req_t *req)
     return httpd_resp_sendstr(req, "Upload concluido. Reiniciando para ativar o novo firmware.");
 }
 
-static esp_err_t register_ota_routes(httpd_handle_t server)
+esp_err_t tele_portal_ota_register_handlers(httpd_handle_t server)
 {
     httpd_uri_t api_status = {
         .uri = "/api/ota/status",
@@ -124,6 +124,11 @@ static esp_err_t register_ota_routes(httpd_handle_t server)
     }
 
     return err;
+}
+
+static esp_err_t register_ota_routes(httpd_handle_t server)
+{
+    return tele_portal_ota_register_handlers(server);
 }
 
 esp_err_t tele_portal_ota_init(const tele_portal_ota_config_t *config)
