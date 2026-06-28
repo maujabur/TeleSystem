@@ -1,7 +1,13 @@
 # Componentes De Sistema
 
-Este grupo contem infraestrutura local do firmware: versao, OTA, energia,
-bateria e LED.
+Este grupo contem a infraestrutura local do firmware: versao, OTA de firmware,
+energia, bateria e indicacao visual. A arquitetura atual separa tres papeis:
+
+- componentes de dominio, como `tele_system`, `tele_signal` e
+  `tele_indicator`;
+- drivers/adapters fisicos, como `status_led`;
+- adapters da aplicacao, como `main/app_indicators.c` e
+  `main/connectivity`.
 
 ## Componentes
 
@@ -13,6 +19,10 @@ Inclui:
 - `firmware_version.h`: versao normalizada do app;
 - `vbat_monitor.c`: medicao e politica de bateria;
 - `power_good.c`: controle de alimentacao de perifericos.
+
+`firmware_ota.c` tambem registra o handler de artefato `firmware` em
+`tele_artifacts`. Por isso, o componente depende de `tele_manifest` e
+`tele_artifacts`, alem das APIs ESP-IDF de OTA.
 
 ### `components/tele_signal`
 
@@ -37,6 +47,10 @@ tele_signal_effect_t effect = {
 ESP_ERROR_CHECK(status_led_apply_effect(&effect));
 ```
 
+Quando `CONFIG_STATUS_LED_ENABLED` esta desligado, o CMake compila
+`status_led_stub.c`; a API publica continua disponivel para o restante do
+firmware.
+
 ### `components/tele_indicator`
 
 Registry generico de indicadores logicos. Registra outputs, fontes e eventos.
@@ -53,14 +67,29 @@ tele_indicator_clear_source("wifi");
 
 Manual completo: [tele_indicator.md](tele_indicator.md).
 
+### `main/app_indicators.c`
+
+Adapter da aplicacao entre o registry `tele_indicator` e o driver
+`status_led`. Ele:
+
+- inicia `status_led` e `tele_indicator`;
+- registra o output fisico padrao;
+- registra fontes logicas (`system`, `wifi`, `product`, `battery`, `output`);
+- registra eventos semanticos como `wifi.connecting`,
+  `wifi.provisioning`, `battery.low` e `system.error`;
+- emite `system.boot` no startup.
+
+O componente `tele_indicator` continua generico. A semantica visual do produto
+fica neste adapter da aplicacao.
+
 ## Versao De Firmware
 
 `firmware_version.h` define:
 
 ```c
-#define APP_VERSION_SEMVER "0.3.31"
-#define APP_VERSION_LABEL "TeleSystem portal OTA adapter"
-#define APP_BUILD_ID "0.3.31-local"
+#define APP_VERSION_SEMVER "0.5.03"
+#define APP_VERSION_LABEL "WiFi system refactor"
+#define APP_BUILD_ID APP_VERSION_SEMVER "-local"
 #define APP_VERSION_STRING APP_VERSION_SEMVER " " APP_VERSION_LABEL
 ```
 
@@ -92,6 +121,10 @@ Uso:
 - rotina principal futura pode chamar `tele_artifacts_check()` e
   `tele_artifacts_apply()` depois de Wi-Fi pronto.
 
+O caminho de firmware por manifest roda em modo streaming, grava diretamente na
+particao OTA e responde ACK rapidamente quando chamado por comando generico. O
+estado detalhado continua em `firmware_ota_get_status()`.
+
 ## Status OTA
 
 `firmware_ota_status_t` inclui:
@@ -116,22 +149,63 @@ boot, `main/main.c`:
 4. entra em deep sleep se a bateria estiver critica;
 5. liga perifericos quando seguro.
 
+O snapshot de configuracao de boot loga VBAT, shutdown por bateria baixa,
+`power_good` e status LED. Campos tecnicos equivalentes podem ser expostos por
+`tele_system_registry` quando MQTT/presenca estiver habilitado.
+
 ## Inicializacao Atual
 
-Trecho de alto nivel:
+Trecho de alto nivel de `main/main.c`:
 
 ```c
 tele_portal_logs_init();
 ESP_ERROR_CHECK(vbat_monitor_init());
+vbat_monitor_maybe_measure(VBAT_MONITOR_MOMENT_BOOT);
 ESP_ERROR_CHECK(power_good_init());
+power_good_set(true);
+
+ESP_ERROR_CHECK(nvs_flash_init());
 ESP_ERROR_CHECK(tele_ca_store_init());
 ESP_ERROR_CHECK(firmware_ota_init());
+ESP_ERROR_CHECK(tele_ca_updater_register_artifact());
+ESP_ERROR_CHECK(firmware_ota_register_artifact());
+ESP_ERROR_CHECK(tele_artifacts_register_commands());
+ESP_ERROR_CHECK(tele_portal_core_register_routes(tele_portal_commands_register_routes));
 ESP_ERROR_CHECK(connectivity_controller_start());
+maybe_start_ca_updater_boot_task();
 ESP_ERROR_CHECK(tele_presence_start());
 ```
 
-As rotas de upload OTA sao registradas pelo agregador `tele_portal`, usando
-`tele_firmware_portal_ota` para conectar o portal ao servico `firmware_ota`.
+Detalhes importantes:
+
+- se VBAT estiver abaixo do limite configurado, o app desliga `power_good` e
+  entra em deep sleep antes de inicializar NVS;
+- `tele_ca_store_init()` e `tele_ca_updater_register_artifact()` pertencem ao
+  grupo de manifest/artefatos, mas aparecem aqui porque fazem parte do boot
+  real do produto;
+- `tele_artifacts_register_commands()` registra comandos genericos de artefato
+  no dispatcher `tele_commands`;
+- as rotas de upload OTA sao registradas pelo agregador `tele_portal`, usando
+  `tele_firmware_portal_ota` para conectar o portal ao servico
+  `firmware_ota`;
+- `maybe_start_ca_updater_boot_task()` so cria task quando
+  `CONFIG_TELE_CA_UPDATER_BOOT_ENABLED` esta ativo e ha manifest configurado;
+- `tele_presence_start()` retorna imediatamente quando
+  `CONFIG_MQTT_PRESENCE_ENABLED` esta desligado.
+
+## Relacao Com Portal, MQTT E Status
+
+- Portal local: `tele_portal_ota` e transporte HTTP; `tele_firmware_portal_ota`
+  e o binding; `firmware_ota` e dono da escrita OTA e do status.
+- Comandos: `artifact/check`, `artifact/apply`, `artifact/status` e
+  `artifacts/get` vivem em `tele_artifacts` e podem ser chamados por portal,
+  MQTT ou outro transporte que use `tele_commands`.
+- Status tecnico: `tele_system_registry` registra campos de Wi-Fi, VBAT,
+  uptime, heap, tempo, power-good e OTA quando `tele_presence_start()` ativa a
+  presenca MQTT.
+- Indicacao visual: `main/connectivity` traduz eventos de Wi-Fi em eventos do
+  `tele_indicator`; `main/app_indicators.c` traduz esses eventos em efeitos de
+  LED.
 
 ## Como Adicionar Rotina De Sistema
 
@@ -139,4 +213,9 @@ As rotas de upload OTA sao registradas pelo agregador `tele_portal`, usando
 2. Inicialize o componente em `main/main.c`.
 3. Se depender de rede, rode em task propria depois de
    `connectivity_controller_start()` e `wifi_manager_wait_until_ready()`.
-4. Exponha status via `tele_status` quando for util para portal/MQTT.
+4. Se expuser acao remota, prefira `tele_commands` em vez de rota HTTP ou topico
+   MQTT exclusivo.
+5. Exponha status via `tele_status` quando for util para portal/MQTT.
+6. Se precisar de indicador fisico, registre evento em `main/app_indicators.c`
+   e emita pelo `tele_indicator`; nao chame `status_led` diretamente a partir
+   do dominio.
