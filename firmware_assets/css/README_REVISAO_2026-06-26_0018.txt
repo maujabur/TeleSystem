@@ -4,7 +4,7 @@ Alterações aplicadas:
 - Corrigida a responsividade da .tech-nav em todos os temas.
 - .tech-nav agora mantém "Inicio" à esquerda e links à direita em larguras médias.
 - Links da .tech-nav não quebram linha antes da hora; rolagem horizontal discreta se necessário.
-- A quebra da .tech-nav foi deslocada para 520px.
+- A quebra da .tech-nav foi deslocada para 412px.
 - Removida .tech-nav do bloco @media (max-width: 860px).
 - Garantido espaçamento entre .progress-wrap e .mini-status.
 - Removido texto visual "READY" do Retro CRT; substituído por linha decorativa.

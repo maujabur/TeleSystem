@@ -10,11 +10,11 @@
 #include "connectivity_controller.h"
 #include "firmware_ota.h"
 #include "firmware_version.h"
-#include "mqtt_presence.h"
 #include "power_good.h"
 #include "tele_artifacts.h"
 #include "tele_ca_store.h"
 #include "tele_ca_updater.h"
+#include "tele_presence.h"
 #include "tele_portal_commands.h"
 #include "tele_portal_core.h"
 #include "tele_portal_ota.h"
@@ -277,5 +277,5 @@ void app_main(void)
     ESP_ERROR_CHECK(register_portal_ota_routes());
     ESP_ERROR_CHECK(connectivity_controller_start());
     maybe_start_ca_updater_boot_task();
-    ESP_ERROR_CHECK(mqtt_presence_start());
+    ESP_ERROR_CHECK(tele_presence_start());
 }

@@ -1,5 +1,5 @@
-#ifndef MQTT_PRESENCE_H
-#define MQTT_PRESENCE_H
+#ifndef TELE_PRESENCE_H
+#define TELE_PRESENCE_H
 
 #include "esp_err.h"
 
@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-esp_err_t mqtt_presence_start(void);
+esp_err_t tele_presence_start(void);
 
 #ifdef __cplusplus
 }

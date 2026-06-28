@@ -1,0 +1,9 @@
+dependencies:
+  idf: ">=5.3"
+  espressif/cjson: "^1.7.19"
+
+description: TeleSystem product status and configuration registry bindings.
+license: MIT
+repository: https://github.com/maujabur/TeleSystem.git
+url: https://github.com/maujabur/TeleSystem/tree/main/components/tele_system_registry
+version: 0.1.0

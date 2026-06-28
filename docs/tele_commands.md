@@ -138,7 +138,8 @@ descobrivel por `meta/config` e evita duplicar semantica.
 
 ## Uso no TeleSystem
 
-`components/tele_mqtt` registra os comandos base:
+`components/tele_core_commands` registra os comandos base independentes de
+transporte:
 
 - `ping`;
 - `get_state`;
@@ -164,9 +165,11 @@ streaming e responde apenas que o processo comecou. `artifact/apply` para
 runtime. `artifacts/get` lista os tipos registrados e `artifact/status` retorna
 estado local e progresso quando o handler implementa status.
 
-O firmware publica `{base_topic}/{device_id}/meta/commands` como mensagem
-retida ao conectar ao broker. O Control Center consome esse manifesto para
-mostrar comandos agrupados, argumentos e ajuda por hover.
+`components/tele_mqtt` apenas adapta esses comandos ao transporte MQTT:
+recebe `cmd/in`, chama `tele_commands_execute()` com `TELE_COMMAND_FLAG_MQTT`
+e publica `cmd/out`. O firmware publica `{base_topic}/{device_id}/meta/commands`
+como mensagem retida ao conectar ao broker. O Control Center consome esse
+manifesto para mostrar comandos agrupados, argumentos e ajuda por hover.
 
 ## Uso Pelo Portal Ou Serial
 
@@ -177,9 +180,10 @@ Ele expoe:
 - `POST /api/commands/execute`, chamando `tele_commands_execute()` com
   `TELE_COMMAND_FLAG_WEB`.
 
-Serial pode seguir o mesmo modelo: ler um JSON com `cmd_id`, `name` e `args`,
-chamar o dispatcher com a flag adequada e imprimir a resposta normalizada.
-Upload OTA por arquivo continua fora desse fluxo, porque e streaming binario.
+Serial pode seguir o mesmo modelo: chamar `tele_core_commands_register()`, ler
+um JSON com `cmd_id`, `name` e `args`, chamar o dispatcher com a flag adequada
+e imprimir a resposta normalizada. Upload OTA por arquivo continua fora desse
+fluxo, porque e streaming binario.
 
 ## Fora De Escopo Por Enquanto
 

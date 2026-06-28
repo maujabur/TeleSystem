@@ -1,4 +1,4 @@
-#include "mqtt_presence.h"
+#include "tele_system_registry.h"
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -7,62 +7,22 @@
 #include <string.h>
 
 #include "cJSON.h"
-#include "esp_event.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "firmware_ota.h"
 #include "tele_config.h"
-#include "tele_mqtt.h"
 #include "tele_status.h"
 
 #include "device_config.h"
-#include "firmware_version.h"
 #include "time_sync.h"
 #include "vbat_monitor.h"
 #include "wifi_manager.h"
-
-#ifndef CONFIG_MQTT_PRESENCE_ENABLED
-#define CONFIG_MQTT_PRESENCE_ENABLED 0
-#endif
-
-#ifndef CONFIG_MQTT_BROKER_URI
-#define CONFIG_MQTT_BROKER_URI ""
-#endif
-
-#ifndef CONFIG_MQTT_USERNAME
-#define CONFIG_MQTT_USERNAME ""
-#endif
-
-#ifndef CONFIG_MQTT_PASSWORD
-#define CONFIG_MQTT_PASSWORD ""
-#endif
-
-#ifndef CONFIG_MQTT_BASE_TOPIC
-#define CONFIG_MQTT_BASE_TOPIC "v1/telesystem"
-#endif
-
-#ifndef CONFIG_MQTT_DEVICE_ID_PREFIX
-#define CONFIG_MQTT_DEVICE_ID_PREFIX "ESP32-Device"
-#endif
 
 #ifndef CONFIG_MQTT_HEARTBEAT_INTERVAL_S
 #define CONFIG_MQTT_HEARTBEAT_INTERVAL_S 60
 #endif
 
-#ifndef CONFIG_MQTT_KEEPALIVE_S
-#define CONFIG_MQTT_KEEPALIVE_S 60
-#endif
-
-#ifndef CONFIG_MQTT_QOS_CRITICAL
-#define CONFIG_MQTT_QOS_CRITICAL 1
-#endif
-
-#ifndef CONFIG_MQTT_QOS_TELEMETRY
-#define CONFIG_MQTT_QOS_TELEMETRY 0
-#endif
-
-#define MQTT_CONFIG_ID_HEARTBEAT_INTERVAL "mqtt.heartbeat_interval_s"
 #define MQTT_CONFIG_HEARTBEAT_INTERVAL_NVS_KEY "m_hbint"
 #define MQTT_HEARTBEAT_INTERVAL_MIN_S 15
 #define MQTT_HEARTBEAT_INTERVAL_MAX_S 3600
@@ -79,16 +39,15 @@
 #define CONFIG_POWER_GOOD_ACTIVE_LEVEL 1
 #endif
 
-static const char *TAG = "mqtt-presence";
+static const char *TAG = "tele-system-registry";
 
-static bool s_started;
-static bool s_wifi_event_registered;
 static bool s_status_fields_registered;
 static bool s_config_fields_registered;
+static tele_system_registry_config_t s_config;
 
-static const tele_config_field_t s_mqtt_config_fields[] = {
+static tele_config_field_t s_mqtt_config_fields[] = {
     {
-        .id = MQTT_CONFIG_ID_HEARTBEAT_INTERVAL,
+        .id = TELE_SYSTEM_REGISTRY_CONFIG_ID_HEARTBEAT_INTERVAL,
         .nvs_key = MQTT_CONFIG_HEARTBEAT_INTERVAL_NVS_KEY,
         .type = TELE_CONFIG_TYPE_U32,
         .default_value.u32 = CONFIG_MQTT_HEARTBEAT_INTERVAL_S,
@@ -112,23 +71,6 @@ static const char *wifi_state_name(wifi_manager_state_t state)
     default:
         return "unknown";
     }
-}
-
-static bool mqtt_presence_ready(void *ctx)
-{
-    wifi_manager_status_t wifi_status = {0};
-    (void)ctx;
-
-    return wifi_manager_get_status(&wifi_status) == ESP_OK &&
-           wifi_status.state == WIFI_MANAGER_STATE_STA_CONNECTED &&
-           wifi_status.wifi_ready &&
-           time_sync_is_synchronized();
-}
-
-static bool mqtt_presence_build_timestamp(char *buffer, size_t buffer_len, void *ctx)
-{
-    (void)ctx;
-    return time_sync_format_utc_now(buffer, buffer_len);
 }
 
 static const char *status_read_wifi_state(void *ctx)
@@ -340,7 +282,11 @@ static uint32_t status_read_uptime_s(void *ctx)
 static uint32_t status_read_heartbeat_interval_s(void *ctx)
 {
     (void)ctx;
-    return tele_mqtt_get_heartbeat_interval_s();
+    if (s_config.get_heartbeat_interval_s) {
+        return s_config.get_heartbeat_interval_s(s_config.ctx);
+    }
+    return s_config.heartbeat_interval_default_s > 0 ?
+           s_config.heartbeat_interval_default_s : CONFIG_MQTT_HEARTBEAT_INTERVAL_S;
 }
 
 static bool status_read_time_synchronized(void *ctx)
@@ -695,7 +641,7 @@ static const tele_status_field_t s_common_status_fields[] = {
     },
 };
 
-static esp_err_t mqtt_presence_register_status_fields(void)
+static esp_err_t tele_system_registry_register_status_fields(void)
 {
     if (s_status_fields_registered) {
         return ESP_OK;
@@ -710,11 +656,15 @@ static esp_err_t mqtt_presence_register_status_fields(void)
     return err;
 }
 
-static esp_err_t mqtt_presence_register_config_fields(void)
+static esp_err_t tele_system_registry_register_config_fields(void)
 {
     if (s_config_fields_registered) {
         return ESP_OK;
     }
+
+    s_mqtt_config_fields[0].default_value.u32 =
+        s_config.heartbeat_interval_default_s > 0 ?
+        s_config.heartbeat_interval_default_s : CONFIG_MQTT_HEARTBEAT_INTERVAL_S;
 
     esp_err_t err = tele_config_register_fields(s_mqtt_config_fields,
                                                 sizeof(s_mqtt_config_fields) /
@@ -726,11 +676,11 @@ static esp_err_t mqtt_presence_register_config_fields(void)
     return err;
 }
 
-static uint32_t mqtt_presence_effective_heartbeat_interval_s(void)
+uint32_t tele_system_registry_get_effective_heartbeat_interval_s(uint32_t fallback_s)
 {
     tele_config_value_t value = {0};
     bool from_nvs = false;
-    esp_err_t err = tele_config_get_effective(MQTT_CONFIG_ID_HEARTBEAT_INTERVAL,
+    esp_err_t err = tele_config_get_effective(TELE_SYSTEM_REGISTRY_CONFIG_ID_HEARTBEAT_INTERVAL,
                                               &value,
                                               NULL,
                                               0,
@@ -746,18 +696,17 @@ static uint32_t mqtt_presence_effective_heartbeat_interval_s(void)
     ESP_LOGW(TAG,
              "Falha ao ler heartbeat MQTT efetivo (%s); usando default %" PRIu32 "s",
              esp_err_to_name(err),
-             (uint32_t)CONFIG_MQTT_HEARTBEAT_INTERVAL_S);
-    return CONFIG_MQTT_HEARTBEAT_INTERVAL_S;
+             fallback_s);
+    return fallback_s;
 }
 
-static cJSON *mqtt_presence_build_technical_status(void *ctx)
+cJSON *tele_system_registry_build_technical_status(void)
 {
     vbat_monitor_status_t vbat_status = {0};
     int64_t now_ms = (int64_t)esp_log_timestamp();
     cJSON *result = cJSON_CreateObject();
     cJSON *vbat_json = NULL;
     cJSON *power_good_json = NULL;
-    (void)ctx;
 
     if (!result) {
         return NULL;
@@ -768,7 +717,7 @@ static cJSON *mqtt_presence_build_technical_status(void *ctx)
     cJSON_AddNumberToObject(result, "heap_free", (double)heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
     cJSON_AddNumberToObject(result,
                             "heartbeat_interval_s",
-                            (double)tele_mqtt_get_heartbeat_interval_s());
+                            (double)status_read_heartbeat_interval_s(NULL));
 
     power_good_json = cJSON_AddObjectToObject(result, "power_good");
     if (power_good_json) {
@@ -809,9 +758,9 @@ static cJSON *mqtt_presence_build_technical_status(void *ctx)
     return result;
 }
 
-static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *field,
-                                                  const tele_config_value_t *value,
-                                                  void *ctx)
+static esp_err_t tele_system_registry_apply_config_field(const tele_config_field_t *field,
+                                                        const tele_config_value_t *value,
+                                                        void *ctx)
 {
     (void)ctx;
 
@@ -827,121 +776,64 @@ static esp_err_t mqtt_presence_apply_config_field(const tele_config_field_t *fie
         esp_err_t err = wifi_manager_set_sta_max_retry((int)value->u32);
         return err == ESP_ERR_INVALID_STATE ? ESP_OK : err;
     }
-    if (strcmp(field->id, MQTT_CONFIG_ID_HEARTBEAT_INTERVAL) == 0) {
-        return tele_mqtt_apply_heartbeat_interval_s(value->u32);
-    }
-    return ESP_OK;
-}
-
-static void mqtt_presence_restart(uint32_t delay_ms, void *ctx)
-{
-    (void)delay_ms;
-    (void)ctx;
-    esp_restart();
-}
-
-static void mqtt_presence_wifi_event_handler(void *arg,
-                                             esp_event_base_t event_base,
-                                             int32_t event_id,
-                                             void *event_data)
-{
-    (void)arg;
-    (void)event_base;
-    (void)event_data;
-
-    if (event_id == WIFI_MANAGER_EVENT_STA_CONNECTED) {
-        (void)tele_mqtt_start_client_if_ready();
-    }
-}
-
-esp_err_t mqtt_presence_start(void)
-{
-#if !CONFIG_MQTT_PRESENCE_ENABLED
-    return ESP_OK;
-#else
-    tele_mqtt_config_t config = {
-        .broker_uri = CONFIG_MQTT_BROKER_URI,
-        .username = CONFIG_MQTT_USERNAME,
-        .password = CONFIG_MQTT_PASSWORD,
-        .base_topic = CONFIG_MQTT_BASE_TOPIC,
-        .device_id_prefix = CONFIG_MQTT_DEVICE_ID_PREFIX,
-        .firmware_version = APP_VERSION_STRING,
-        .heartbeat_interval_s = CONFIG_MQTT_HEARTBEAT_INTERVAL_S,
-        .keepalive_s = CONFIG_MQTT_KEEPALIVE_S,
-        .qos_critical = CONFIG_MQTT_QOS_CRITICAL,
-        .qos_telemetry = CONFIG_MQTT_QOS_TELEMETRY,
-        .is_ready = mqtt_presence_ready,
-        .build_timestamp = mqtt_presence_build_timestamp,
-        .build_technical_status = mqtt_presence_build_technical_status,
-        .restart = mqtt_presence_restart,
-    };
-
-    if (s_started) {
+    if (strcmp(field->id, TELE_SYSTEM_REGISTRY_CONFIG_ID_HEARTBEAT_INTERVAL) == 0) {
+        if (s_config.apply_heartbeat_interval_s) {
+            return s_config.apply_heartbeat_interval_s(value->u32, s_config.ctx);
+        }
         return ESP_OK;
     }
+    return ESP_OK;
+}
 
-    if (CONFIG_MQTT_BROKER_URI[0] == '\0') {
-        ESP_LOGW(TAG, "MQTT habilitado sem broker URI; modulo nao iniciado");
-        return ESP_ERR_INVALID_ARG;
+esp_err_t tele_system_registry_register(const tele_system_registry_config_t *config)
+{
+    if (config) {
+        s_config = *config;
+    } else {
+        s_config = (tele_system_registry_config_t){0};
     }
 
     esp_err_t err = device_config_register_fields();
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao registrar configuracoes MQTT: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Falha ao registrar configuracoes do dispositivo: %s", esp_err_to_name(err));
         return err;
     }
-    err = mqtt_presence_register_config_fields();
+
+    err = tele_system_registry_register_config_fields();
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao registrar configuracoes do MQTT presence: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Falha ao registrar configuracoes de sistema: %s", esp_err_to_name(err));
         return err;
     }
+
     err = tele_config_set_apply_handler(DEVICE_CONFIG_ID_PROVISIONING_SSID,
-                                        mqtt_presence_apply_config_field,
+                                        tele_system_registry_apply_config_field,
                                         NULL);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar apply handler para SSID de provisionamento: %s", esp_err_to_name(err));
         return err;
     }
+
     err = tele_config_set_apply_handler(DEVICE_CONFIG_ID_STA_MAX_RETRY,
-                                        mqtt_presence_apply_config_field,
+                                        tele_system_registry_apply_config_field,
                                         NULL);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha ao registrar apply handler para retry STA: %s", esp_err_to_name(err));
         return err;
     }
-    err = tele_config_set_apply_handler(MQTT_CONFIG_ID_HEARTBEAT_INTERVAL,
-                                        mqtt_presence_apply_config_field,
+
+    err = tele_config_set_apply_handler(TELE_SYSTEM_REGISTRY_CONFIG_ID_HEARTBEAT_INTERVAL,
+                                        tele_system_registry_apply_config_field,
                                         NULL);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao registrar apply handler para heartbeat MQTT: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Falha ao registrar apply handler para heartbeat: %s", esp_err_to_name(err));
         return err;
     }
-    config.heartbeat_interval_s = mqtt_presence_effective_heartbeat_interval_s();
 
-    err = mqtt_presence_register_status_fields();
+    err = tele_system_registry_register_status_fields();
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao registrar status MQTT: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Falha ao registrar status de sistema: %s", esp_err_to_name(err));
         return err;
     }
 
-    if (!s_wifi_event_registered) {
-        err = esp_event_handler_register(WIFI_MANAGER_EVENT,
-                                         ESP_EVENT_ANY_ID,
-                                         mqtt_presence_wifi_event_handler,
-                                         NULL);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Falha ao registrar eventos Wi-Fi para MQTT: %s", esp_err_to_name(err));
-            return err;
-        }
-        s_wifi_event_registered = true;
-    }
-
-    err = tele_mqtt_start(&config);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    s_started = true;
     return ESP_OK;
-#endif
 }

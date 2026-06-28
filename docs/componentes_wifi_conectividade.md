@@ -92,7 +92,7 @@ reconexao.
 ## Sincronismo De Tempo
 
 `main/connectivity` chama o modulo de time sync quando recebe evento de STA
-conectada. O MQTT usa isso por meio de `mqtt_presence_ready()`, que so permite
+conectada. O MQTT usa isso por meio de `tele_presence_ready()`, que so permite
 cliente MQTT quando Wi-Fi e horario estao prontos.
 
 ## Como Integrar Uma Rotina De Rede No App

@@ -38,8 +38,9 @@ integrar componentes.
 - `main/connectivity`: adapta eventos Wi-Fi ao portal, indicador e sincronismo de tempo.
 - `components/tele_manifest`, `tele_artifacts`, `tele_ca_store`,
   `tele_ca_updater` e `tele_system/firmware_ota.c`: updates por manifest.
-- `components/tele_config`, `tele_status`, `tele_commands`, `tele_mqtt` e
-  `tele_presence`: contrato MQTT/config/status/commands.
+- `components/tele_config`, `tele_status`, `tele_commands`, `tele_core_commands`,
+  `tele_mqtt`, `tele_presence` e `tele_system_registry`: contrato
+  config/status/commands e adaptacao MQTT do produto.
 - `components/tele_portal*`: servidor HTTP embarcado e rotas do portal.
 - `components/tele_wifi`: Wi-Fi, provisionamento, credenciais e NTP.
 - `components/tele_system`, `components/tele_indicator` e `components/status_led`:

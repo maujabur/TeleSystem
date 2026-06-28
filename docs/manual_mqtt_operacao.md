@@ -5,8 +5,9 @@ Guia do grupo: [componentes_mqtt_config_status_commands.md](componentes_mqtt_con
 ## Objetivo
 
 O firmware publica presenca, estado e telemetria via MQTT e aceita comandos
-remotos simples. A implementacao reutilizavel vive em `components/tele_mqtt`; o
-adaptador `components/tele_presence/mqtt_presence.c` injeta os dados atuais do
+remotos simples. A implementacao reutilizavel vive em `components/tele_mqtt`;
+`components/tele_presence/tele_presence.c` inicializa o transporte MQTT do
+produto e `components/tele_system_registry` injeta os dados atuais do
 TeleSystem.
 
 ## API publica de integracao

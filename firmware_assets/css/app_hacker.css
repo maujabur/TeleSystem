@@ -520,7 +520,7 @@ progress::-moz-progress-bar {
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 412px) {
   .tech-nav {
     grid-template-columns: 1fr;
   }

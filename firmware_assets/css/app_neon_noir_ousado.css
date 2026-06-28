@@ -628,7 +628,7 @@ section.panel > a.button + .mini-status {
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 412px) {
   .tech-nav {
     grid-template-columns: 1fr;
   }

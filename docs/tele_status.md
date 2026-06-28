@@ -90,7 +90,7 @@ valor gerados por `tele_status_add_fields_to_json()`.
 
 ## Uso no TeleSystem
 
-`components/tele_presence` registra os campos comuns:
+`components/tele_system_registry` registra os campos comuns:
 
 - `wifi_state`
 - `wifi_ready`

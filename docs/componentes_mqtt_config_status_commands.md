@@ -58,32 +58,38 @@ Guia de operacao: [manual_mqtt_operacao.md](manual_mqtt_operacao.md).
 
 ### `components/tele_presence`
 
-Adaptador do TeleSystem para o nucleo MQTT. Responsavel por:
+Bootstrap MQTT do TeleSystem. Responsavel por:
+
+- esperar Wi-Fi e horario sincronizado antes de iniciar MQTT.
+- preencher `tele_mqtt_config_t` com Kconfig e callbacks do produto;
+- chamar `tele_system_registry_register()`;
+- iniciar `tele_mqtt`.
+
+### `components/tele_system_registry`
+
+Bindings de produto para os registries base. Responsavel por:
 
 - registrar campos de config do produto;
 - registrar campos de status comuns;
-- registrar comandos de update por manifest;
-- implementar handlers dos comandos de update;
-- esperar Wi-Fi e horario sincronizado antes de iniciar MQTT.
+- conectar callbacks runtime de config;
+- montar o diagnostico tecnico usado por `get_technical_status`.
 
-`mqtt_presence_start()` e chamado por `main/main.c` depois de
+`tele_presence_start()` e chamado por `main/main.c` depois de
 `connectivity_controller_start()`.
 
 ## Fluxo De Inicializacao
 
 ```c
 ESP_ERROR_CHECK(connectivity_controller_start());
-ESP_ERROR_CHECK(mqtt_presence_start());
+ESP_ERROR_CHECK(tele_presence_start());
 ```
 
-Dentro de `mqtt_presence_start()`:
+Dentro de `tele_presence_start()`:
 
-1. campos de config Wi-Fi/MQTT sao registrados;
-2. callbacks runtime de config sao conectados;
-3. campos de status sao registrados;
-4. comandos de update sao registrados;
-5. eventos Wi-Fi passam a tentar iniciar o cliente MQTT;
-6. `tele_mqtt_start()` registra comandos builtin e prepara o cliente.
+1. `tele_system_registry_register()` registra config/status/callbacks;
+2. eventos Wi-Fi passam a tentar iniciar o cliente MQTT;
+3. `tele_mqtt_start()` prepara o cliente e registra comandos core via
+   `tele_core_commands`.
 
 ## Como Adicionar Configuracao
 

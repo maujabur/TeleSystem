@@ -127,7 +127,7 @@ ESP_ERROR_CHECK(tele_ca_store_init());
 ESP_ERROR_CHECK(firmware_ota_init());
 ESP_ERROR_CHECK(register_portal_ota_routes());
 ESP_ERROR_CHECK(connectivity_controller_start());
-ESP_ERROR_CHECK(mqtt_presence_start());
+ESP_ERROR_CHECK(tele_presence_start());
 ```
 
 ## Como Adicionar Rotina De Sistema
