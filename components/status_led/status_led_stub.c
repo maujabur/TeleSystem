@@ -1,53 +1,46 @@
 #include "status_led.h"
 
-static status_led_state_t s_state = STATUS_LED_STATE_BOOT;
-static status_led_signal_t s_signal = {
-    .pattern = STATUS_LED_PATTERN_BREATH,
-    .color = {
-        .red = 0x20,
-        .green = 0x20,
-        .blue = 0x20,
-    },
+#include <string.h>
+
+static tele_signal_effect_t s_current_effect = {
+    .id = TELE_SIGNAL_EFFECT_OFF,
+    .target_mask = TELE_SIGNAL_TARGET_ALL,
 };
 
 esp_err_t status_led_start(void)
 {
-    s_state = STATUS_LED_STATE_BOOT;
     return ESP_OK;
 }
 
-status_led_state_t status_led_get_state(void)
+esp_err_t status_led_apply_effect(const tele_signal_effect_t *effect)
 {
-    return s_state;
-}
-
-esp_err_t status_led_set_state(status_led_state_t state)
-{
-    if (state > STATUS_LED_STATE_LOW_BATTERY) {
+    if (!effect) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!status_led_effect_supported(effect->id)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
 
-    s_state = state;
+    s_current_effect = *effect;
     return ESP_OK;
 }
 
-esp_err_t status_led_set_signal(const status_led_signal_t *signal)
+esp_err_t status_led_off(void)
 {
-    if (!signal || signal->pattern > STATUS_LED_PATTERN_BLINK_FAST) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    s_signal = *signal;
-    return ESP_OK;
+    const tele_signal_effect_t off_effect = {
+        .id = TELE_SIGNAL_EFFECT_OFF,
+        .target_mask = TELE_SIGNAL_TARGET_ALL,
+    };
+    return status_led_apply_effect(&off_effect);
 }
 
-esp_err_t status_led_get_signal(status_led_signal_t *out_signal)
+esp_err_t status_led_get_current_effect(tele_signal_effect_t *out_effect)
 {
-    if (!out_signal) {
+    if (!out_effect) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    *out_signal = s_signal;
+    *out_effect = s_current_effect;
     return ESP_OK;
 }
 

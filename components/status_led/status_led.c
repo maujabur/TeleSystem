@@ -167,10 +167,12 @@ typedef struct {
 } status_led_ws28xx_encoder_t;
 
 typedef struct {
-    status_led_color_t color;
-    status_led_pattern_t pattern;
+    tele_signal_color_t color_a;
+    tele_signal_color_t color_b;
+    char effect_id[TELE_SIGNAL_ID_SIZE];
     uint32_t on_ms;
     uint32_t off_ms;
+    uint8_t brightness;
 } status_led_timing_t;
 
 static const char *TAG = "status-led";
@@ -178,31 +180,28 @@ static const char *TAG = "status-led";
 static rmt_channel_handle_t s_tx_channel;
 static rmt_encoder_handle_t s_led_encoder;
 static uint8_t s_led_pixels[CONFIG_STATUS_LED_COUNT * 3];
-static volatile status_led_state_t s_state = STATUS_LED_STATE_BOOT;
-static status_led_signal_t s_signal = {
-    .pattern = STATUS_LED_PATTERN_BREATH,
-    .color = {
-        .red = 0x20,
-        .green = 0x20,
-        .blue = 0x20,
-    },
+static tele_signal_effect_t s_effect = {
+    .id = TELE_SIGNAL_EFFECT_OFF,
+    .target_mask = TELE_SIGNAL_TARGET_ALL,
 };
 static volatile bool s_capture_overlay;
 static TaskHandle_t s_task_handle;
 static bool s_started;
 
-static status_led_color_t color_from_rgb(uint32_t rgb)
+static tele_signal_color_t color_from_rgb(uint32_t rgb)
 {
-    return (status_led_color_t) {
+    return (tele_signal_color_t) {
         .red = (uint8_t)((rgb >> 16) & 0xFF),
         .green = (uint8_t)((rgb >> 8) & 0xFF),
         .blue = (uint8_t)(rgb & 0xFF),
     };
 }
 
-static uint8_t apply_brightness(uint8_t value)
+static uint8_t apply_brightness(uint8_t value, uint8_t effect_brightness)
 {
-    return (uint8_t)(((uint32_t)value * CONFIG_STATUS_LED_BRIGHTNESS) / 255U);
+    uint8_t normalized = effect_brightness > 0 ? effect_brightness : 255;
+    uint32_t scaled = ((uint32_t)value * CONFIG_STATUS_LED_BRIGHTNESS) / 255U;
+    return (uint8_t)((scaled * normalized) / 255U);
 }
 
 static uint32_t ns_to_rmt_ticks(uint32_t ns)
@@ -211,123 +210,90 @@ static uint32_t ns_to_rmt_ticks(uint32_t ns)
     return ticks > 0 ? (uint32_t)ticks : 1;
 }
 
-static status_led_signal_t signal_for_state(status_led_state_t state)
+static status_led_timing_t timing_for_effect(const tele_signal_effect_t *effect)
 {
-    switch (state) {
-    case STATUS_LED_STATE_WIFI_CONNECTING:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_BLINK_FAST,
-            .color = color_from_rgb(CONFIG_STATUS_LED_WIFI_CONNECTING_COLOR),
-        };
-    case STATUS_LED_STATE_WIFI_PROVISIONING:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_BLINK_SLOW,
-            .color = color_from_rgb(CONFIG_STATUS_LED_WIFI_PROVISIONING_COLOR),
-        };
-    case STATUS_LED_STATE_WIFI_CONNECTED:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_SOLID,
-            .color = color_from_rgb(CONFIG_STATUS_LED_WIFI_CONNECTED_COLOR),
-        };
-    case STATUS_LED_STATE_PRODUCT_TRANSMITTING:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_BLINK_FAST,
-            .color = color_from_rgb(CONFIG_STATUS_LED_PRODUCT_TRANSMITTING_COLOR),
-        };
-    case STATUS_LED_STATE_PRODUCT_WAITING:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_BLINK_SLOW,
-            .color = color_from_rgb(CONFIG_STATUS_LED_PRODUCT_WAITING_COLOR),
-        };
-    case STATUS_LED_STATE_PRODUCT_RESULT_OK:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_SOLID,
-            .color = color_from_rgb(CONFIG_STATUS_LED_PRODUCT_RESULT_OK_COLOR),
-        };
-    case STATUS_LED_STATE_PRODUCT_RESULT_ALERT:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_SOLID,
-            .color = color_from_rgb(CONFIG_STATUS_LED_PRODUCT_RESULT_ALERT_COLOR),
-        };
-    case STATUS_LED_STATE_OUTPUT_ACTIVE:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_SOLID,
-            .color = color_from_rgb(CONFIG_STATUS_LED_OUTPUT_ACTIVE_COLOR),
-        };
-    case STATUS_LED_STATE_ERROR:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_BLINK_FAST,
-            .color = color_from_rgb(CONFIG_STATUS_LED_ERROR_COLOR),
-        };
-    case STATUS_LED_STATE_LOW_BATTERY:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_BLINK_SLOW,
-            .color = color_from_rgb(CONFIG_STATUS_LED_LOW_BATTERY_COLOR),
-        };
-    case STATUS_LED_STATE_BOOT:
-    default:
-        return (status_led_signal_t) {
-            .pattern = STATUS_LED_PATTERN_BREATH,
-            .color = color_from_rgb(CONFIG_STATUS_LED_BOOT_COLOR),
-        };
-    }
-}
-
-static status_led_timing_t timing_for_signal(const status_led_signal_t *signal)
-{
-    if (!signal) {
+    if (!effect) {
         return (status_led_timing_t) {0};
     }
 
-    switch (signal->pattern) {
-    case STATUS_LED_PATTERN_SOLID:
+    if (strcmp(effect->id, TELE_SIGNAL_EFFECT_SOLID) == 0) {
         return (status_led_timing_t) {
-            .pattern = signal->pattern,
-            .color = signal->color,
-        };
-    case STATUS_LED_PATTERN_BREATH:
-        return (status_led_timing_t) {
-            .pattern = signal->pattern,
-            .color = signal->color,
-            .on_ms = 1800,
-        };
-    case STATUS_LED_PATTERN_BLINK_FAST:
-        return (status_led_timing_t) {
-            .pattern = signal->pattern,
-            .color = signal->color,
-            .on_ms = 150,
-            .off_ms = 150,
-        };
-    case STATUS_LED_PATTERN_BLINK_SLOW:
-        return (status_led_timing_t) {
-            .pattern = signal->pattern,
-            .color = signal->color,
-            .on_ms = 700,
-            .off_ms = 700,
-        };
-    case STATUS_LED_PATTERN_OFF:
-    default:
-        return (status_led_timing_t) {
-            .pattern = STATUS_LED_PATTERN_OFF,
+            .effect_id = TELE_SIGNAL_EFFECT_SOLID,
+            .color_a = effect->color_a,
+            .brightness = effect->brightness,
         };
     }
+
+    if (strcmp(effect->id, TELE_SIGNAL_EFFECT_BREATH) == 0) {
+        return (status_led_timing_t) {
+            .effect_id = TELE_SIGNAL_EFFECT_BREATH,
+            .color_a = effect->color_a,
+            .on_ms = effect->time_a_ms > 0 ? effect->time_a_ms : 1200,
+            .brightness = effect->brightness,
+        };
+    }
+
+    if (strcmp(effect->id, TELE_SIGNAL_EFFECT_BLINK) == 0) {
+        return (status_led_timing_t) {
+            .effect_id = TELE_SIGNAL_EFFECT_BLINK,
+            .color_a = effect->color_a,
+            .color_b = {0},
+            .on_ms = effect->time_a_ms > 0 ? effect->time_a_ms : 250,
+            .off_ms = effect->time_b_ms > 0 ? effect->time_b_ms : 750,
+            .brightness = effect->brightness,
+        };
+    }
+
+    if (strcmp(effect->id, TELE_SIGNAL_EFFECT_ALTERNATE) == 0) {
+        return (status_led_timing_t) {
+            .effect_id = TELE_SIGNAL_EFFECT_ALTERNATE,
+            .color_a = effect->color_a,
+            .color_b = effect->color_b,
+            .on_ms = effect->time_a_ms > 0 ? effect->time_a_ms : 400,
+            .off_ms = effect->time_b_ms > 0 ? effect->time_b_ms : 400,
+            .brightness = effect->brightness,
+        };
+    }
+
+    if (strcmp(effect->id, TELE_SIGNAL_EFFECT_HEARTBEAT) == 0) {
+        return (status_led_timing_t) {
+            .effect_id = TELE_SIGNAL_EFFECT_HEARTBEAT,
+            .color_a = effect->color_a,
+            .on_ms = effect->time_a_ms > 0 ? effect->time_a_ms : 1800,
+            .brightness = effect->brightness,
+        };
+    }
+
+    if (strcmp(effect->id, TELE_SIGNAL_EFFECT_PULSE) == 0) {
+        return (status_led_timing_t) {
+            .effect_id = TELE_SIGNAL_EFFECT_PULSE,
+            .color_a = effect->color_a,
+            .on_ms = effect->time_a_ms > 0 ? effect->time_a_ms : 120,
+            .off_ms = effect->time_b_ms > 0 ? effect->time_b_ms : 880,
+            .brightness = effect->brightness,
+        };
+    }
+
+    return (status_led_timing_t) {
+        .effect_id = TELE_SIGNAL_EFFECT_OFF,
+    };
 }
 
-static status_led_color_t scale_color(status_led_color_t color, uint8_t scale)
+static tele_signal_color_t scale_color(tele_signal_color_t color, uint8_t scale)
 {
-    return (status_led_color_t) {
+    return (tele_signal_color_t) {
         .red = (uint8_t)(((uint32_t)color.red * scale) / 255U),
         .green = (uint8_t)(((uint32_t)color.green * scale) / 255U),
         .blue = (uint8_t)(((uint32_t)color.blue * scale) / 255U),
     };
 }
 
-static void set_pixel_buffer(status_led_color_t color)
+static void set_pixel_buffer(tele_signal_color_t color, uint8_t effect_brightness)
 {
     uint8_t channels[3] = {
-        apply_brightness(color.red),
-        apply_brightness(color.green),
-        apply_brightness(color.blue),
+        apply_brightness(color.red, effect_brightness),
+        apply_brightness(color.green, effect_brightness),
+        apply_brightness(color.blue, effect_brightness),
     };
 #if CONFIG_STATUS_LED_COLOR_ORDER_RGB
     uint8_t wire_order[3] = {0, 1, 2};
@@ -352,14 +318,14 @@ static void set_pixel_buffer(status_led_color_t color)
     }
 }
 
-static esp_err_t show_color(status_led_color_t color)
+static esp_err_t show_color(tele_signal_color_t color, uint8_t effect_brightness)
 {
     rmt_transmit_config_t tx_config = {
         .loop_count = 0,
     };
     esp_err_t err = ESP_OK;
 
-    set_pixel_buffer(color);
+    set_pixel_buffer(color, effect_brightness);
     err = rmt_transmit(s_tx_channel,
                        s_led_encoder,
                        s_led_pixels,
@@ -374,7 +340,7 @@ static esp_err_t show_color(status_led_color_t color)
 
 static esp_err_t clear_led(void)
 {
-    return show_color((status_led_color_t) {0});
+    return show_color((tele_signal_color_t) {0}, 0);
 }
 
 RMT_ENCODER_FUNC_ATTR
@@ -514,30 +480,30 @@ static void status_led_task(void *arg)
 {
     (void)arg;
 
-    status_led_signal_t last_signal = {0};
-    bool has_last_signal = false;
+    tele_signal_effect_t last_effect = {0};
+    bool has_last_effect = false;
     uint32_t state_phase_start_ms = 0;
-    status_led_color_t last_applied_color = {0};
+    tele_signal_color_t last_applied_color = {0};
     bool has_last_applied_color = false;
 
     while (true) {
-        status_led_signal_t signal = s_signal;
-        status_led_timing_t timing = timing_for_signal(&signal);
+        tele_signal_effect_t effect = s_effect;
+        status_led_timing_t timing = timing_for_effect(&effect);
         uint32_t now_ms = esp_log_timestamp();
         bool base_on = true;
-        status_led_color_t target_color = {0};
+        tele_signal_color_t target_color = {0};
 
-        if (!has_last_signal || memcmp(&signal, &last_signal, sizeof(signal)) != 0) {
-            last_signal = signal;
-            has_last_signal = true;
+        if (!has_last_effect || memcmp(&effect, &last_effect, sizeof(effect)) != 0) {
+            last_effect = effect;
+            has_last_effect = true;
             state_phase_start_ms = now_ms;
         }
 
-        if (timing.pattern == STATUS_LED_PATTERN_OFF) {
+        if (strcmp(timing.effect_id, TELE_SIGNAL_EFFECT_OFF) == 0) {
             base_on = false;
-        } else if (timing.pattern == STATUS_LED_PATTERN_SOLID) {
+        } else if (strcmp(timing.effect_id, TELE_SIGNAL_EFFECT_SOLID) == 0) {
             base_on = true;
-        } else if (timing.pattern == STATUS_LED_PATTERN_BREATH) {
+        } else if (strcmp(timing.effect_id, TELE_SIGNAL_EFFECT_BREATH) == 0) {
             uint32_t period_ms = timing.on_ms > 0 ? timing.on_ms : 1800;
             uint32_t phase_ms = (now_ms - state_phase_start_ms) % period_ms;
             uint32_t half_period_ms = period_ms / 2U;
@@ -545,7 +511,23 @@ static void status_led_task(void *arg)
                             (phase_ms < half_period_ms ? phase_ms : period_ms - phase_ms) :
                             0;
             uint8_t scale = (uint8_t)(32U + ((ramp * 223U) / (half_period_ms > 0 ? half_period_ms : 1U)));
-            target_color = scale_color(timing.color, scale);
+            target_color = scale_color(timing.color_a, scale);
+            base_on = false;
+        } else if (strcmp(timing.effect_id, TELE_SIGNAL_EFFECT_HEARTBEAT) == 0) {
+            uint32_t period_ms = timing.on_ms > 0 ? timing.on_ms : 1800;
+            uint32_t phase_ms = (now_ms - state_phase_start_ms) % period_ms;
+            base_on = phase_ms < 90 || (phase_ms >= 180 && phase_ms < 270);
+        } else if (strcmp(timing.effect_id, TELE_SIGNAL_EFFECT_PULSE) == 0) {
+            uint32_t elapsed_ms = now_ms - state_phase_start_ms;
+            base_on = elapsed_ms < timing.on_ms;
+        } else if (strcmp(timing.effect_id, TELE_SIGNAL_EFFECT_ALTERNATE) == 0) {
+            uint32_t cycle_ms = timing.on_ms + timing.off_ms;
+            if (cycle_ms == 0 || timing.on_ms == 0) {
+                base_on = false;
+            } else {
+                uint32_t phase_ms = (now_ms - state_phase_start_ms) % cycle_ms;
+                target_color = phase_ms < timing.on_ms ? timing.color_a : timing.color_b;
+            }
             base_on = false;
         } else {
             uint32_t cycle_ms = timing.on_ms + timing.off_ms;
@@ -558,7 +540,7 @@ static void status_led_task(void *arg)
         }
 
         if (base_on) {
-            target_color = timing.color;
+            target_color = timing.color_a;
         }
 
         if (s_capture_overlay) {
@@ -577,7 +559,7 @@ static void status_led_task(void *arg)
             if (target_color.red == 0 && target_color.green == 0 && target_color.blue == 0) {
                 clear_led();
             } else {
-                show_color(target_color);
+                show_color(target_color, timing.brightness);
             }
             last_applied_color = target_color;
             has_last_applied_color = true;
@@ -621,8 +603,7 @@ esp_err_t status_led_start(void)
         return err;
     }
 
-    s_state = STATUS_LED_STATE_BOOT;
-    s_signal = signal_for_state(STATUS_LED_STATE_BOOT);
+    status_led_off();
     if (xTaskCreate(status_led_task,
                     "status_led",
                     CONFIG_STATUS_LED_TASK_STACK_SIZE,
@@ -639,49 +620,40 @@ esp_err_t status_led_start(void)
 #endif
 }
 
-status_led_state_t status_led_get_state(void)
-{
-    return s_state;
-}
-
-esp_err_t status_led_set_state(status_led_state_t state)
+esp_err_t status_led_apply_effect(const tele_signal_effect_t *effect)
 {
 #if CONFIG_STATUS_LED_ENABLED
-    if (state > STATUS_LED_STATE_LOW_BATTERY) {
+    if (!effect) {
         return ESP_ERR_INVALID_ARG;
     }
+    if (!status_led_effect_supported(effect->id)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
 
-    s_state = state;
-    status_led_signal_t signal = signal_for_state(state);
-    return status_led_set_signal(&signal);
+    s_effect = *effect;
+    return ESP_OK;
 #else
-    (void)state;
+    (void)effect;
     return ESP_OK;
 #endif
 }
 
-esp_err_t status_led_set_signal(const status_led_signal_t *signal)
+esp_err_t status_led_off(void)
 {
-#if CONFIG_STATUS_LED_ENABLED
-    if (!signal || signal->pattern > STATUS_LED_PATTERN_BLINK_FAST) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    s_signal = *signal;
-    return ESP_OK;
-#else
-    (void)signal;
-    return ESP_OK;
-#endif
+    const tele_signal_effect_t off_effect = {
+        .id = TELE_SIGNAL_EFFECT_OFF,
+        .target_mask = TELE_SIGNAL_TARGET_ALL,
+    };
+    return status_led_apply_effect(&off_effect);
 }
 
-esp_err_t status_led_get_signal(status_led_signal_t *out_signal)
+esp_err_t status_led_get_current_effect(tele_signal_effect_t *out_effect)
 {
-    if (!out_signal) {
+    if (!out_effect) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    *out_signal = s_signal;
+    *out_effect = s_effect;
     return ESP_OK;
 }
 

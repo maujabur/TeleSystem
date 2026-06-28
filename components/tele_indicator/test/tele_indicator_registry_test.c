@@ -4,107 +4,170 @@
 
 #include "tele_indicator.h"
 
-static tele_indicator_state_t last_applied;
+static tele_signal_effect_t last_effect;
 static int apply_calls;
 
-static esp_err_t apply_sink(const tele_indicator_state_t *state, void *ctx)
+static esp_err_t apply_sink(const tele_signal_effect_t *effect, void *ctx)
 {
     (void)ctx;
-    assert(state != NULL);
-    last_applied = *state;
+    assert(effect != NULL);
+    last_effect = *effect;
     apply_calls++;
     return ESP_OK;
 }
 
-static const tele_indicator_source_t boot_source = {
-    .id = "boot",
-    .label = "Boot",
-    .priority = 10,
+static const char *const status_led_effects[] = {
+    "off",
+    "solid",
+    "blink",
+    "alternate",
+    "breath",
+    "heartbeat",
+    "pulse",
+};
+
+static const tele_indicator_output_t status_led_output = {
+    .id = "status_led",
+    .supported_effect_ids = status_led_effects,
+    .supported_effect_count = sizeof(status_led_effects) / sizeof(status_led_effects[0]),
+    .apply = apply_sink,
+};
+
+static const tele_indicator_output_t limited_output = {
+    .id = "limited",
+    .supported_effect_ids = status_led_effects,
+    .supported_effect_count = 1,
+    .apply = apply_sink,
+};
+
+static const tele_indicator_source_t system_source = {
+    .id = "system",
+    .default_priority = 100,
 };
 
 static const tele_indicator_source_t wifi_source = {
     .id = "wifi",
-    .label = "Wi-Fi",
-    .priority = 30,
+    .default_priority = 30,
 };
 
-static const tele_indicator_source_t ota_source = {
-    .id = "ota",
-    .label = "OTA",
-    .priority = 80,
-};
+static tele_indicator_event_t make_event(const char *id,
+                                         const char *output_id,
+                                         const char *effect_id,
+                                         uint8_t priority,
+                                         uint32_t duration_ms,
+                                         uint8_t red)
+{
+    tele_indicator_event_t event = {
+        .id = id,
+        .output_id = output_id,
+        .priority = priority,
+        .duration_ms = duration_ms,
+        .effect = {
+            .color_a = {.red = red},
+            .brightness = 80,
+            .target_mask = TELE_SIGNAL_TARGET_ALL,
+        },
+    };
+    strncpy(event.effect.id, effect_id, sizeof(event.effect.id) - 1);
+    return event;
+}
 
 int main(void)
 {
-    tele_indicator_state_t effective = {0};
+    tele_indicator_effective_t effective = {0};
 
-    assert(tele_indicator_init(&(tele_indicator_config_t) {
-        .apply = apply_sink,
-    }) == ESP_OK);
-
-    assert(tele_indicator_register_source(&boot_source) == ESP_OK);
+    assert(tele_indicator_init() == ESP_OK);
+    assert(tele_indicator_register_output(&status_led_output) == ESP_OK);
+    assert(tele_indicator_register_output(&status_led_output) == ESP_ERR_INVALID_STATE);
+    assert(tele_indicator_register_source(&system_source) == ESP_OK);
     assert(tele_indicator_register_source(&wifi_source) == ESP_OK);
-    assert(tele_indicator_register_source(&ota_source) == ESP_OK);
-    assert(tele_indicator_register_source(&wifi_source) == ESP_ERR_INVALID_STATE);
 
-    assert(tele_indicator_set_state(&(tele_indicator_state_t) {
-        .source_id = "boot",
-        .pattern = TELE_INDICATOR_PATTERN_BREATH,
-        .color = {.red = 32, .green = 32, .blue = 32},
-        .reason = "starting",
-        .active = true,
-    }) == ESP_OK);
-    assert(apply_calls == 1);
-    assert(strcmp(last_applied.source_id, "boot") == 0);
-    assert(last_applied.pattern == TELE_INDICATOR_PATTERN_BREATH);
-    assert(last_applied.color.red == 32);
-
-    assert(tele_indicator_set_state(&(tele_indicator_state_t) {
-        .source_id = "wifi",
-        .pattern = TELE_INDICATOR_PATTERN_BLINK_FAST,
-        .color = {.red = 0, .green = 64, .blue = 255},
-        .reason = "connecting",
-        .active = true,
-    }) == ESP_OK);
-    assert(apply_calls == 2);
-    assert(strcmp(last_applied.source_id, "wifi") == 0);
-    assert(last_applied.pattern == TELE_INDICATOR_PATTERN_BLINK_FAST);
-    assert(last_applied.color.blue == 255);
-
-    assert(tele_indicator_set_state(&(tele_indicator_state_t) {
-        .source_id = "ota",
-        .pattern = TELE_INDICATOR_PATTERN_BLINK_SLOW,
-        .color = {.red = 128, .green = 0, .blue = 255},
-        .reason = "updating",
-        .active = true,
-    }) == ESP_OK);
-    assert(apply_calls == 3);
-    assert(strcmp(last_applied.source_id, "ota") == 0);
-    assert(last_applied.color.red == 128);
-
-    assert(tele_indicator_get_effective(&effective) == ESP_OK);
-    assert(strcmp(effective.source_id, "ota") == 0);
-    assert(strcmp(effective.reason, "updating") == 0);
-
-    assert(tele_indicator_clear_state("ota") == ESP_OK);
-    assert(apply_calls == 4);
-    assert(strcmp(last_applied.source_id, "wifi") == 0);
-    assert(strcmp(last_applied.reason, "connecting") == 0);
-
-    assert(tele_indicator_clear_state("wifi") == ESP_OK);
-    assert(apply_calls == 5);
-    assert(strcmp(last_applied.source_id, "boot") == 0);
-
-    assert(tele_indicator_clear_state("boot") == ESP_OK);
-    assert(apply_calls == 6);
-    assert(last_applied.pattern == TELE_INDICATOR_PATTERN_OFF);
-    assert(!last_applied.active);
-
-    assert(tele_indicator_set_state(&(tele_indicator_state_t) {
-        .source_id = "missing",
-        .pattern = TELE_INDICATOR_PATTERN_SOLID,
-        .active = true,
+    assert(tele_indicator_register_event(&(tele_indicator_event_t) {
+        .id = "missing.output",
+        .output_id = "missing",
+        .priority = 10,
+        .effect = {.id = "solid"},
     }) == ESP_ERR_NOT_FOUND);
+
+    assert(tele_indicator_register_output(&limited_output) == ESP_OK);
+    assert(tele_indicator_register_event(&(tele_indicator_event_t) {
+        .id = "unsupported.effect",
+        .output_id = "limited",
+        .priority = 10,
+        .effect = {.id = "solid"},
+    }) == ESP_ERR_NOT_SUPPORTED);
+
+    tele_indicator_event_t boot = make_event("system.boot", "status_led", "breath", 10, 0, 20);
+    tele_indicator_event_t wifi_connecting = make_event("wifi.connecting", "status_led", "blink", 30, 0, 40);
+    tele_indicator_event_t wifi_connected = make_event("wifi.connected", "status_led", "solid", 15, 1000, 60);
+    tele_indicator_event_t system_error = make_event("system.error", "status_led", "blink", 250, 0, 255);
+    tele_indicator_event_t wifi_same_visual = make_event("wifi.same_visual", "status_led", "blink", 30, 0, 40);
+
+    assert(tele_indicator_register_event(&boot) == ESP_OK);
+    assert(tele_indicator_register_event(&wifi_connecting) == ESP_OK);
+    assert(tele_indicator_register_event(&wifi_connected) == ESP_OK);
+    assert(tele_indicator_register_event(&system_error) == ESP_OK);
+    assert(tele_indicator_register_event(&wifi_same_visual) == ESP_OK);
+
+    assert(tele_indicator_raise("system", "system.boot") == ESP_OK);
+    assert(apply_calls == 1);
+    assert(strcmp(last_effect.id, "breath") == 0);
+
+    assert(tele_indicator_raise("wifi", "wifi.connecting") == ESP_OK);
+    assert(apply_calls == 2);
+    assert(strcmp(last_effect.id, "blink") == 0);
+    assert(last_effect.color_a.red == 40);
+
+    assert(tele_indicator_raise("system", "system.error") == ESP_OK);
+    assert(apply_calls == 3);
+    assert(last_effect.color_a.red == 255);
+
+    assert(tele_indicator_clear_event("system.error") == ESP_OK);
+    assert(apply_calls == 4);
+    assert(last_effect.color_a.red == 40);
+
+    assert(tele_indicator_raise("system", "system.boot") == ESP_OK);
+    assert(apply_calls == 4);
+
+    assert(tele_indicator_raise("wifi", "wifi.same_visual") == ESP_OK);
+    assert(apply_calls == 4);
+    assert(tele_indicator_get_effective(&effective) == ESP_OK);
+    assert(strcmp(effective.event_id, "wifi.same_visual") == 0);
+
+    assert(tele_indicator_raise("wifi", "wifi.connected") == ESP_OK);
+    assert(apply_calls == 5);
+    assert(strcmp(last_effect.id, "solid") == 0);
+    assert(last_effect.color_a.red == 60);
+
+    tele_indicator_host_advance_time(999);
+    assert(tele_indicator_get_effective(&effective) == ESP_OK);
+    assert(strcmp(effective.event_id, "wifi.connected") == 0);
+
+    tele_indicator_host_advance_time(1);
+    assert(tele_indicator_get_effective(&effective) == ESP_OK);
+    assert(strcmp(effective.event_id, "system.boot") == 0);
+    assert(apply_calls == 6);
+
+    assert(tele_indicator_raise("wifi", "wifi.connected") == ESP_OK);
+    assert(apply_calls == 7);
+    tele_indicator_host_advance_time(500);
+    assert(tele_indicator_raise("wifi", "wifi.connecting") == ESP_OK);
+    assert(apply_calls == 8);
+    tele_indicator_host_advance_time(500);
+    assert(tele_indicator_get_effective(&effective) == ESP_OK);
+    assert(strcmp(effective.event_id, "wifi.connecting") == 0);
+    assert(apply_calls == 8);
+    assert(tele_indicator_clear_source("wifi") == ESP_OK);
+    assert(apply_calls == 9);
+
+    assert(tele_indicator_clear_source("system") == ESP_OK);
+    assert(apply_calls == 10);
+    assert(strcmp(last_effect.id, "off") == 0);
+    assert(tele_indicator_get_effective(&effective) == ESP_OK);
+    assert(!effective.active);
+
+    assert(tele_indicator_raise("missing", "system.boot") == ESP_ERR_NOT_FOUND);
+    assert(tele_indicator_raise("system", "missing.event") == ESP_ERR_NOT_FOUND);
 
     return 0;
 }

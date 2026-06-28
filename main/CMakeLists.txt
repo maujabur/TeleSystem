@@ -1,5 +1,6 @@
 set(MAIN_SRCS
     "main.c"
+    "app_indicators.c"
     "connectivity/connectivity_controller.c"
 )
 

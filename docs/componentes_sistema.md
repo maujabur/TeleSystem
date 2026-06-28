@@ -14,41 +14,44 @@ Inclui:
 - `vbat_monitor.c`: medicao e politica de bateria;
 - `power_good.c`: controle de alimentacao de perifericos.
 
+### `components/tele_signal`
+
+Define tipos compartilhados de sinal fisico: `tele_signal_color_t`,
+`tele_signal_effect_t`, IDs de efeito (`off`, `solid`, `blink`, `alternate`,
+`breath`, `heartbeat`, `pulse`) e targets.
+
 ### `components/status_led`
 
-Driver/stub de LED WS28xx. Ele recebe apenas sinal fisico: padrao e cor.
-
-API nova:
+Driver/stub de LED WS28xx. Ele nao conhece estados semanticos de aplicacao.
+Recebe apenas `tele_signal_effect_t`:
 
 ```c
-status_led_signal_t signal = {
-    .pattern = STATUS_LED_PATTERN_BLINK_FAST,
-    .color = {.red = 0x00, .green = 0x40, .blue = 0xFF},
+tele_signal_effect_t effect = {
+    .id = TELE_SIGNAL_EFFECT_BLINK,
+    .color_a = {.red = 0x00, .green = 0x40, .blue = 0xFF},
+    .time_a_ms = 250,
+    .time_b_ms = 750,
+    .brightness = 80,
+    .target_mask = TELE_SIGNAL_TARGET_ALL,
 };
-ESP_ERROR_CHECK(status_led_set_signal(&signal));
+ESP_ERROR_CHECK(status_led_apply_effect(&effect));
 ```
-
-A API antiga por `status_led_state_t` continua como wrapper interno, mas novas
-integrações devem preferir `status_led_set_signal()`.
 
 ### `components/tele_indicator`
 
-Registry generico de indicadores logicos. Cada fonte registra prioridade e
-publica um estado com `pattern`, `color`, `reason` e `active`. O estado ativo de
-maior prioridade vence e e aplicado por um callback, atualmente conectado ao
-`status_led`.
+Registry generico de indicadores logicos. Registra outputs, fontes e eventos.
+Eventos ativos sao arbitrados por prioridade e recencia. Eventos com
+`duration_ms > 0` sao limpos automaticamente.
 
-Exemplo:
+Exemplo de uso pela aplicacao:
 
 ```c
-tele_indicator_set_state(&(tele_indicator_state_t) {
-    .source_id = "wifi",
-    .pattern = TELE_INDICATOR_PATTERN_BLINK_FAST,
-    .color = {.red = 0x00, .green = 0x40, .blue = 0xFF},
-    .reason = "connecting",
-    .active = true,
-});
+tele_indicator_raise("wifi", "wifi.connecting");
+tele_indicator_raise("battery", "battery.low");
+tele_indicator_clear_source("wifi");
 ```
+
+Manual completo: [tele_indicator.md](tele_indicator.md).
 
 ## Versao De Firmware
 
