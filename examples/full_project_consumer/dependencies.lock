@@ -1,0 +1,338 @@
+dependencies:
+  espressif/cjson:
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    source:
+      path: ../../managed_components/espressif__cjson
+      type: local
+    version: 1.7.19~2
+  espressif/mqtt:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../managed_components/espressif__mqtt
+      type: local
+    version: 1.0.0
+  idf:
+    source:
+      type: idf
+    version: 6.2.0
+  status_led:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/status_led
+      type: local
+    version: 0.1.0
+  tele_artifacts:
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    source:
+      path: ../../components/tele_artifacts
+      type: local
+    version: 0.1.0
+  tele_boot_config_button:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_boot_config_button
+      type: local
+    version: 0.1.0
+  tele_ca_store:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_ca_store
+      type: local
+    version: 0.1.0
+  tele_ca_updater:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_ca_updater
+      type: local
+    version: 0.1.0
+  tele_channels:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_channels
+      type: local
+    version: 0.1.0
+  tele_commands:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_commands
+      type: local
+    version: 0.1.0
+  tele_config:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_config
+      type: local
+    version: 0.1.0
+  tele_core_commands:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_core_commands
+      type: local
+    version: 0.1.0
+  tele_firmware_portal_ota:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_firmware_portal_ota
+      type: local
+    version: 0.1.0
+  tele_indicator:
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    source:
+      path: ../../components/tele_indicator
+      type: local
+    version: 0.1.0
+  tele_manifest:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_manifest
+      type: local
+    version: 0.1.0
+  tele_mqtt:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    - name: espressif/mqtt
+      version: '*'
+    source:
+      path: ../../components/tele_mqtt
+      type: local
+    version: 0.1.0
+  tele_portal:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_portal
+      type: local
+    version: 0.1.0
+  tele_portal_assets:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_portal_assets
+      type: local
+    version: 0.1.0
+  tele_portal_captive:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_portal_captive
+      type: local
+    version: 0.1.0
+  tele_portal_commands:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_portal_commands
+      type: local
+    version: 0.1.0
+  tele_portal_config:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_portal_config
+      type: local
+    version: 0.1.0
+  tele_portal_core:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_portal_core
+      type: local
+    version: 0.1.0
+  tele_portal_logs:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_portal_logs
+      type: local
+    version: 0.1.0
+  tele_portal_ota:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_portal_ota
+      type: local
+    version: 0.1.0
+  tele_portal_status:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_portal_status
+      type: local
+    version: 0.1.0
+  tele_portal_wifi:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_portal_wifi
+      type: local
+    version: 0.1.0
+  tele_presence:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_presence
+      type: local
+    version: 0.1.0
+  tele_signal:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_signal
+      type: local
+    version: 0.1.0
+  tele_status:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_status
+      type: local
+    version: 0.1.0
+  tele_system:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_system
+      type: local
+    version: 0.1.0
+  tele_system_registry:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_system_registry
+      type: local
+    version: 0.1.0
+  tele_time_sync:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_time_sync
+      type: local
+    version: 0.1.0
+  tele_wifi:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_wifi
+      type: local
+    version: 0.1.0
+  tele_wifi_device_config:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_wifi_device_config
+      type: local
+    version: 0.1.0
+direct_dependencies:
+- espressif/cjson
+- espressif/mqtt
+- status_led
+- tele_artifacts
+- tele_boot_config_button
+- tele_ca_store
+- tele_ca_updater
+- tele_channels
+- tele_commands
+- tele_config
+- tele_core_commands
+- tele_firmware_portal_ota
+- tele_indicator
+- tele_manifest
+- tele_mqtt
+- tele_portal
+- tele_portal_assets
+- tele_portal_captive
+- tele_portal_commands
+- tele_portal_config
+- tele_portal_core
+- tele_portal_logs
+- tele_portal_ota
+- tele_portal_status
+- tele_portal_wifi
+- tele_presence
+- tele_signal
+- tele_status
+- tele_system
+- tele_system_registry
+- tele_time_sync
+- tele_wifi
+- tele_wifi_device_config
+manifest_hash: 1e2102a18679709aa65fefabc2297252312b40b982d6312c1c4fa61da62dc6c2
+target: esp32s3
+version: 3.0.0

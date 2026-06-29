@@ -1,0 +1,231 @@
+dependencies:
+  espressif/cjson:
+    version: "^1.7.19"
+    override_path: ../../../managed_components/espressif__cjson
+  espressif/mqtt:
+    version: "*"
+    override_path: ../../../managed_components/espressif__mqtt
+
+  status_led:
+    path: ../../../components/status_led
+  tele_artifacts:
+    path: ../../../components/tele_artifacts
+  tele_boot_config_button:
+    path: ../../../components/tele_boot_config_button
+  tele_ca_store:
+    path: ../../../components/tele_ca_store
+  tele_ca_updater:
+    path: ../../../components/tele_ca_updater
+  tele_channels:
+    path: ../../../components/tele_channels
+  tele_commands:
+    path: ../../../components/tele_commands
+  tele_config:
+    path: ../../../components/tele_config
+  tele_core_commands:
+    path: ../../../components/tele_core_commands
+  tele_firmware_portal_ota:
+    path: ../../../components/tele_firmware_portal_ota
+  tele_indicator:
+    path: ../../../components/tele_indicator
+  tele_manifest:
+    path: ../../../components/tele_manifest
+  tele_mqtt:
+    path: ../../../components/tele_mqtt
+  tele_portal:
+    path: ../../../components/tele_portal
+  tele_portal_assets:
+    path: ../../../components/tele_portal_assets
+  tele_portal_captive:
+    path: ../../../components/tele_portal_captive
+  tele_portal_commands:
+    path: ../../../components/tele_portal_commands
+  tele_portal_config:
+    path: ../../../components/tele_portal_config
+  tele_portal_core:
+    path: ../../../components/tele_portal_core
+  tele_portal_logs:
+    path: ../../../components/tele_portal_logs
+  tele_portal_ota:
+    path: ../../../components/tele_portal_ota
+  tele_portal_status:
+    path: ../../../components/tele_portal_status
+  tele_portal_wifi:
+    path: ../../../components/tele_portal_wifi
+  tele_presence:
+    path: ../../../components/tele_presence
+  tele_signal:
+    path: ../../../components/tele_signal
+  tele_status:
+    path: ../../../components/tele_status
+  tele_system:
+    path: ../../../components/tele_system
+  tele_system_registry:
+    path: ../../../components/tele_system_registry
+  tele_time_sync:
+    path: ../../../components/tele_time_sync
+  tele_wifi:
+    path: ../../../components/tele_wifi
+  tele_wifi_device_config:
+    path: ../../../components/tele_wifi_device_config
+
+  # Em um projeto externo, troque os paths locais por dependencias GitHub.
+  # Use uma tag ou commit no lugar de "main" para builds reproduziveis.
+  #
+  # espressif/cjson: "^1.7.19"
+  # espressif/mqtt: "*"
+  #
+  # status_led:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/status_led
+  #   version: main
+  #
+  # tele_artifacts:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_artifacts
+  #   version: main
+  #
+  # tele_boot_config_button:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_boot_config_button
+  #   version: main
+  #
+  # tele_ca_store:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_ca_store
+  #   version: main
+  #
+  # tele_ca_updater:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_ca_updater
+  #   version: main
+  #
+  # tele_channels:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_channels
+  #   version: main
+  #
+  # tele_commands:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_commands
+  #   version: main
+  #
+  # tele_config:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_config
+  #   version: main
+  #
+  # tele_core_commands:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_core_commands
+  #   version: main
+  #
+  # tele_firmware_portal_ota:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_firmware_portal_ota
+  #   version: main
+  #
+  # tele_indicator:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_indicator
+  #   version: main
+  #
+  # tele_manifest:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_manifest
+  #   version: main
+  #
+  # tele_mqtt:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_mqtt
+  #   version: main
+  #
+  # tele_portal:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal
+  #   version: main
+  #
+  # tele_portal_assets:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_assets
+  #   version: main
+  #
+  # tele_portal_captive:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_captive
+  #   version: main
+  #
+  # tele_portal_commands:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_commands
+  #   version: main
+  #
+  # tele_portal_config:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_config
+  #   version: main
+  #
+  # tele_portal_core:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_core
+  #   version: main
+  #
+  # tele_portal_logs:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_logs
+  #   version: main
+  #
+  # tele_portal_ota:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_ota
+  #   version: main
+  #
+  # tele_portal_status:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_status
+  #   version: main
+  #
+  # tele_portal_wifi:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_portal_wifi
+  #   version: main
+  #
+  # tele_presence:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_presence
+  #   version: main
+  #
+  # tele_signal:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_signal
+  #   version: main
+  #
+  # tele_status:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_status
+  #   version: main
+  #
+  # tele_system:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_system
+  #   version: main
+  #
+  # tele_system_registry:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_system_registry
+  #   version: main
+  #
+  # tele_time_sync:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_time_sync
+  #   version: main
+  #
+  # tele_wifi:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_wifi
+  #   version: main
+  #
+  # tele_wifi_device_config:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_wifi_device_config
+  #   version: main
