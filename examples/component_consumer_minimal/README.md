@@ -21,6 +21,33 @@ O `main/idf_component.yml` usa `path:` para apontar para os componentes locais.
 Em um projeto externo, troque esses paths pelos blocos `git` comentados no
 manifesto do exemplo.
 
+## Consumo via GitHub
+
+Em um projeto externo com ESP-IDF Component Manager habilitado, declare os
+componentes no `idf_component.yml` do consumidor:
+
+```yaml
+dependencies:
+  tele_channels:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_channels
+    version: main
+  tele_config:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_config
+    version: main
+  tele_status:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_status
+    version: main
+  tele_commands:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_commands
+    version: main
+```
+
+Troque `main` por uma tag ou commit para builds reproduziveis.
+
 ## Consumo externo offline
 
 Sem acesso ao registry da Espressif, um projeto externo pode usar

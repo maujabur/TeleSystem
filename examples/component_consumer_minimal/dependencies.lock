@@ -11,6 +11,14 @@ dependencies:
     source:
       type: idf
     version: 6.2.0
+  tele_channels:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_channels
+      type: local
+    version: 0.1.0
   tele_commands:
     dependencies:
     - name: idf
@@ -43,9 +51,10 @@ dependencies:
     version: 0.1.0
 direct_dependencies:
 - espressif/cjson
+- tele_channels
 - tele_commands
 - tele_config
 - tele_status
-manifest_hash: 85779e3182e2b5f2b704eb4c68113f127ae8c2465fd417b8f1dc11e8a9ac8c92
+manifest_hash: 52c8d9e89ebb3295601c1ef89df872878b96131f3fa78432ff6768545e906a54
 target: esp32s3
 version: 3.0.0

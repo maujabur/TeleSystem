@@ -19,6 +19,14 @@ dependencies:
     source:
       type: idf
     version: 6.2.0
+  tele_channels:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: ../../components/tele_channels
+      type: local
+    version: 0.1.0
   tele_commands:
     dependencies:
     - name: idf
@@ -37,6 +45,16 @@ dependencies:
       version: ^1.7.19
     source:
       path: ../../components/tele_config
+      type: local
+    version: 0.1.0
+  tele_core_commands:
+    dependencies:
+    - name: idf
+      version: '>=5.3'
+    - name: espressif/cjson
+      version: ^1.7.19
+    source:
+      path: ../../components/tele_core_commands
       type: local
     version: 0.1.0
   tele_mqtt:
@@ -64,10 +82,12 @@ dependencies:
 direct_dependencies:
 - espressif/cjson
 - espressif/mqtt
+- tele_channels
 - tele_commands
 - tele_config
+- tele_core_commands
 - tele_mqtt
 - tele_status
-manifest_hash: b5224043d4bc639215439498021e33511b0f62ad241ffebc45120827fa399bf8
+manifest_hash: b053105d13462ec0384bd738a924daf1495fa9e56a7ee4fa83f69d3a25eaf1d6
 target: esp32s3
 version: 3.0.0

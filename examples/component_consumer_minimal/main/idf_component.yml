@@ -8,19 +8,26 @@ dependencies:
     path: ../../../components/tele_status
   tele_commands:
     path: ../../../components/tele_commands
+  tele_channels:
+    path: ../../../components/tele_channels
 
   # Em um projeto externo, troque os paths locais por uma tag real:
+  # tele_channels:
+  #   git: https://github.com/maujabur/TeleSystem.git
+  #   path: components/tele_channels
+  #   version: main
+  #
   # tele_config:
   #   git: https://github.com/maujabur/TeleSystem.git
   #   path: components/tele_config
-  #   version: lib-v0.1.0
+  #   version: main
   #
   # tele_status:
   #   git: https://github.com/maujabur/TeleSystem.git
   #   path: components/tele_status
-  #   version: lib-v0.1.0
+  #   version: main
   #
   # tele_commands:
   #   git: https://github.com/maujabur/TeleSystem.git
   #   path: components/tele_commands
-  #   version: lib-v0.1.0
+  #   version: main

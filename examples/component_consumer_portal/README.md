@@ -24,3 +24,22 @@ idf.py -C examples/component_consumer_portal build
 O `main/idf_component.yml` usa `path:` para apontar para os componentes locais.
 Em um projeto externo, troque esses paths pelos blocos `git` comentados no
 manifesto do exemplo.
+
+## Consumo via GitHub
+
+Em um projeto externo com ESP-IDF Component Manager habilitado, declare os
+componentes HTTP necessarios no `idf_component.yml` do consumidor:
+
+```yaml
+dependencies:
+  tele_portal_core:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_portal_core
+    version: main
+  tele_portal_logs:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_portal_logs
+    version: main
+```
+
+Troque `main` por uma tag ou commit para builds reproduziveis.

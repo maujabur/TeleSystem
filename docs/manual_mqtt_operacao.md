@@ -149,8 +149,43 @@ firmware_assets/web
 Se o produto tiver outro backend de update, use `tele_portal_ota` diretamente
 com callbacks proprios e nao inclua `tele_firmware_portal_ota`.
 
-Se o projeto usar o gerenciador de componentes do ESP-IDF, `cJSON` e `mqtt`
-podem vir como dependencias em vez de serem copiados como `managed_components`.
+Se o projeto usar o gerenciador de componentes do ESP-IDF, `cJSON`, `mqtt` e os
+componentes TeleSystem podem vir como dependencias em vez de serem copiados para
+o workspace. Para consumir diretamente do GitHub, declare o conjunto MQTT no
+`idf_component.yml` do projeto:
+
+```yaml
+dependencies:
+  tele_channels:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_channels
+    version: main
+  tele_config:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_config
+    version: main
+  tele_status:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_status
+    version: main
+  tele_commands:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_commands
+    version: main
+  tele_core_commands:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_core_commands
+    version: main
+  tele_mqtt:
+    git: https://github.com/maujabur/TeleSystem.git
+    path: components/tele_mqtt
+    version: main
+```
+
+`path` aponta para o componente dentro do repositorio e `version` pode ser uma
+branch, tag ou commit. Em producao, use uma tag ou commit para travar a revisao.
+Inclua no manifest do consumidor todos os componentes TeleSystem citados no
+`REQUIRES` do perfil escolhido.
 
 No `CMakeLists.txt` do componente que faz o bootstrap do produto, declare pelo
 menos:
