@@ -194,7 +194,7 @@ Ferramenta de manifests: [tools/update_artifacts/README.md](tools/update_artifac
 
 `tele_system` concentra:
 
-- `firmware_version.h`: `APP_VERSION_SEMVER`, label e build id.
+- `firmware_version.h`: macros de versao derivadas de `main/app_firmware_version.h`.
 - `firmware_ota.c`: servico de OTA.
 - `vbat_monitor.c`: leitura VBAT e politica de bateria critica.
 - `power_good.c`: GPIO de alimentacao de perifericos.
