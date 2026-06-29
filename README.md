@@ -254,6 +254,8 @@ componentes TeleSystem usados pelo perfil:
 
 ```yaml
 dependencies:
+  espressif/cjson: "^1.7.19"
+  espressif/mqtt: "*"
   tele_channels:
     git: https://github.com/maujabur/TeleSystem.git
     path: components/tele_channels
@@ -280,11 +282,12 @@ dependencies:
     version: main
 ```
 
-O campo `path` aponta para o componente dentro deste repositorio e `version`
-pode ser uma branch, tag ou commit. Para builds reproduziveis, prefira uma tag
-ou commit. Os exemplos em `examples/component_consumer_*` mostram os conjuntos
-minimo, MQTT e portal com `path` local e blocos comentados equivalentes para
-GitHub.
+`espressif/cjson` e `espressif/mqtt` podem vir do ESP-IDF Component Manager. Nos
+componentes TeleSystem, o campo `path` aponta para o componente dentro deste
+repositorio e `version` pode ser uma branch, tag ou commit. Para builds
+reproduziveis, prefira uma tag ou commit. Os exemplos em
+`examples/component_consumer_*` mostram os conjuntos minimo, MQTT e portal com
+`path` local e blocos comentados equivalentes para GitHub.
 
 ## Build E Flash
 

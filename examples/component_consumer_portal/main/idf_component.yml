@@ -8,6 +8,8 @@ dependencies:
     path: ../../../components/tele_portal_logs
 
   # Em um projeto externo, troque os paths locais por uma tag real:
+  # espressif/cjson: "^1.7.19"
+  #
   # tele_portal_core:
   #   git: https://github.com/maujabur/TeleSystem.git
   #   path: components/tele_portal_core

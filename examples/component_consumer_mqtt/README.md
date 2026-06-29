@@ -27,6 +27,8 @@ conjunto MQTT no `idf_component.yml` do consumidor:
 
 ```yaml
 dependencies:
+  espressif/cjson: "^1.7.19"
+  espressif/mqtt: "*"
   tele_channels:
     git: https://github.com/maujabur/TeleSystem.git
     path: components/tele_channels

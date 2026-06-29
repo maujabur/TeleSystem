@@ -12,6 +12,8 @@ dependencies:
     path: ../../../components/tele_channels
 
   # Em um projeto externo, troque os paths locais por uma tag real:
+  # espressif/cjson: "^1.7.19"
+  #
   # tele_channels:
   #   git: https://github.com/maujabur/TeleSystem.git
   #   path: components/tele_channels

@@ -156,6 +156,8 @@ o workspace. Para consumir diretamente do GitHub, declare o conjunto MQTT no
 
 ```yaml
 dependencies:
+  espressif/cjson: "^1.7.19"
+  espressif/mqtt: "*"
   tele_channels:
     git: https://github.com/maujabur/TeleSystem.git
     path: components/tele_channels
@@ -182,10 +184,11 @@ dependencies:
     version: main
 ```
 
-`path` aponta para o componente dentro do repositorio e `version` pode ser uma
-branch, tag ou commit. Em producao, use uma tag ou commit para travar a revisao.
-Inclua no manifest do consumidor todos os componentes TeleSystem citados no
-`REQUIRES` do perfil escolhido.
+`espressif/cjson` e `espressif/mqtt` podem ser resolvidos pelo Component
+Manager. Para componentes TeleSystem, `path` aponta para o componente dentro do
+repositorio e `version` pode ser uma branch, tag ou commit. Em producao, use uma
+tag ou commit para travar a revisao. Inclua no manifest do consumidor todos os
+componentes TeleSystem citados no `REQUIRES` do perfil escolhido.
 
 No `CMakeLists.txt` do componente que faz o bootstrap do produto, declare pelo
 menos:

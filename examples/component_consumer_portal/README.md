@@ -32,6 +32,7 @@ componentes HTTP necessarios no `idf_component.yml` do consumidor:
 
 ```yaml
 dependencies:
+  espressif/cjson: "^1.7.19"
   tele_portal_core:
     git: https://github.com/maujabur/TeleSystem.git
     path: components/tele_portal_core
