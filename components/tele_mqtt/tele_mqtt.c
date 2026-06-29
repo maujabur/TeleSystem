@@ -7,41 +7,63 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef TELE_MQTT_HOST_TEST
 #include "esp_crt_bundle.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "mqtt_client.h"
 #include "tele_commands.h"
 #include "tele_config.h"
 #include "tele_core_commands.h"
 #include "tele_status.h"
+#else
+#define ESP_LOGI(tag, fmt, ...) ((void)(tag))
+#define ESP_LOGW(tag, fmt, ...) ((void)(tag))
+#define ESP_LOGE(tag, fmt, ...) ((void)(tag))
+typedef void *esp_mqtt_client_handle_t;
+typedef int esp_mqtt_transport_t;
+typedef void *TaskHandle_t;
+typedef void *SemaphoreHandle_t;
+#endif
 
 #define TELE_MQTT_TOPIC_BUF_SIZE 128
 #define TELE_MQTT_DEVICE_ID_SIZE 64
 #define TELE_MQTT_TS_BUF_SIZE 40
 #define TELE_MQTT_JSON_BUF_SIZE 512
 #define TELE_MQTT_CMD_IN_PAYLOAD_BUF_SIZE 1024
+#define TELE_MQTT_SHARED_PAYLOAD_BUF_SIZE 1024
 #define TELE_MQTT_HEARTBEAT_INTERVAL_MIN_S 15
 #define TELE_MQTT_HEARTBEAT_INTERVAL_MAX_S 3600
 #define TELE_MQTT_CONFIG_ID_HEARTBEAT_INTERVAL "mqtt.heartbeat_interval_s"
 #define TELE_MQTT_SESSION_ID_SIZE 48
 #define TELE_MQTT_START_RETRY_DELAY_MS 1000
 
+#ifndef CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS
+#define CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS 8
+#endif
+
+#ifndef CONFIG_TELE_MQTT_SHARED_TOPIC_SUFFIX_MAX_LEN
+#define CONFIG_TELE_MQTT_SHARED_TOPIC_SUFFIX_MAX_LEN 64
+#endif
+
 static const char *TAG = "tele-mqtt";
 
 static tele_mqtt_config_t s_config;
+static bool s_connected;
+static esp_mqtt_client_handle_t s_client;
+
+#ifndef TELE_MQTT_HOST_TEST
 static bool s_started;
 static bool s_client_started;
-static bool s_connected;
 static bool s_restart_requested;
 static uint32_t s_restart_at_ms;
 static uint32_t s_last_wait_log_ms;
 static uint32_t s_heartbeat_interval_s;
-static esp_mqtt_client_handle_t s_client;
 static TaskHandle_t s_heartbeat_task;
 static esp_mqtt_transport_t s_broker_transport;
 static uint32_t s_broker_port;
@@ -60,10 +82,40 @@ static char s_topic_meta_commands[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_cmd_in[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_topic_cmd_out[TELE_MQTT_TOPIC_BUF_SIZE];
 static char s_cmd_in_payload_buf[TELE_MQTT_CMD_IN_PAYLOAD_BUF_SIZE];
+#endif
+static char s_shared_payload_buf[TELE_MQTT_SHARED_PAYLOAD_BUF_SIZE];
 
+typedef struct {
+    bool used;
+    char suffix[CONFIG_TELE_MQTT_SHARED_TOPIC_SUFFIX_MAX_LEN + 1];
+    char full_topic[TELE_MQTT_TOPIC_BUF_SIZE];
+    int qos;
+    tele_mqtt_shared_handler_t handler;
+    void *ctx;
+} tele_mqtt_shared_subscription_t;
+
+static tele_mqtt_shared_subscription_t s_shared_subscriptions[CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS];
+static SemaphoreHandle_t s_shared_subscriptions_mutex;
+
+#ifdef TELE_MQTT_HOST_TEST
+static char s_host_last_subscribed_topic[TELE_MQTT_TOPIC_BUF_SIZE];
+static int s_host_last_subscribed_qos;
+static int s_host_subscribe_count;
+static char s_host_last_published_topic[TELE_MQTT_TOPIC_BUF_SIZE];
+static char s_host_last_published_payload[TELE_MQTT_SHARED_PAYLOAD_BUF_SIZE];
+static int s_host_last_published_qos;
+static bool s_host_last_published_retain;
+static int s_host_lock_take_count;
+static int s_host_lock_give_count;
+#endif
+
+#ifndef TELE_MQTT_HOST_TEST
 static void publish_config_manifest(void);
 static void publish_commands_manifest(void);
+#endif
+static void subscribe_shared_topics(void);
 
+#ifndef TELE_MQTT_HOST_TEST
 static const char *str_or_empty(const char *value)
 {
     return value ? value : "";
@@ -74,12 +126,510 @@ static const char *firmware_version(void)
     return s_config.firmware_version && s_config.firmware_version[0] != '\0' ?
            s_config.firmware_version : "unknown";
 }
+#endif
 
 static const char *base_topic(void)
 {
     return s_config.base_topic && s_config.base_topic[0] != '\0' ?
            s_config.base_topic : "v1/telesystem";
 }
+
+static bool mqtt_qos_is_valid(int qos)
+{
+    return qos >= 0 && qos <= 2;
+}
+
+static esp_err_t ensure_shared_subscriptions_mutex(void)
+{
+#ifdef TELE_MQTT_HOST_TEST
+    if (!s_shared_subscriptions_mutex) {
+        s_shared_subscriptions_mutex = (SemaphoreHandle_t)0x1;
+    }
+    return ESP_OK;
+#else
+    if (s_shared_subscriptions_mutex) {
+        return ESP_OK;
+    }
+
+    s_shared_subscriptions_mutex = xSemaphoreCreateMutex();
+    return s_shared_subscriptions_mutex ? ESP_OK : ESP_ERR_NO_MEM;
+#endif
+}
+
+static esp_err_t lock_shared_subscriptions(void)
+{
+    esp_err_t err = ensure_shared_subscriptions_mutex();
+    if (err != ESP_OK) {
+        return err;
+    }
+
+#ifdef TELE_MQTT_HOST_TEST
+    s_host_lock_take_count++;
+    return ESP_OK;
+#else
+    return xSemaphoreTake(s_shared_subscriptions_mutex, portMAX_DELAY) == pdTRUE ?
+           ESP_OK : ESP_FAIL;
+#endif
+}
+
+static void unlock_shared_subscriptions(void)
+{
+    if (!s_shared_subscriptions_mutex) {
+        return;
+    }
+
+#ifdef TELE_MQTT_HOST_TEST
+    s_host_lock_give_count++;
+#else
+    xSemaphoreGive(s_shared_subscriptions_mutex);
+#endif
+}
+
+static esp_err_t validate_shared_suffix(const char *topic_suffix)
+{
+    if (!topic_suffix || topic_suffix[0] == '\0') {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (topic_suffix[0] == '/') {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t len = strlen(topic_suffix);
+    if (len > CONFIG_TELE_MQTT_SHARED_TOPIC_SUFFIX_MAX_LEN || topic_suffix[len - 1] == '/') {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    for (size_t i = 0; i < len; ++i) {
+        char c = topic_suffix[i];
+        if (c == '+' || c == '#') {
+            return ESP_ERR_INVALID_ARG;
+        }
+        if (c == '/' && topic_suffix[i + 1] == '/') {
+            return ESP_ERR_INVALID_ARG;
+        }
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t build_shared_topic(const char *topic_suffix, char *out_topic, size_t out_topic_len)
+{
+    int written = 0;
+
+    if (!out_topic || out_topic_len == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (validate_shared_suffix(topic_suffix) != ESP_OK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    written = snprintf(out_topic, out_topic_len, "%s/_shared/%s", base_topic(), topic_suffix);
+    if (written < 0 || (size_t)written >= out_topic_len || (size_t)written >= TELE_MQTT_TOPIC_BUF_SIZE) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    return ESP_OK;
+}
+
+static tele_mqtt_shared_subscription_t *find_shared_subscription_by_suffix(const char *topic_suffix)
+{
+    for (size_t i = 0; i < CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS; ++i) {
+        if (s_shared_subscriptions[i].used &&
+            strcmp(s_shared_subscriptions[i].suffix, topic_suffix) == 0) {
+            return &s_shared_subscriptions[i];
+        }
+    }
+    return NULL;
+}
+
+static tele_mqtt_shared_subscription_t *find_shared_subscription_by_topic(const char *topic, size_t topic_len)
+{
+    for (size_t i = 0; i < CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS; ++i) {
+        tele_mqtt_shared_subscription_t *subscription = &s_shared_subscriptions[i];
+        if (!subscription->used) {
+            continue;
+        }
+
+        size_t full_topic_len = strlen(subscription->full_topic);
+        if (full_topic_len == topic_len &&
+            strncmp(topic, subscription->full_topic, topic_len) == 0) {
+            return subscription;
+        }
+    }
+    return NULL;
+}
+
+static tele_mqtt_shared_subscription_t *find_free_shared_subscription(void)
+{
+    for (size_t i = 0; i < CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS; ++i) {
+        if (!s_shared_subscriptions[i].used) {
+            return &s_shared_subscriptions[i];
+        }
+    }
+    return NULL;
+}
+
+static esp_err_t refresh_shared_subscription_topic(tele_mqtt_shared_subscription_t *subscription)
+{
+    if (!subscription || !subscription->used) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    return build_shared_topic(subscription->suffix,
+                              subscription->full_topic,
+                              sizeof(subscription->full_topic));
+}
+
+static esp_err_t refresh_shared_subscription_topics(void)
+{
+    esp_err_t lock_err = lock_shared_subscriptions();
+    if (lock_err != ESP_OK) {
+        return lock_err;
+    }
+
+    for (size_t i = 0; i < CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS; ++i) {
+        if (!s_shared_subscriptions[i].used) {
+            continue;
+        }
+
+        esp_err_t err = refresh_shared_subscription_topic(&s_shared_subscriptions[i]);
+        if (err != ESP_OK) {
+            unlock_shared_subscriptions();
+            return err;
+        }
+    }
+
+    unlock_shared_subscriptions();
+    return ESP_OK;
+}
+
+static int mqtt_subscribe_raw(const char *topic, int qos)
+{
+#ifdef TELE_MQTT_HOST_TEST
+    snprintf(s_host_last_subscribed_topic, sizeof(s_host_last_subscribed_topic), "%s", topic ? topic : "");
+    s_host_last_subscribed_qos = qos;
+    s_host_subscribe_count++;
+    return s_host_subscribe_count;
+#else
+    if (!s_client || !topic) {
+        return -1;
+    }
+    return esp_mqtt_client_subscribe(s_client, topic, qos);
+#endif
+}
+
+static int mqtt_publish_raw(const char *topic, const char *payload, int qos, bool retain)
+{
+#ifdef TELE_MQTT_HOST_TEST
+    snprintf(s_host_last_published_topic, sizeof(s_host_last_published_topic), "%s", topic ? topic : "");
+    snprintf(s_host_last_published_payload,
+             sizeof(s_host_last_published_payload),
+             "%s",
+             payload ? payload : "");
+    s_host_last_published_qos = qos;
+    s_host_last_published_retain = retain;
+    return 1;
+#else
+    if (!s_client || !topic || !payload) {
+        return -1;
+    }
+    return esp_mqtt_client_publish(s_client, topic, payload, 0, qos, retain ? 1 : 0);
+#endif
+}
+
+static void subscribe_shared_topic(tele_mqtt_shared_subscription_t *subscription)
+{
+    int msg_id = -1;
+    char suffix[CONFIG_TELE_MQTT_SHARED_TOPIC_SUFFIX_MAX_LEN + 1] = {0};
+    char full_topic[TELE_MQTT_TOPIC_BUF_SIZE] = {0};
+    int qos = 0;
+
+    if (!subscription) {
+        return;
+    }
+
+    if (lock_shared_subscriptions() != ESP_OK) {
+        ESP_LOGW(TAG, "Falha ao travar registry de topicos compartilhados");
+        return;
+    }
+    if (!subscription->used) {
+        unlock_shared_subscriptions();
+        return;
+    }
+    if (refresh_shared_subscription_topic(subscription) != ESP_OK) {
+        unlock_shared_subscriptions();
+        ESP_LOGW(TAG, "Falha ao atualizar topico compartilhado | suffix=%s", subscription->suffix);
+        return;
+    }
+    snprintf(suffix, sizeof(suffix), "%s", subscription->suffix);
+    snprintf(full_topic, sizeof(full_topic), "%s", subscription->full_topic);
+    qos = subscription->qos;
+    unlock_shared_subscriptions();
+
+    ESP_LOGI(TAG,
+             "shared subscribe suffix=%s topic=%s qos=%d",
+             suffix,
+             full_topic,
+             qos);
+    msg_id = mqtt_subscribe_raw(full_topic, qos);
+    if (msg_id < 0) {
+        ESP_LOGW(TAG,
+                 "Falha ao assinar topico MQTT compartilhado | suffix=%s | topic=%s | qos=%d | rc=%d",
+                 suffix,
+                 full_topic,
+                 qos,
+                 msg_id);
+    }
+}
+
+static void subscribe_shared_topics(void)
+{
+    if (refresh_shared_subscription_topics() != ESP_OK) {
+        ESP_LOGW(TAG, "Falha ao atualizar topicos compartilhados antes de assinar");
+        return;
+    }
+
+    for (size_t i = 0; i < CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS; ++i) {
+        subscribe_shared_topic(&s_shared_subscriptions[i]);
+    }
+}
+
+#ifdef TELE_MQTT_HOST_TEST
+static bool dispatch_shared_topic_data(const char *topic,
+                                       size_t topic_len,
+                                       const char *payload,
+                                       size_t payload_len)
+{
+    tele_mqtt_shared_handler_t handler = NULL;
+    void *ctx = NULL;
+    char full_topic[TELE_MQTT_TOPIC_BUF_SIZE] = {0};
+
+    if (!topic || !payload) {
+        return false;
+    }
+    if (topic_len >= TELE_MQTT_TOPIC_BUF_SIZE || payload_len >= sizeof(s_shared_payload_buf)) {
+        ESP_LOGW(TAG,
+                 "Payload/topico compartilhado grande demais | topic_len=%u | payload_len=%u",
+                 (unsigned)topic_len,
+                 (unsigned)payload_len);
+        return false;
+    }
+
+    if (lock_shared_subscriptions() != ESP_OK) {
+        return false;
+    }
+
+    tele_mqtt_shared_subscription_t *subscription = find_shared_subscription_by_topic(topic, topic_len);
+    if (subscription) {
+        handler = subscription->handler;
+        ctx = subscription->ctx;
+        snprintf(full_topic, sizeof(full_topic), "%s", subscription->full_topic);
+    }
+    unlock_shared_subscriptions();
+
+    if (!handler) {
+        return false;
+    }
+
+    memcpy(s_shared_payload_buf, payload, payload_len);
+    s_shared_payload_buf[payload_len] = '\0';
+    esp_err_t err = handler(full_topic, s_shared_payload_buf, payload_len, ctx);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG,
+                 "Handler de topico compartilhado retornou erro | topic=%s | err=%s",
+                 full_topic,
+                 esp_err_to_name(err));
+    }
+    return true;
+}
+#endif
+
+esp_err_t tele_mqtt_subscribe_shared(const char *topic_suffix,
+                                     int qos,
+                                     tele_mqtt_shared_handler_t handler,
+                                     void *ctx)
+{
+    char full_topic[TELE_MQTT_TOPIC_BUF_SIZE] = {0};
+    tele_mqtt_shared_subscription_t *slot = NULL;
+    esp_err_t lock_err = ESP_OK;
+    bool should_subscribe = false;
+
+    if (!handler || !mqtt_qos_is_valid(qos)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (build_shared_topic(topic_suffix, full_topic, sizeof(full_topic)) != ESP_OK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    lock_err = lock_shared_subscriptions();
+    if (lock_err != ESP_OK) {
+        return lock_err;
+    }
+
+    if (find_shared_subscription_by_suffix(topic_suffix)) {
+        unlock_shared_subscriptions();
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    slot = find_free_shared_subscription();
+    if (!slot) {
+        unlock_shared_subscriptions();
+        return ESP_ERR_NO_MEM;
+    }
+
+    memset(slot, 0, sizeof(*slot));
+    slot->used = true;
+    snprintf(slot->suffix, sizeof(slot->suffix), "%s", topic_suffix);
+    snprintf(slot->full_topic, sizeof(slot->full_topic), "%s", full_topic);
+    slot->qos = qos;
+    slot->handler = handler;
+    slot->ctx = ctx;
+    should_subscribe = s_connected;
+    unlock_shared_subscriptions();
+
+    ESP_LOGI(TAG, "shared register suffix=%s qos=%d", topic_suffix, qos);
+    if (should_subscribe) {
+        subscribe_shared_topic(slot);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t tele_mqtt_publish_shared(const char *topic_suffix,
+                                   const char *payload,
+                                   int qos,
+                                   bool retain)
+{
+    char full_topic[TELE_MQTT_TOPIC_BUF_SIZE] = {0};
+    int msg_id = -1;
+
+    if (!payload || !mqtt_qos_is_valid(qos)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (build_shared_topic(topic_suffix, full_topic, sizeof(full_topic)) != ESP_OK) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_connected || !s_client) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    msg_id = mqtt_publish_raw(full_topic, payload, qos, retain);
+    if (msg_id < 0) {
+        ESP_LOGW(TAG,
+                 "Falha ao publicar topico MQTT compartilhado | topic=%s | qos=%d | retain=%d",
+                 full_topic,
+                 qos,
+                 retain ? 1 : 0);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+#ifdef TELE_MQTT_HOST_TEST
+void tele_mqtt_host_test_reset(void)
+{
+    memset(&s_config, 0, sizeof(s_config));
+    memset(s_shared_subscriptions, 0, sizeof(s_shared_subscriptions));
+    memset(s_host_last_subscribed_topic, 0, sizeof(s_host_last_subscribed_topic));
+    memset(s_host_last_published_topic, 0, sizeof(s_host_last_published_topic));
+    memset(s_host_last_published_payload, 0, sizeof(s_host_last_published_payload));
+    s_connected = false;
+    s_client = NULL;
+    s_host_last_subscribed_qos = 0;
+    s_host_subscribe_count = 0;
+    s_host_last_published_qos = 0;
+    s_host_last_published_retain = false;
+    s_host_lock_take_count = 0;
+    s_host_lock_give_count = 0;
+    s_shared_subscriptions_mutex = NULL;
+}
+
+void tele_mqtt_host_test_set_base_topic(const char *base_topic_value)
+{
+    s_config.base_topic = base_topic_value;
+}
+
+void tele_mqtt_host_test_set_connected(bool connected)
+{
+    bool was_connected = s_connected;
+    s_connected = connected;
+    s_client = connected ? (esp_mqtt_client_handle_t)0x1 : NULL;
+    if (connected && !was_connected) {
+        subscribe_shared_topics();
+    }
+}
+
+esp_err_t tele_mqtt_host_test_build_shared_topic(const char *topic_suffix,
+                                                 char *out_topic,
+                                                 size_t out_topic_len)
+{
+    return build_shared_topic(topic_suffix, out_topic, out_topic_len);
+}
+
+size_t tele_mqtt_host_test_shared_subscription_count(void)
+{
+    size_t count = 0;
+    for (size_t i = 0; i < CONFIG_TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS; ++i) {
+        if (s_shared_subscriptions[i].used) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int tele_mqtt_host_test_subscribe_count(void)
+{
+    return s_host_subscribe_count;
+}
+
+const char *tele_mqtt_host_test_last_subscribed_topic(void)
+{
+    return s_host_last_subscribed_topic;
+}
+
+int tele_mqtt_host_test_last_subscribed_qos(void)
+{
+    return s_host_last_subscribed_qos;
+}
+
+const char *tele_mqtt_host_test_last_published_topic(void)
+{
+    return s_host_last_published_topic;
+}
+
+const char *tele_mqtt_host_test_last_published_payload(void)
+{
+    return s_host_last_published_payload;
+}
+
+int tele_mqtt_host_test_last_published_qos(void)
+{
+    return s_host_last_published_qos;
+}
+
+bool tele_mqtt_host_test_last_published_retain(void)
+{
+    return s_host_last_published_retain;
+}
+
+bool tele_mqtt_host_test_dispatch_data(const char *topic, const char *payload, size_t payload_len)
+{
+    return dispatch_shared_topic_data(topic, strlen(topic), payload, payload_len);
+}
+
+int tele_mqtt_host_test_lock_take_count(void)
+{
+    return s_host_lock_take_count;
+}
+
+int tele_mqtt_host_test_lock_give_count(void)
+{
+    return s_host_lock_give_count;
+}
+#endif
+
+#ifndef TELE_MQTT_HOST_TEST
 
 static int qos_critical(void)
 {
@@ -708,6 +1258,69 @@ static void heartbeat_task(void *arg)
     }
 }
 
+static bool handle_shared_event_data(esp_mqtt_event_handle_t event)
+{
+    tele_mqtt_shared_subscription_t *subscription = NULL;
+    tele_mqtt_shared_handler_t handler = NULL;
+    void *ctx = NULL;
+    char full_topic[TELE_MQTT_TOPIC_BUF_SIZE] = {0};
+    int total_len = 0;
+    int offset = 0;
+
+    if (!event || !event->topic || !event->data || event->topic_len <= 0 || event->data_len < 0) {
+        return false;
+    }
+
+    if (lock_shared_subscriptions() != ESP_OK) {
+        return false;
+    }
+
+    subscription = find_shared_subscription_by_topic(event->topic, (size_t)event->topic_len);
+    if (!subscription) {
+        unlock_shared_subscriptions();
+        return false;
+    }
+    handler = subscription->handler;
+    ctx = subscription->ctx;
+    snprintf(full_topic, sizeof(full_topic), "%s", subscription->full_topic);
+    unlock_shared_subscriptions();
+
+    total_len = event->total_data_len > 0 ? event->total_data_len : event->data_len;
+    offset = event->current_data_offset;
+    if (total_len <= 0 || offset < 0 ||
+        (size_t)total_len >= sizeof(s_shared_payload_buf) ||
+        (size_t)(offset + event->data_len) >= sizeof(s_shared_payload_buf)) {
+        ESP_LOGW(TAG,
+                 "Payload compartilhado invalido/grande demais | topic=%s | total=%d | offset=%d | len=%d",
+                 full_topic,
+                 total_len,
+                 offset,
+                 event->data_len);
+        return true;
+    }
+
+    if (offset == 0) {
+        memset(s_shared_payload_buf, 0, sizeof(s_shared_payload_buf));
+    }
+
+    memcpy(s_shared_payload_buf + offset, event->data, (size_t)event->data_len);
+    if (offset + event->data_len >= total_len) {
+        s_shared_payload_buf[total_len] = '\0';
+        esp_err_t err = handler(full_topic,
+                                s_shared_payload_buf,
+                                (size_t)total_len,
+                                ctx);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG,
+                     "Handler de topico compartilhado retornou erro | topic=%s | err=%s",
+                     full_topic,
+                     esp_err_to_name(err));
+        }
+    }
+
+    return true;
+}
+
 static void mqtt_event_handler(void *handler_args,
                                esp_event_base_t base,
                                int32_t event_id,
@@ -722,6 +1335,7 @@ static void mqtt_event_handler(void *handler_args,
         s_connected = true;
         ESP_LOGI(TAG, "MQTT conectado | broker=%s", str_or_empty(s_config.broker_uri));
         esp_mqtt_client_subscribe(s_client, s_topic_cmd_in, qos_critical());
+        subscribe_shared_topics();
         publish_availability("online", "mqtt_connected");
         publish_config_manifest();
         publish_status_manifest();
@@ -737,6 +1351,9 @@ static void mqtt_event_handler(void *handler_args,
         break;
 
     case MQTT_EVENT_DATA:
+        if (handle_shared_event_data(event)) {
+            break;
+        }
         if (event && event->topic && event->data &&
             event->topic_len == (int)strlen(s_topic_cmd_in) &&
             strncmp(event->topic, s_topic_cmd_in, event->topic_len) == 0) {
@@ -883,6 +1500,11 @@ esp_err_t tele_mqtt_start(const tele_mqtt_config_t *config)
     }
 
     s_config = *config;
+    esp_err_t shared_topics_err = refresh_shared_subscription_topics();
+    if (shared_topics_err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao atualizar topicos compartilhados: %s", esp_err_to_name(shared_topics_err));
+        return shared_topics_err;
+    }
     s_heartbeat_interval_s = config->heartbeat_interval_s > 0 ? config->heartbeat_interval_s : 60;
     const tele_core_commands_config_t commands_config = {
         .build_state = build_core_state,
@@ -950,3 +1572,4 @@ bool tele_mqtt_is_connected(void)
 {
     return s_connected;
 }
+#endif

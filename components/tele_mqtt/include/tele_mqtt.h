@@ -16,6 +16,10 @@ typedef bool (*tele_mqtt_ready_cb_t)(void *ctx);
 typedef bool (*tele_mqtt_timestamp_cb_t)(char *buffer, size_t buffer_len, void *ctx);
 typedef cJSON *(*tele_mqtt_json_cb_t)(void *ctx);
 typedef void (*tele_mqtt_restart_cb_t)(uint32_t delay_ms, void *ctx);
+typedef esp_err_t (*tele_mqtt_shared_handler_t)(const char *topic,
+                                                const char *payload,
+                                                size_t payload_len,
+                                                void *ctx);
 
 /*
  * Public integration contract for the generic MQTT core.
@@ -67,9 +71,39 @@ typedef struct {
 esp_err_t tele_mqtt_start(const tele_mqtt_config_t *config);
 esp_err_t tele_mqtt_start_client_if_ready(void);
 esp_err_t tele_mqtt_publish_event(const char *event_name, const char *message);
+esp_err_t tele_mqtt_subscribe_shared(const char *topic_suffix,
+                                     int qos,
+                                     tele_mqtt_shared_handler_t handler,
+                                     void *ctx);
+esp_err_t tele_mqtt_publish_shared(const char *topic_suffix,
+                                   const char *payload,
+                                   int qos,
+                                   bool retain);
 uint32_t tele_mqtt_get_heartbeat_interval_s(void);
 esp_err_t tele_mqtt_apply_heartbeat_interval_s(uint32_t interval_s);
 bool tele_mqtt_is_connected(void);
+
+#ifdef TELE_MQTT_HOST_TEST
+#define TELE_MQTT_HOST_TEST_MAX_SHARED_SUBSCRIPTIONS 8
+
+void tele_mqtt_host_test_reset(void);
+void tele_mqtt_host_test_set_base_topic(const char *base_topic);
+void tele_mqtt_host_test_set_connected(bool connected);
+esp_err_t tele_mqtt_host_test_build_shared_topic(const char *topic_suffix,
+                                                 char *out_topic,
+                                                 size_t out_topic_len);
+size_t tele_mqtt_host_test_shared_subscription_count(void);
+int tele_mqtt_host_test_subscribe_count(void);
+const char *tele_mqtt_host_test_last_subscribed_topic(void);
+int tele_mqtt_host_test_last_subscribed_qos(void);
+const char *tele_mqtt_host_test_last_published_topic(void);
+const char *tele_mqtt_host_test_last_published_payload(void);
+int tele_mqtt_host_test_last_published_qos(void);
+bool tele_mqtt_host_test_last_published_retain(void);
+bool tele_mqtt_host_test_dispatch_data(const char *topic, const char *payload, size_t payload_len);
+int tele_mqtt_host_test_lock_take_count(void);
+int tele_mqtt_host_test_lock_give_count(void);
+#endif
 
 #ifdef __cplusplus
 }

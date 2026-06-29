@@ -135,7 +135,27 @@ Topicos principais:
 {base_topic}/{device_id}/meta/commands
 {base_topic}/{device_id}/cmd/in
 {base_topic}/{device_id}/cmd/out
+{base_topic}/_shared/{topic_suffix}
 ```
+
+O namespace compartilhado e reservado para componentes de dominio que precisam
+publicar ou receber topicos fora da arvore `{base_topic}/{device_id}`. O
+`topic_suffix` e sempre relativo; quem chama nao deve hardcodar `base_topic` nem
+`_shared`.
+
+Shared topics podem ser registrados durante o bootstrap ou em runtime. O
+`tele_mqtt` protege a registry interna contra acesso concorrente e chama o
+handler registrado fora da secao critica.
+
+Fronteiras:
+
+- `tele_mqtt` cuida de conexao, montagem de topico, publish, subscribe,
+  resubscribe e dispatch;
+- componentes de dominio cuidam de schema de payload, estado, filtros e regras
+  de negocio;
+- shared topics nao substituem `tele_config`, `tele_status` nem
+  `tele_commands`;
+- o contrato de topicos por dispositivo permanece inalterado.
 
 Payloads e exemplos completos ficam em
 [manual_mqtt_operacao.md](manual_mqtt_operacao.md).

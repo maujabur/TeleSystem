@@ -587,7 +587,62 @@ v1/telesystem/{device_id}/meta/status
 v1/telesystem/{device_id}/meta/commands
 v1/telesystem/{device_id}/cmd/in
 v1/telesystem/{device_id}/cmd/out
+v1/telesystem/_shared/{topic_suffix}
 ```
+
+## Topicos compartilhados
+
+`tele_mqtt` tambem oferece um namespace generico para componentes de dominio
+que precisam publicar ou receber mensagens MQTT fora da arvore por dispositivo:
+
+```text
+{base_topic}/_shared/{topic_suffix}
+```
+
+O `topic_suffix` e relativo: nao pode comecar ou terminar com `/`, nao pode ter
+segmentos vazios como `foo//bar` e, nesta primeira implementacao, nao aceita
+wildcards MQTT (`+` ou `#`). O nucleo MQTT monta o topico completo, assina de
+novo apos reconnect e despacha mensagens por match exato.
+
+O registro pode acontecer durante o bootstrap ou em runtime. A registry interna
+de shared topics e protegida contra acesso concorrente; callbacks de dominio
+sao chamados fora da secao critica.
+
+Exemplo generico:
+
+```c
+static esp_err_t example_shared_handler(const char *topic,
+                                        const char *payload,
+                                        size_t payload_len,
+                                        void *ctx)
+{
+    (void)topic;
+    (void)payload;
+    (void)payload_len;
+    (void)ctx;
+    return ESP_OK;
+}
+
+ESP_ERROR_CHECK(tele_mqtt_subscribe_shared("example/event",
+                                           1,
+                                           example_shared_handler,
+                                           NULL));
+
+ESP_ERROR_CHECK(tele_mqtt_publish_shared("example/event",
+                                         "{\"ok\":true}",
+                                         1,
+                                         false));
+```
+
+Fronteiras importantes:
+
+- `tele_mqtt` permanece dono de conexao, topicos, publish, subscribe,
+  resubscribe e dispatch;
+- componentes de dominio definem schema de payload, estado e regras de negocio;
+- shared topics nao substituem `tele_config`, `tele_status` nem
+  `tele_commands`;
+- mensagens compartilhadas nao sao retidas por padrao; quem publica escolhe
+  explicitamente o argumento `retain`.
 
 ## Publicacoes automaticas
 
@@ -1080,7 +1135,9 @@ tipos de arquivo atualizaveis por manifest devem registrar um handler em
 - canais de exposicao, como `TELE_CHANNEL_FLAG_MQTT` ou
   `TELE_CHANNEL_FLAG_WEB`, para limitar quais transportes podem executar.
 
-O componente `tele_mqtt` permanece responsavel por topicos, conexao, JSON e
-ACK/NACK. A execucao e a deduplicacao de comandos mutaveis ficam em
+O componente `tele_mqtt` permanece responsavel por topicos, conexao, JSON dos
+payloads nativos, ACK/NACK de comandos e dispatch dos topicos compartilhados.
+A execucao e a deduplicacao de comandos mutaveis ficam em
 `tele_commands_execute()`, que tambem pode ser chamado por portal HTTP ou
-serial.
+serial. Payloads recebidos em shared topics sao responsabilidade do componente
+que registrou o handler.

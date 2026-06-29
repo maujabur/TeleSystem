@@ -1,0 +1,19 @@
+menu "Tele MQTT Core Config"
+
+config TELE_MQTT_MAX_SHARED_SUBSCRIPTIONS
+    int "Maximum shared MQTT subscriptions"
+    range 1 16
+    default 8
+    help
+        Limite de inscricoes compartilhadas registradas por componentes de
+        dominio via tele_mqtt_subscribe_shared().
+
+config TELE_MQTT_SHARED_TOPIC_SUFFIX_MAX_LEN
+    int "Maximum shared MQTT topic suffix length"
+    range 8 96
+    default 64
+    help
+        Tamanho maximo do sufixo relativo usado em
+        {base_topic}/_shared/{topic_suffix}.
+
+endmenu

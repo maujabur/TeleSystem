@@ -147,7 +147,9 @@ mantem a UI simples sem misturar regra de negocio nos handlers HTTP.
 ### MQTT, config, status e comandos
 
 `tele_mqtt` publica disponibilidade, estado, heartbeat, eventos e manifests de
-config/status/commands. Tambem recebe `cmd/in` e publica `cmd/out`.
+config/status/commands. Tambem recebe `cmd/in`, publica `cmd/out` e oferece
+um namespace compartilhado para componentes de dominio que precisem trocar
+mensagens MQTT fora da arvore por dispositivo.
 
 Topicos principais:
 
@@ -162,7 +164,12 @@ Topicos principais:
 {base_topic}/{device_id}/meta/commands
 {base_topic}/{device_id}/cmd/in
 {base_topic}/{device_id}/cmd/out
+{base_topic}/_shared/{topic_suffix}
 ```
+
+O namespace `_shared` e construido apenas por `tele_mqtt`. Componentes de
+dominio registram sufixos relativos e handlers; payloads, schemas e regras de
+estado continuam fora do nucleo MQTT.
 
 `tele_presence` e o bootstrap do produto. Ele espera Wi-Fi e horario
 sincronizado, registra `tele_system_registry`, configura callbacks de status
