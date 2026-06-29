@@ -7,6 +7,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
+#include "tele_channels.h"
 #include "tele_commands.h"
 #include "tele_config.h"
 #include "tele_status.h"
@@ -27,7 +28,7 @@ static const tele_config_field_t s_config_fields[] = {
         .default_value.u32 = 60,
         .min.u32 = 5,
         .max.u32 = 3600,
-        .flags = TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_WEB,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
     },
 };
 
@@ -39,9 +40,8 @@ static const tele_status_field_t s_status_fields[] = {
         .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
         .unit = "s",
-        .flags = TELE_STATUS_FLAG_STATE |
-                 TELE_STATUS_FLAG_HEARTBEAT |
-                 TELE_STATUS_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
         .read.u32 = read_uptime_s,
     },
 };
@@ -52,7 +52,7 @@ static const tele_command_t s_commands[] = {
         .label = "Ping exemplo",
         .description = "Comando demonstrativo registrado sem MQTT.",
         .group = "example",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
     },
 };
 
@@ -94,10 +94,10 @@ void app_main(void)
         abort();
     }
 
-    ESP_ERROR_CHECK(tele_config_add_manifest_to_json(config_manifest, TELE_CONFIG_FLAG_MQTT));
-    ESP_ERROR_CHECK(tele_status_add_manifest_to_json(status_manifest, TELE_STATUS_FLAG_MQTT));
-    ESP_ERROR_CHECK(tele_commands_add_manifest_to_json(commands_manifest, TELE_COMMAND_FLAG_MQTT));
-    ESP_ERROR_CHECK(tele_status_add_fields_to_json(state, TELE_STATUS_FLAG_STATE));
+    ESP_ERROR_CHECK(tele_config_add_manifest_to_json(config_manifest, TELE_CHANNEL_FLAG_MQTT));
+    ESP_ERROR_CHECK(tele_status_add_manifest_to_json(status_manifest, TELE_CHANNEL_FLAG_MQTT));
+    ESP_ERROR_CHECK(tele_commands_add_manifest_to_json(commands_manifest, TELE_CHANNEL_FLAG_MQTT));
+    ESP_ERROR_CHECK(tele_status_add_fields_to_json(state, TELE_CHANNEL_FLAG_MQTT, TELE_STATUS_FLAG_STATE));
 
     log_json("meta/config", config_manifest);
     log_json("meta/status", status_manifest);

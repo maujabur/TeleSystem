@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "esp_err.h"
 #include "esp_event.h"
@@ -8,6 +9,7 @@
 #include "esp_system.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
+#include "tele_channels.h"
 #include "tele_commands.h"
 #include "tele_config.h"
 #include "tele_mqtt.h"
@@ -71,7 +73,7 @@ static const tele_config_field_t s_config_fields[] = {
         .default_value.u32 = 60,
         .min.u32 = 15,
         .max.u32 = 3600,
-        .flags = TELE_CONFIG_FLAG_MQTT | TELE_CONFIG_FLAG_WEB,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB,
     },
 };
 
@@ -83,9 +85,8 @@ static const tele_status_field_t s_status_fields[] = {
         .group = "runtime",
         .type = TELE_STATUS_TYPE_U32,
         .unit = "s",
-        .flags = TELE_STATUS_FLAG_STATE |
-                 TELE_STATUS_FLAG_HEARTBEAT |
-                 TELE_STATUS_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
         .read.u32 = read_uptime_s,
     },
 };
@@ -96,7 +97,7 @@ static const tele_command_t s_commands[] = {
         .label = "Ping exemplo",
         .description = "Comando de produto demonstrativo.",
         .group = "example",
-        .flags = TELE_COMMAND_FLAG_MQTT,
+        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
     },
 };
 
