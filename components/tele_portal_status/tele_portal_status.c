@@ -144,6 +144,12 @@ static esp_err_t api_status_get_handler(httpd_req_t *req)
         }
     }
 
+    esp_err_t status_fields_err =
+        tele_status_add_fields_to_json(json, TELE_CHANNEL_FLAG_WEB, TELE_STATUS_FLAG_STATE);
+    if (status_fields_err != ESP_OK && err == ESP_OK) {
+        err = status_fields_err;
+    }
+
     err = http_helpers_send_json(req, json, err == ESP_OK ? 200 : 500);
     cJSON_Delete(json);
     return err;
