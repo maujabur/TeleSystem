@@ -139,6 +139,21 @@ static void test_publish_shared(void)
     assert(tele_mqtt_host_test_last_published_retain());
 }
 
+static void test_get_device_id_contract(void)
+{
+    char out[64] = {0};
+
+    tele_mqtt_host_test_reset();
+    assert(tele_mqtt_get_device_id(NULL, sizeof(out)) == ESP_ERR_INVALID_ARG);
+    assert(tele_mqtt_get_device_id(out, 0) == ESP_ERR_INVALID_ARG);
+    assert(tele_mqtt_get_device_id(out, sizeof(out)) == ESP_ERR_INVALID_STATE);
+
+    tele_mqtt_host_test_set_device_id("TCafe-A1B2C3");
+    assert(tele_mqtt_get_device_id(out, sizeof(out)) == ESP_OK);
+    assert(strcmp(out, "TCafe-A1B2C3") == 0);
+    assert(tele_mqtt_get_device_id(out, 4) == ESP_ERR_INVALID_SIZE);
+}
+
 static void test_inbound_dispatch(void)
 {
     int ctx_calls = 0;
@@ -187,6 +202,7 @@ int main(void)
     test_immediate_subscribe_and_reconnect_resubscribe();
     test_early_registration_refreshes_topic_when_base_topic_changes();
     test_publish_shared();
+    test_get_device_id_contract();
     test_inbound_dispatch();
     test_subscription_registry_is_locked_for_mutation_and_dispatch();
     return 0;

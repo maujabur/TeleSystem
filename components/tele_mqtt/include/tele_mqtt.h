@@ -79,6 +79,7 @@ esp_err_t tele_mqtt_publish_shared(const char *topic_suffix,
                                    const char *payload,
                                    int qos,
                                    bool retain);
+esp_err_t tele_mqtt_get_device_id(char *out, size_t out_size);
 uint32_t tele_mqtt_get_heartbeat_interval_s(void);
 esp_err_t tele_mqtt_apply_heartbeat_interval_s(uint32_t interval_s);
 bool tele_mqtt_is_connected(void);
@@ -89,6 +90,7 @@ bool tele_mqtt_is_connected(void);
 void tele_mqtt_host_test_reset(void);
 void tele_mqtt_host_test_set_base_topic(const char *base_topic);
 void tele_mqtt_host_test_set_connected(bool connected);
+void tele_mqtt_host_test_set_device_id(const char *device_id);
 esp_err_t tele_mqtt_host_test_build_shared_topic(const char *topic_suffix,
                                                  char *out_topic,
                                                  size_t out_topic_len);

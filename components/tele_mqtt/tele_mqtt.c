@@ -56,6 +56,7 @@ static const char *TAG = "tele-mqtt";
 static tele_mqtt_config_t s_config;
 static bool s_connected;
 static esp_mqtt_client_handle_t s_client;
+static char s_device_id[TELE_MQTT_DEVICE_ID_SIZE];
 
 #ifndef TELE_MQTT_HOST_TEST
 static bool s_started;
@@ -68,7 +69,6 @@ static TaskHandle_t s_heartbeat_task;
 static esp_mqtt_transport_t s_broker_transport;
 static uint32_t s_broker_port;
 static char s_broker_host[96];
-static char s_device_id[TELE_MQTT_DEVICE_ID_SIZE];
 static char s_session_id[TELE_MQTT_SESSION_ID_SIZE];
 static char s_lwt_payload[TELE_MQTT_JSON_BUF_SIZE];
 static char s_topic_availability[TELE_MQTT_TOPIC_BUF_SIZE];
@@ -526,10 +526,30 @@ esp_err_t tele_mqtt_publish_shared(const char *topic_suffix,
     return ESP_OK;
 }
 
+esp_err_t tele_mqtt_get_device_id(char *out, size_t out_size)
+{
+    if (!out || out_size == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (s_device_id[0] == '\0') {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    size_t len = strlen(s_device_id);
+    if (out_size <= len) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    memcpy(out, s_device_id, len + 1);
+    return ESP_OK;
+}
+
 #ifdef TELE_MQTT_HOST_TEST
 void tele_mqtt_host_test_reset(void)
 {
     memset(&s_config, 0, sizeof(s_config));
+    memset(s_device_id, 0, sizeof(s_device_id));
     memset(s_shared_subscriptions, 0, sizeof(s_shared_subscriptions));
     memset(s_host_last_subscribed_topic, 0, sizeof(s_host_last_subscribed_topic));
     memset(s_host_last_published_topic, 0, sizeof(s_host_last_published_topic));
@@ -558,6 +578,15 @@ void tele_mqtt_host_test_set_connected(bool connected)
     if (connected && !was_connected) {
         subscribe_shared_topics();
     }
+}
+
+void tele_mqtt_host_test_set_device_id(const char *device_id)
+{
+    if (!device_id) {
+        s_device_id[0] = '\0';
+        return;
+    }
+    snprintf(s_device_id, sizeof(s_device_id), "%s", device_id);
 }
 
 esp_err_t tele_mqtt_host_test_build_shared_topic(const char *topic_suffix,
