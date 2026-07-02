@@ -74,6 +74,21 @@ static void wifi_event_handler(void *arg,
                                int32_t event_id,
                                void *event_data);
 static esp_err_t ensure_wifi_stack_ready(void);
+static void copy_truncated(char *dest, size_t dest_size, const char *source)
+{
+    if (!dest || dest_size == 0) {
+        return;
+    }
+
+    if (!source) {
+        dest[0] = '\0';
+        return;
+    }
+
+    strncpy(dest, source, dest_size - 1);
+    dest[dest_size - 1] = '\0';
+}
+
 static esp_err_t configure_ap_dhcp_services(void);
 static esp_err_t apply_wifi_power_save(bool sta_only);
 static void apsta_drop_timer_cb(TimerHandle_t timer);
@@ -808,7 +823,7 @@ static void build_ap_ssid(char *ssid, size_t ssid_size)
     memset(ssid, 0, ssid_size);
 
     if (s_configured_provisioning_ssid[0] != '\0') {
-        snprintf(ssid, ssid_size, "%s", s_configured_provisioning_ssid);
+        copy_truncated(ssid, ssid_size, s_configured_provisioning_ssid);
         return;
     }
 
@@ -1367,7 +1382,7 @@ esp_err_t wifi_manager_list_saved_networks(wifi_manager_saved_network_t *network
     }
 
     for (i = 0; i < saved_count; ++i) {
-        snprintf(networks[i].ssid, sizeof(networks[i].ssid), "%s", saved[i].ssid);
+        copy_truncated(networks[i].ssid, sizeof(networks[i].ssid), saved[i].ssid);
         networks[i].priority = saved[i].priority;
     }
 

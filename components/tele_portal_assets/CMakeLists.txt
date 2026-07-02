@@ -19,6 +19,12 @@ file(GLOB_RECURSE WEB_ASSETS
     "${WEB_ASSETS_DIR}/*"
 )
 
+list(FILTER WEB_ASSETS EXCLUDE REGEX ".*/teste\.html$")
+
+if(NOT CONFIG_TELE_PORTAL_LOGS_ENABLE_ENDPOINT)
+    list(FILTER WEB_ASSETS EXCLUDE REGEX ".*/logs\.html$")
+endif()
+
 idf_build_get_property(PYTHON PYTHON)
 
 add_custom_command(

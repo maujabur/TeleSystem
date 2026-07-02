@@ -56,36 +56,74 @@ static esp_err_t sha256_hex_to_bytes(const char *hex, uint8_t out[TELE_CA_STORE_
     return ESP_OK;
 }
 
-static void build_path(char *out, size_t out_size, const char *filename)
+static esp_err_t build_path(char *out, size_t out_size, const char *filename)
 {
-    int written = snprintf(out, out_size, "%s/%s", CONFIG_TELE_CA_STORE_BASE_PATH, filename);
-    if (written < 0 || (size_t)written >= out_size) {
-        ESP_LOGE(TAG, "Path truncated for %s", filename);
+    const char *base_path = CONFIG_TELE_CA_STORE_BASE_PATH;
+
+    if (!out || out_size == 0 || !filename) {
+        return ESP_ERR_INVALID_ARG;
     }
+
+    size_t base_len = strlen(base_path);
+    size_t filename_len = strlen(filename);
+    size_t total_len = base_len + 1 + filename_len;
+    if (total_len >= out_size) {
+        ESP_LOGE(TAG, "Path too long for %s", filename);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    memcpy(out, base_path, base_len);
+    out[base_len] = '/';
+    memcpy(out + base_len + 1, filename, filename_len + 1);
+    return ESP_OK;
 }
 
-static void build_bundle_paths(char *active_path, size_t active_size,
-                               char *temp_path, size_t temp_size,
-                               char *backup_path, size_t backup_size)
+static esp_err_t build_suffixed_path(char *out, size_t out_size,
+                                     const char *path, const char *suffix)
 {
-    build_path(active_path, active_size, CONFIG_TELE_CA_STORE_BUNDLE_FILENAME);
-    snprintf(temp_path, temp_size, "%s.tmp", active_path);
-    snprintf(backup_path, backup_size, "%s.bak", active_path);
+    if (!out || out_size == 0 || !path || !suffix) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t path_len = strlen(path);
+    size_t suffix_len = strlen(suffix);
+    size_t total_len = path_len + suffix_len;
+    if (total_len >= out_size) {
+        ESP_LOGE(TAG, "Path too long for suffix %s", suffix);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    memcpy(out, path, path_len);
+    memcpy(out + path_len, suffix, suffix_len + 1);
+    return ESP_OK;
 }
 
-static void build_version_path(char *path, size_t path_size)
+static esp_err_t build_bundle_paths(char *active_path, size_t active_size,
+                                    char *temp_path, size_t temp_size,
+                                    char *backup_path, size_t backup_size)
 {
-    build_path(path, path_size, CONFIG_TELE_CA_STORE_VERSION_FILENAME);
+    ESP_RETURN_ON_ERROR(build_path(active_path, active_size, CONFIG_TELE_CA_STORE_BUNDLE_FILENAME),
+                        TAG, "Failed to build CA bundle path");
+    ESP_RETURN_ON_ERROR(build_suffixed_path(temp_path, temp_size, active_path, ".tmp"),
+                        TAG, "Failed to build CA bundle temp path");
+    ESP_RETURN_ON_ERROR(build_suffixed_path(backup_path, backup_size, active_path, ".bak"),
+                        TAG, "Failed to build CA bundle backup path");
+    return ESP_OK;
 }
 
-static void build_version_temp_path(char *path, size_t path_size)
+static esp_err_t build_version_path(char *path, size_t path_size)
 {
-    build_path(path, path_size, CONFIG_TELE_CA_STORE_VERSION_FILENAME ".tmp");
+    return build_path(path, path_size, CONFIG_TELE_CA_STORE_VERSION_FILENAME);
 }
 
-static void build_version_backup_path(char *path, size_t path_size)
+static esp_err_t build_version_temp_path(char *path, size_t path_size)
 {
-    build_path(path, path_size, CONFIG_TELE_CA_STORE_VERSION_FILENAME ".bak");
+    return build_path(path, path_size, CONFIG_TELE_CA_STORE_VERSION_FILENAME ".tmp");
+}
+
+static esp_err_t build_version_backup_path(char *path, size_t path_size)
+{
+    return build_path(path, path_size, CONFIG_TELE_CA_STORE_VERSION_FILENAME ".bak");
 }
 
 static bool file_exists(const char *path)
@@ -196,9 +234,10 @@ static esp_err_t recover_interrupted_promotion(void)
     char active_path[128];
     char temp_path[128];
     char backup_path[128];
-    build_bundle_paths(active_path, sizeof(active_path),
-                       temp_path, sizeof(temp_path),
-                       backup_path, sizeof(backup_path));
+    ESP_RETURN_ON_ERROR(build_bundle_paths(active_path, sizeof(active_path),
+                                           temp_path, sizeof(temp_path),
+                                           backup_path, sizeof(backup_path)),
+                        TAG, "Failed to build CA recovery paths");
 
     if (!file_exists(active_path) && file_exists(backup_path)) {
         if (rename(backup_path, active_path) != 0) {
@@ -216,9 +255,12 @@ static esp_err_t recover_interrupted_promotion(void)
     char version_path[128];
     char version_temp_path[128];
     char version_backup_path[128];
-    build_version_path(version_path, sizeof(version_path));
-    build_version_temp_path(version_temp_path, sizeof(version_temp_path));
-    build_version_backup_path(version_backup_path, sizeof(version_backup_path));
+    ESP_RETURN_ON_ERROR(build_version_path(version_path, sizeof(version_path)),
+                        TAG, "Failed to build CA version path");
+    ESP_RETURN_ON_ERROR(build_version_temp_path(version_temp_path, sizeof(version_temp_path)),
+                        TAG, "Failed to build CA version temp path");
+    ESP_RETURN_ON_ERROR(build_version_backup_path(version_backup_path, sizeof(version_backup_path)),
+                        TAG, "Failed to build CA version backup path");
 
     if (!file_exists(version_path) && file_exists(version_backup_path)) {
         if (rename(version_backup_path, version_path) != 0) {
@@ -239,7 +281,8 @@ static esp_err_t recover_interrupted_promotion(void)
 static esp_err_t promote_file(const char *temp_path, const char *active_path)
 {
     char backup_path[128];
-    snprintf(backup_path, sizeof(backup_path), "%s.bak", active_path);
+    ESP_RETURN_ON_ERROR(build_suffixed_path(backup_path, sizeof(backup_path), active_path, ".bak"),
+                        TAG, "Failed to build promoted file backup path");
     unlink(backup_path);
 
     bool has_active = file_exists(active_path);
@@ -263,7 +306,8 @@ static esp_err_t promote_file(const char *temp_path, const char *active_path)
 static esp_err_t promote_version_file(const char *temp_path, const char *version_path)
 {
     char backup_path[128];
-    build_version_backup_path(backup_path, sizeof(backup_path));
+    ESP_RETURN_ON_ERROR(build_version_backup_path(backup_path, sizeof(backup_path)),
+                        TAG, "Failed to build version backup path");
     unlink(backup_path);
 
     bool has_version = file_exists(version_path);
@@ -348,7 +392,8 @@ esp_err_t tele_ca_store_init(void)
     ESP_RETURN_ON_ERROR(recover_interrupted_promotion(), TAG, "CA recovery failed");
 
     char active_path[128];
-    build_path(active_path, sizeof(active_path), CONFIG_TELE_CA_STORE_BUNDLE_FILENAME);
+    ESP_RETURN_ON_ERROR(build_path(active_path, sizeof(active_path), CONFIG_TELE_CA_STORE_BUNDLE_FILENAME),
+                        TAG, "Failed to build CA bundle path");
 
     esp_err_t err = activate_bundle_file(active_path);
     if (err == ESP_ERR_NOT_FOUND) {
@@ -372,7 +417,8 @@ esp_err_t tele_ca_store_get_version(char *out_version, size_t out_size)
     out_version[0] = '\0';
 
     char version_path[128];
-    build_version_path(version_path, sizeof(version_path));
+    ESP_RETURN_ON_ERROR(build_version_path(version_path, sizeof(version_path)),
+                        TAG, "Failed to build CA version path");
     FILE *file = fopen(version_path, "r");
     if (!file) {
         return ESP_ERR_NOT_FOUND;
@@ -396,8 +442,10 @@ esp_err_t tele_ca_store_set_version(const char *version)
 
     char version_path[128];
     char temp_path[128];
-    build_version_path(version_path, sizeof(version_path));
-    build_version_temp_path(temp_path, sizeof(temp_path));
+    ESP_RETURN_ON_ERROR(build_version_path(version_path, sizeof(version_path)),
+                        TAG, "Failed to build CA version path");
+    ESP_RETURN_ON_ERROR(build_version_temp_path(temp_path, sizeof(temp_path)),
+                        TAG, "Failed to build CA version temp path");
 
     FILE *file = fopen(temp_path, "w");
     if (!file) {
@@ -463,9 +511,10 @@ esp_err_t tele_ca_store_apply_file(const char *verified_path, const char *versio
     char active_path[128];
     char temp_path[128];
     char backup_path[128];
-    build_bundle_paths(active_path, sizeof(active_path),
-                       temp_path, sizeof(temp_path),
-                       backup_path, sizeof(backup_path));
+    ESP_RETURN_ON_ERROR(build_bundle_paths(active_path, sizeof(active_path),
+                                           temp_path, sizeof(temp_path),
+                                           backup_path, sizeof(backup_path)),
+                        TAG, "Failed to build CA bundle paths");
     (void)backup_path;
 
     unlink(temp_path);

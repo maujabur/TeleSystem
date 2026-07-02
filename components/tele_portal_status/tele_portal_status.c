@@ -6,6 +6,7 @@
 
 #include "firmware_version.h"
 #include "http_helpers.h"
+#include "tele_mqtt.h"
 #include "tele_portal_core.h"
 #include "tele_status.h"
 #include "time_sync.h"
@@ -41,6 +42,7 @@ static esp_err_t api_status_get_handler(httpd_req_t *req)
     int64_t now_ms = (int64_t)esp_log_timestamp();
     char local_now[32] = {0};
     char utc_now[32] = {0};
+    char device_id[64] = {0};
     int64_t uptime_ms = now_ms;
     cJSON *json = cJSON_CreateObject();
     cJSON *vbat_json = NULL;
@@ -53,6 +55,9 @@ static esp_err_t api_status_get_handler(httpd_req_t *req)
 
     tele_portal_core_note_activity();
     cJSON_AddStringToObject(json, "firmware_version", APP_VERSION_STRING);
+    if (tele_mqtt_get_device_id(device_id, sizeof(device_id)) == ESP_OK) {
+        cJSON_AddStringToObject(json, "device_id", device_id);
+    }
     cJSON_AddNumberToObject(json, "uptime_ms", (double)uptime_ms);
     cJSON_AddNumberToObject(json, "uptime_seconds", (double)(uptime_ms / 1000));
     power_good_json = cJSON_AddObjectToObject(json, "power_good");
